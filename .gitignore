@@ -22,3 +22,28 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Maven / Spring Boot
+backend/target/
+backend/.flattened-pom.xml
+**/.mvn/wrapper/maven-wrapper.jar
+
+# Local secrets (Spring)
+**/application-secret.yaml
+**/application-secret.properties
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# OS / IDE
+.DS_Store
+.idea/
+*.iml
+.vscode/
