@@ -26,6 +26,7 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
+          cache-dependency-path: backend/pom.xml
 
       - name: Test
         run: ./mvnw --batch-mode test
