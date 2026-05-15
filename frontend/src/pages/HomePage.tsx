@@ -1,18 +1,24 @@
 import { useCallback, useEffect, useState } from "react"
-import { Moon, Sun } from "lucide-react"
 import { toast } from "sonner"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
 import { apiFetch } from "@/lib/api"
 
-export function HomePage() {
-  const { theme, setTheme, resolvedTheme } = useTheme()
+export type ApiHealth = "healthy" | "degraded" | "unknown"
+
+type HomePageProps = {
+  onHealthChange?: (health: ApiHealth) => void
+}
+
+export function HomePage({ onHealthChange }: HomePageProps) {
+  const { theme } = useTheme()
   const [hello, setHello] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const loadHello = useCallback(async () => {
     setError(null)
+    onHealthChange?.("unknown")
     try {
       const res = await apiFetch("/api/hello", { method: "GET" })
       if (!res.ok) {
@@ -20,12 +26,14 @@ export function HomePage() {
       }
       const data = (await res.json()) as { message?: string }
       setHello(data.message ?? JSON.stringify(data))
+      onHealthChange?.("healthy")
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Request failed"
       setError(msg)
       setHello(null)
+      onHealthChange?.("degraded")
     }
-  }, [])
+  }, [onHealthChange])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -33,45 +41,49 @@ export function HomePage() {
     })
   }, [loadHello])
 
-  const toggleTheme = () => {
-    setTheme(resolvedTheme === "dark" ? "light" : "dark")
-  }
-
   return (
-    <main className="mx-auto flex min-h-svh max-w-lg flex-col gap-6 p-6">
-      <header className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">PGP Key Manager</h1>
-        <Button type="button" variant="outline" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
-          {resolvedTheme === "dark" ? <Sun /> : <Moon />}
-        </Button>
+    <section className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm md:p-8">
+      <header className="mb-6 border-b border-border pb-4">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">Backend connectivity</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Verify the API is reachable before managing keys or authentication.
+        </p>
       </header>
 
-      <section className="rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm">
-        <h2 className="mb-2 text-sm font-medium text-muted-foreground">API</h2>
-        <p className="text-sm">
-          <span className="font-medium">GET /api/hello:</span>{" "}
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-foreground">Health check</p>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">GET /api/hello</span>
+        </p>
+        <div className="rounded-md border border-input bg-background px-3 py-2.5 text-sm">
           {hello !== null && !error ? (
-            <code className="rounded bg-muted px-1 py-0.5 text-foreground">{hello}</code>
+            <code className="text-foreground">{hello}</code>
           ) : error ? (
             <span className="text-destructive">{error}</span>
           ) : (
             <span className="text-muted-foreground">Loading…</span>
           )}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={() => void loadHello()}>
-            Retry
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => toast.info("Theme", { description: `Stored theme: ${theme}` })}
-          >
-            Toast sample
-          </Button>
         </div>
-      </section>
-    </main>
+        <p className="text-xs text-muted-foreground">Response from the Spring Boot backend.</p>
+      </div>
+
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Button
+          type="button"
+          className="min-w-[8rem] transition-colors duration-200"
+          onClick={() => void loadHello()}
+        >
+          Retry
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="transition-colors duration-200"
+          onClick={() => toast.info("Theme", { description: `Stored theme: ${theme}` })}
+        >
+          Toast sample
+        </Button>
+      </div>
+    </section>
   )
 }
