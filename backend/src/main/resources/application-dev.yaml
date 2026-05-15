@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: pgp-key-manager-api
+
+logging:
+  level:
+    com.example.pgpkeymanager: DEBUG
