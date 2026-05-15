@@ -6,9 +6,11 @@ Spring Boot API (`backend/`) and a static-hosted Vite + React SPA (`frontend/`).
 
 - **JDK 25** (enforced by Maven Enforcer in `backend/pom.xml`). Example: `export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64` on Linux.
 - **Maven** (optional if you use `./mvnw` from `backend/`)
-- **Node.js 22+** and **npm** (lockfile version 3)
+- **Node.js 22.22.2** and **npm 10.9.7** (pinned for CI; see [`.nvmrc`](.nvmrc) and `frontend/package.json` `engines` / `packageManager`)
 
 Tailwind for the SPA uses the official **`@tailwindcss/vite`** plugin (same Tailwind v4 engine; Vite’s recommended integration).
+
+**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `backend` Maven tests and `frontend` `npm ci`, lint, test, and build on every push/PR to `main`.
 
 ## Backend (`backend/`)
 
