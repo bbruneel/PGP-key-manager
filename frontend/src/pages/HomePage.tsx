@@ -40,7 +40,7 @@ export function HomePage() {
   return (
     <main className="mx-auto flex min-h-svh max-w-lg flex-col gap-6 p-6">
       <header className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Thank You Board</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">PGP Key Manager</h1>
         <Button type="button" variant="outline" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
           {resolvedTheme === "dark" ? <Sun /> : <Moon />}
         </Button>

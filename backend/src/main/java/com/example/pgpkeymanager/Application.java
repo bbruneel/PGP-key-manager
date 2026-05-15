@@ -1,4 +1,4 @@
-package com.example.thankyou;
+package com.example.pgpkeymanager;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

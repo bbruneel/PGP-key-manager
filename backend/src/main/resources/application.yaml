@@ -1,6 +1,6 @@
 spring:
   application:
-    name: thankyou-api
+    name: pgp-key-manager-api
 
   threads:
     virtual:
@@ -25,7 +25,7 @@ app:
 logging:
   level:
     root: INFO
-    com.example.thankyou: INFO
+    com.example.pgpkeymanager: INFO
 
 ---
 spring:
@@ -35,4 +35,4 @@ spring:
 
 logging:
   level:
-    com.example.thankyou: DEBUG
+    com.example.pgpkeymanager: DEBUG

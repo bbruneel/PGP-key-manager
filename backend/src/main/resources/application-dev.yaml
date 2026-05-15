@@ -1,7 +1,7 @@
 spring:
   application:
-    name: thankyou-api
+    name: pgp-key-manager-api
 
 logging:
   level:
-    com.example.thankyou: DEBUG
+    com.example.pgpkeymanager: DEBUG

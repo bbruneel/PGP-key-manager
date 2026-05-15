@@ -1,6 +1,8 @@
-# Thank You Board (monorepo)
+# PGP Key Manager
 
-Spring Boot API (`backend/`) and a static-hosted Vite + React SPA (`frontend/`). No Next.js server: the browser talks to the API directly (CORS enabled for local Vite).
+GUI to manage PGP keys storage. BYO cloud storage, set alerts for expiry, host public keys and more.
+
+This repository is a **monorepo**: a Spring Boot API (`backend/`) and a static-hosted Vite + React SPA (`frontend/`). The browser talks to the API directly (CORS enabled for local Vite); there is no Next.js server.
 
 ## Prerequisites
 
@@ -8,7 +10,7 @@ Spring Boot API (`backend/`) and a static-hosted Vite + React SPA (`frontend/`).
 - **Maven** (optional if you use `./mvnw` from `backend/`)
 - **Node.js 22.22.2** and **npm 10.9.7** (pinned for CI; see [`.nvmrc`](.nvmrc) and `frontend/package.json` `engines` / `packageManager`)
 
-Tailwind for the SPA uses the official **`@tailwindcss/vite`** plugin (same Tailwind v4 engine; Vite’s recommended integration).
+Tailwind for the SPA uses the official **`@tailwindcss/vite`** plugin (Tailwind v4).
 
 **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `backend` Maven tests and `frontend` `npm ci`, lint, test, and build on every push/PR to `main`.
 
@@ -50,15 +52,14 @@ Uses **JUnit 5**, **`@WebMvcTest`** (slice) via `spring-boot-starter-webmvc-test
 - **Secrets:** do not commit credentials. Use `backend/application-secret.yaml` (gitignored) or environment variables.
 - **CORS:** `CORS_ALLOWED_ORIGINS` (comma-separated), default `http://localhost:5173` for Vite.
 
-### ThankYouBoard-style API headers (frontend)
+### Versioned API headers (frontend)
 
-When you call real board APIs later, send:
+Protected routes should send:
 
 - `Accept: application/json; version=1`
 - `Authorization: Bearer <jwt>` when authenticated
-- `X-Post-Capability-Token` when required for anonymous post flows
 
-The sample `GET /api/hello` does not require these yet.
+The scaffold’s `apiFetch` helper sets these by default. The sample `GET /api/hello` does not require auth.
 
 ---
 
@@ -102,6 +103,6 @@ End-to-end tests (e.g. Playwright against a running API) are optional and not wi
 ## Repository layout
 
 ```text
-backend/          Maven, Spring Boot 4.0.x, Java 25
+backend/          Maven, Spring Boot 4.0.x, Java 25 (com.example.pgpkeymanager)
 frontend/         Vite, React 19, TypeScript, Tailwind v4, shadcn-style UI, Auth0 SPA
 ```

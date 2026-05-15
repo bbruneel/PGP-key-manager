@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.example.thankyou</groupId>
-    <artifactId>thankyou-api</artifactId>
+    <groupId>com.example.pgpkeymanager</groupId>
+    <artifactId>pgp-key-manager-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>thankyou-api</name>
-    <description>Thank You Board API (Spring Boot)</description>
+    <name>pgp-key-manager-api</name>
+    <description>PGP Key Manager API (Spring Boot)</description>
 
     <properties>
         <java.version>25</java.version>

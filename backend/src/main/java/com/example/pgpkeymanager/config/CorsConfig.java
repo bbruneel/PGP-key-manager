@@ -1,4 +1,4 @@
-package com.example.thankyou.config;
+package com.example.pgpkeymanager.config;
 
 import java.util.Arrays;
 import java.util.List;

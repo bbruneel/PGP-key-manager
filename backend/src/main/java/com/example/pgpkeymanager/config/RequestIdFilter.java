@@ -1,4 +1,4 @@
-package com.example.thankyou.config;
+package com.example.pgpkeymanager.config;
 
 import java.io.IOException;
 import java.util.UUID;

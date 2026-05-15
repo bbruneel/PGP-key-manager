@@ -1,5 +1,5 @@
 /**
- * ThankYouBoard-style JSON negotiation (see API docs).
+ * Versioned JSON API negotiation (`Accept` header with `version=1`).
  */
 export const API_ACCEPT_HEADER = "application/json; version=1" as const
 

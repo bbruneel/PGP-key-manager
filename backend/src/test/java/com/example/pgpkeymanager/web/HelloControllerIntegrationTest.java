@@ -1,4 +1,4 @@
-package com.example.thankyou.web;
+package com.example.pgpkeymanager.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -14,7 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.example.thankyou.config.RequestIdFilter;
+import com.example.pgpkeymanager.config.RequestIdFilter;
 
 @SpringBootTest
 @AutoConfigureMockMvc

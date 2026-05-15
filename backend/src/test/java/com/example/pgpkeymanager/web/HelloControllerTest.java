@@ -1,4 +1,4 @@
-package com.example.thankyou.web;
+package com.example.pgpkeymanager.web;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;

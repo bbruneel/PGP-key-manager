@@ -12,7 +12,7 @@ describe("HomePage", () => {
       </ThemeProvider>,
     )
 
-    expect(screen.getByRole("heading", { name: /thank you board/i })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /pgp key manager/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /toggle theme/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument()
   })

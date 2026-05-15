@@ -1,4 +1,4 @@
-package com.example.thankyou.web;
+package com.example.pgpkeymanager.web;
 
 import java.util.Map;
 
