@@ -108,6 +108,34 @@ Changes that break these checks should not be merged.
 - Ensure CI passes before considering work complete.
 - For cloud agents: use branch prefix `cursor/` and follow repository PR workflow.
 
+## Cursor Cloud specific instructions
+
+### Environment
+
+- **JDK 25 (Temurin)** is installed at `/usr/lib/jvm/java-25-temurin`. Set `JAVA_HOME` and prepend to `PATH` before running Maven commands:
+  ```bash
+  export JAVA_HOME=/usr/lib/jvm/java-25-temurin
+  export PATH=$JAVA_HOME/bin:$PATH
+  ```
+  These exports are already in `~/.bashrc` so new interactive shells pick them up automatically.
+- **Node.js 22.22.2** and **npm 10.9.7** are pre-installed (system-level, no nvm needed).
+- Frontend dependencies are refreshed by the update script (`npm ci` in `frontend/`).
+- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local`.
+
+### Running the stack
+
+1. **Backend:** `cd backend && ./mvnw spring-boot:run` — listens on `:8080`.
+2. **Frontend:** `cd frontend && npm run dev` — Vite dev server on `:5173`.
+
+The frontend health-check indicator ("API Connected") confirms the backend is reachable.
+
+### Gotchas
+
+- The Maven Enforcer plugin **hard-fails** if `JAVA_HOME` does not point at JDK 25+. Always verify with `java -version` before running `./mvnw`.
+- `npm ci` (not `npm install`) should be used to match CI lockfile behaviour.
+- Auth0 variables in `.env.local` can remain blank; the app loads without authentication.
+- Sidebar navigation items (Keys, Policies, Settings) are scaffold placeholders — they do not have implemented page content yet.
+
 ## Further reading
 
 Human-oriented setup and layout: [`README.md`](README.md).
