@@ -3,6 +3,7 @@ package com.example.pgpkeymanager.repo;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -18,7 +19,15 @@ public class AppUserRepository {
     }
 
     public AppUser upsertByAuth0Sub(String auth0Sub) {
-        return findByAuth0Sub(auth0Sub).orElseGet(() -> insert(auth0Sub));
+        return findByAuth0Sub(auth0Sub).orElseGet(() -> insertIgnoringDuplicate(auth0Sub));
+    }
+
+    private AppUser insertIgnoringDuplicate(String auth0Sub) {
+        try {
+            return insert(auth0Sub);
+        } catch (DataIntegrityViolationException ex) {
+            return findByAuth0Sub(auth0Sub).orElseThrow(() -> ex);
+        }
     }
 
     private AppUser insert(String auth0Sub) {
