@@ -4,6 +4,8 @@ GUI to manage PGP keys storage. BYO cloud storage, set alerts for expiry, host p
 
 This repository is a **monorepo**: a Spring Boot API (`backend/`) and a static-hosted Vite + React SPA (`frontend/`). The browser talks to the API directly (CORS enabled for local Vite); there is no Next.js server.
 
+For system diagrams, request flows, and component layout, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
 ## Prerequisites
 
 - **JDK 25** (enforced by Maven Enforcer in `backend/pom.xml`). Example: `export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64` on Linux.
@@ -98,11 +100,3 @@ Output: `frontend/dist/` — deploy to any static host. `VITE_*` variables are f
 
 End-to-end tests (e.g. Playwright against a running API) are optional and not wired in this scaffold.
 
----
-
-## Repository layout
-
-```text
-backend/          Maven, Spring Boot 4.0.x, Java 25 (com.example.pgpkeymanager)
-frontend/         Vite, React 19, TypeScript, Tailwind v4, shadcn-style UI, Auth0 SPA
-```
