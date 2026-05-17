@@ -3,6 +3,7 @@ import { useCallback, useState } from "react"
 import { AppShell } from "@/components/layout/app-shell"
 import { auth0Configured } from "@/lib/auth0-env"
 import { HomeAuthPanel, HomeAuthPlaceholder } from "@/pages/HomeAuthPanel"
+import { HomeKeysPanel } from "@/pages/HomeKeysPanel"
 import { HomePage, type ApiHealth } from "@/pages/HomePage"
 
 export function App() {
@@ -15,6 +16,7 @@ export function App() {
     <AppShell footerStatus={apiHealth}>
       <HomePage onHealthChange={handleHealthChange} />
       {auth0Configured() ? <HomeAuthPanel /> : <HomeAuthPlaceholder />}
+      <HomeKeysPanel />
     </AppShell>
   )
 }

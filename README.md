@@ -51,8 +51,20 @@ Uses **JUnit 5**, **`@WebMvcTest`** (slice) via `spring-boot-starter-webmvc-test
 ### Configuration
 
 - Defaults in [`backend/src/main/resources/application.yaml`](backend/src/main/resources/application.yaml).
-- **Secrets:** do not commit credentials. Use `backend/application-secret.yaml` (gitignored) or environment variables.
+- **Secrets:** do not commit credentials. Copy [`backend/src/main/resources/application-secret.yaml.example`](backend/src/main/resources/application-secret.yaml.example) to `backend/application-secret.yaml` (gitignored) or set environment variables.
+- **Supabase Postgres (Architecture 1):** Spring connects with JDBC; schema is applied by **Flyway** from `backend/src/main/resources/db/migration/`. Use the pooler URL for the app datasource and the direct URL for Flyway (see the example secret file). Cloud project: `pgp-key-manager` (`vwjmyednpakdcunrtyog`).
+- **Auth0 (protected `/api/keys`):** set `AUTH0_ISSUER_URI` and optionally `AUTH0_AUDIENCE` to match your SPA (`VITE_AUTH0_*`).
 - **CORS:** `CORS_ALLOWED_ORIGINS` (comma-separated), default `http://localhost:5173` for Vite.
+
+Environment variables (backend):
+
+| Variable | Purpose |
+|----------|---------|
+| `SPRING_DATASOURCE_URL` | JDBC URL (Supabase transaction pooler, port 6543) |
+| `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` | Database credentials |
+| `FLYWAY_URL` / `FLYWAY_USER` / `FLYWAY_PASSWORD` | Direct connection for migrations (optional if same as datasource) |
+| `AUTH0_ISSUER_URI` | Auth0 issuer for JWT validation |
+| `AUTH0_AUDIENCE` | API audience (optional) |
 
 ### Versioned API headers (frontend)
 
