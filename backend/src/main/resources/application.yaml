@@ -40,7 +40,7 @@ app:
 logging:
   level:
     root: INFO
-    com.example.pgpkeymanager: INFO
+    org.bruneel.pgpkeymanager: INFO
 
 ---
 spring:
@@ -50,4 +50,4 @@ spring:
 
 logging:
   level:
-    com.example.pgpkeymanager: DEBUG
+    org.bruneel.pgpkeymanager: DEBUG

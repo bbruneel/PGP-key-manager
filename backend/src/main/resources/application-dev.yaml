@@ -4,4 +4,4 @@ spring:
 
 logging:
   level:
-    com.example.pgpkeymanager: DEBUG
+    org.bruneel.pgpkeymanager: DEBUG
