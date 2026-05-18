@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.example.pgpkeymanager</groupId>
+    <groupId>org.bruneel.pgpkeymanager</groupId>
     <artifactId>pgp-key-manager-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>pgp-key-manager-api</name>

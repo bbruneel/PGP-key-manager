@@ -60,7 +60,7 @@ Changes that break these checks should not be merged.
 
 ## Architecture and conventions
 
-### Backend (`com.example.pgpkeymanager`)
+### Backend (`org.bruneel.pgpkeymanager`)
 
 - REST controllers under `backend/src/main/java/com/example/pgpkeymanager/web/`, mapped under `/api`.
 - Configuration in `backend/src/main/resources/application.yaml`; secrets via gitignored `application-secret.yaml` or environment variables — **never commit credentials**.
