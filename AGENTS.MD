@@ -18,7 +18,7 @@ The browser calls the Spring API directly (CORS). There is **no** Next.js or oth
 ## Prerequisites
 
 - **JDK 25** (enforced by Maven Enforcer in `backend/pom.xml`)
-- **Node.js 22.22.2** and **npm 10.9.7** (see `.nvmrc` and `frontend/package.json` `engines`)
+- **Node.js 24.15.0** and **npm 11.12.1** (see `.nvmrc` and `frontend/package.json` `engines`)
 
 ## Commands
 
@@ -118,7 +118,7 @@ Changes that break these checks should not be merged.
   export PATH=$JAVA_HOME/bin:$PATH
   ```
   These exports are already in `~/.bashrc` so new interactive shells pick them up automatically.
-- **Node.js 22.22.2** and **npm 10.9.7** are pre-installed (system-level, no nvm needed).
+- **Node.js 24.15.0** and **npm 11.12.1** are required. Use `nvm install` / `nvm use` from the repo root (`.nvmrc`) if the system Node does not match.
 - Frontend dependencies are refreshed by the update script (`npm ci` in `frontend/`).
 - `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local`.
 

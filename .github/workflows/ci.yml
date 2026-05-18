@@ -32,7 +32,7 @@ jobs:
         run: ./mvnw --batch-mode test
 
   frontend:
-    name: Frontend (Node 22.22.2)
+    name: Frontend (Node 24.15.0)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,8 +51,8 @@ jobs:
         run: |
           node -v
           npm -v
-          test "$(node -v)" = "v22.22.2"
-          test "$(npm -v)" = "10.9.7"
+          test "$(node -v)" = "v24.15.0"
+          test "$(npm -v)" = "11.12.1"
 
       - name: Install dependencies
         run: npm ci
