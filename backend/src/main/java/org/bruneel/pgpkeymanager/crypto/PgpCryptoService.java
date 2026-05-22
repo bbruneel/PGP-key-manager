@@ -106,7 +106,7 @@ public class PgpCryptoService {
             Instant expiresAt) {
         try {
             PGPSecretKeyRing existing = PgpCryptoSupport.loadSecretKeyRing(armoredPrivate, passphrase);
-            int ringVersion = PgpCryptoSupport.detectOpenpgpVersion(existing);
+            int ringVersion = PgpKeyValidator.validateDetectedOpenpgpVersion(PgpCryptoSupport.detectOpenpgpVersion(existing));
             if (ringVersion != openpgpVersion) {
                 throw new CryptoException(
                         "Keyring OpenPGP version "

@@ -76,7 +76,7 @@ OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints inc
 
 **Revocation:** cryptographic revocation requires primary private material and a passphrase. Public-only registrations receive metadata revocation only.
 
-**Security checks:** run `./mvnw test` (38 tests) and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields including `openpgpVersion` where applicable (user id, key id, operation, duration). Micrometer metrics: `pgp.key.operation.count`, `pgp.key.operation.duration`, `pgp.key.version.generated.count`. API cryptographic failures return a generic client message; details are logged server-side.
+**Security checks:** run `./mvnw test` (40 tests) and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields including `openpgpVersion` where applicable (user id, key id, operation, duration). Micrometer metrics: `pgp.key.operation.count`, `pgp.key.operation.duration`, `pgp.key.version.generated.count`. API cryptographic failures return a generic client message; details are logged server-side.
 
 ### Versioned API headers (frontend)
 

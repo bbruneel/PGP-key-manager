@@ -25,6 +25,21 @@ public final class PgpKeyValidator {
         throw new BadRequestException("openpgpVersion must be 4 or 6");
     }
 
+    /** Validates a version read from existing key material (register/import paths). */
+    public static int validateDetectedOpenpgpVersion(int detected) {
+        if (detected == OPENPGP_V4 || detected == OPENPGP_V6) {
+            return detected;
+        }
+        throw new BadRequestException("Unsupported OpenPGP key packet version: " + detected);
+    }
+
+    public static void rejectOpenpgpVersionOnRegister(Integer openpgpVersion) {
+        if (openpgpVersion != null) {
+            throw new BadRequestException(
+                    "openpgpVersion is only supported when generating a new key, not when registering existing material");
+        }
+    }
+
     public static List<PgpCapability> parseCapabilities(List<String> raw) {
         if (raw == null || raw.isEmpty()) {
             throw new BadRequestException("capabilities must not be empty");

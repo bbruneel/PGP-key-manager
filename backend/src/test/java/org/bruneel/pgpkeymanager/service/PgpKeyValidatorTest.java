@@ -58,6 +58,18 @@ class PgpKeyValidatorTest {
     }
 
     @Test
+    void rejectOpenpgpVersionOnRegister() {
+        assertThatThrownBy(() -> PgpKeyValidator.rejectOpenpgpVersionOnRegister(6))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void validateDetectedOpenpgpVersionRejectsUnknown() {
+        assertThatThrownBy(() -> PgpKeyValidator.validateDetectedOpenpgpVersion(5))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
     void primaryMustIncludeCertify() {
         assertThatThrownBy(
                         () ->

@@ -67,7 +67,10 @@ public class PgpKeyService {
                         : PgpKeyValidator.OPENPGP_V4;
         operationLogger.started("create_key", user.id(), null, openpgpVersion);
         try {
-            PgpKey created = isGenerateRequest(request) ? generatePrimary(user, request) : registerKey(user, request);
+            PgpKey created =
+                    isGenerateRequest(request)
+                            ? generatePrimary(user, request)
+                            : registerKey(user, request);
             completeSuccess("create_key", user.id(), created.id(), created.openpgpVersion(), start);
             if (isGenerateRequest(request)) {
                 operationMetrics.recordVersionGenerated(created.openpgpVersion());
@@ -359,6 +362,7 @@ public class PgpKeyService {
     }
 
     private PgpKey registerKey(AppUser user, CreatePgpKeyRequest request) {
+        PgpKeyValidator.rejectOpenpgpVersionOnRegister(request.openpgpVersion());
         if (request.fingerprint() == null || request.fingerprint().isBlank()) {
             throw new BadRequestException("fingerprint is required when registering a key");
         }
@@ -411,8 +415,12 @@ public class PgpKeyService {
             return getForUser(user, parentKeyId).openpgpVersion();
         }
         try {
-            return PgpCryptoSupport.detectOpenpgpVersionFromArmored(
-                    request.encryptedPrivateArmored(), request.armoredPublic());
+            int detected =
+                    PgpCryptoSupport.detectOpenpgpVersionFromArmored(
+                            request.encryptedPrivateArmored(), request.armoredPublic());
+            return PgpKeyValidator.validateDetectedOpenpgpVersion(detected);
+        } catch (BadRequestException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw new CryptoException("Failed to detect OpenPGP version from armored key material", ex);
         }
