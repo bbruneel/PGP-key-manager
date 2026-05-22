@@ -93,6 +93,7 @@ Changes that break these checks should not be merged.
 - Run backend tests and frontend lint/test/build for any change that affects those areas.
 - Update `README.md` only when user-facing setup or behavior changes; do not add extra markdown docs unless asked.
 - Use `frontend/.env.example` as the template for new `VITE_*` variables (document in README if user-facing).
+- When adding or upgrading dependencies (Maven in `backend/`, npm in `frontend/`), prefer a current maintained release compatible with this repo’s pinned Java/Node stack. Before merging, check for known high/critical vulnerabilities (e.g. `npm audit`, Maven/OWASP dependency checks or advisory databases). Do not bump pinned runtime or toolchain versions unless you update `.nvmrc`, `frontend/package.json` `engines`, `backend/pom.xml`, and CI together (see “What not to do”).
 
 ## What not to do
 
