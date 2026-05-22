@@ -25,6 +25,7 @@ public record PgpKeyResponse(
         String encryptedPrivateArmored,
         String storageProvider,
         String storageRef,
+        Integer openpgpVersion,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -56,6 +57,7 @@ public record PgpKeyResponse(
                 includePrivateCiphertext ? key.encryptedPrivateArmored() : null,
                 key.storageProvider(),
                 key.storageRef(),
+                key.openpgpVersion(),
                 key.createdAt(),
                 key.updatedAt());
     }

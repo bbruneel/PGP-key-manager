@@ -70,13 +70,13 @@ Environment variables (backend):
 
 OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, and export-public.
 
-**Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.84). Supported algorithms: `ed25519`, `cv25519`, `rsa`, `ecdsa`, `ecdh` (with curve). Passphrases are wiped from memory after use and are never logged.
+**Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.84). Supported algorithms: `ed25519`, `cv25519`, `rsa`, `ecdsa`, `ecdh` (with curve). Primary key generation accepts optional `openpgpVersion` (`4` default, `6` for RFC 9580); subkeys and lifecycle operations use the primary key’s stored version. Passphrases are wiped from memory after use and are never logged.
 
 **Keyring storage:** armored public/private keyrings are stored on the primary key row only. Subkey rows hold fingerprints, key IDs, capabilities, and expiry metadata.
 
 **Revocation:** cryptographic revocation requires primary private material and a passphrase. Public-only registrations receive metadata revocation only.
 
-**Security checks:** run `./mvnw test` (33 tests) and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields only (user id, key id, operation, duration). API cryptographic failures return a generic client message; details are logged server-side.
+**Security checks:** run `./mvnw test` (38 tests) and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields including `openpgpVersion` where applicable (user id, key id, operation, duration). Micrometer metrics: `pgp.key.operation.count`, `pgp.key.operation.duration`, `pgp.key.version.generated.count`. API cryptographic failures return a generic client message; details are logged server-side.
 
 ### Versioned API headers (frontend)
 

@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService;
+import org.bruneel.pgpkeymanager.crypto.PgpCryptoSupport;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService.KeyRingUpdate;
 import org.bruneel.pgpkeymanager.crypto.SubkeyMaterial;
 import org.bruneel.pgpkeymanager.domain.AppUser;
@@ -35,14 +36,17 @@ public class PgpKeyService {
     private final PgpKeyRepository pgpKeyRepository;
     private final PgpCryptoService pgpCryptoService;
     private final KeyOperationLogger operationLogger;
+    private final KeyOperationMetrics operationMetrics;
 
     public PgpKeyService(
             PgpKeyRepository pgpKeyRepository,
             PgpCryptoService pgpCryptoService,
-            KeyOperationLogger operationLogger) {
+            KeyOperationLogger operationLogger,
+            KeyOperationMetrics operationMetrics) {
         this.pgpKeyRepository = pgpKeyRepository;
         this.pgpCryptoService = pgpCryptoService;
         this.operationLogger = operationLogger;
+        this.operationMetrics = operationMetrics;
     }
 
     public List<PgpKey> listForUser(AppUser user, KeyRole role, String status, PgpCapability capability) {
@@ -57,13 +61,20 @@ public class PgpKeyService {
 
     public PgpKey create(AppUser user, CreatePgpKeyRequest request) {
         long start = System.currentTimeMillis();
-        operationLogger.started("create_key", user.id(), null);
+        int openpgpVersion =
+                isGenerateRequest(request)
+                        ? PgpKeyValidator.normalizeOpenpgpVersion(request.openpgpVersion())
+                        : PgpKeyValidator.OPENPGP_V4;
+        operationLogger.started("create_key", user.id(), null, openpgpVersion);
         try {
             PgpKey created = isGenerateRequest(request) ? generatePrimary(user, request) : registerKey(user, request);
-            operationLogger.succeeded("create_key", user.id(), created.id(), System.currentTimeMillis() - start);
+            completeSuccess("create_key", user.id(), created.id(), created.openpgpVersion(), start);
+            if (isGenerateRequest(request)) {
+                operationMetrics.recordVersionGenerated(created.openpgpVersion());
+            }
             return created;
         } catch (RuntimeException ex) {
-            operationLogger.failed("create_key", user.id(), null, ex.getClass().getSimpleName(), ex.getMessage());
+            completeFailure("create_key", user.id(), null, openpgpVersion, start, ex);
             throw ex;
         }
     }
@@ -100,10 +111,11 @@ public class PgpKeyService {
 
     public PgpKey createSubkey(AppUser user, UUID primaryKeyId, CreateSubkeyRequest request) {
         long start = System.currentTimeMillis();
-        operationLogger.started("create_subkey", user.id(), primaryKeyId, null);
+        PgpKeyValidator.validateSubkeyRequest(request);
+        PgpKey primary = requirePrimaryWithPrivate(user, primaryKeyId);
+        int openpgpVersion = primary.openpgpVersion();
+        operationLogger.started("create_subkey", user.id(), primaryKeyId, null, openpgpVersion);
         try {
-            PgpKeyValidator.validateSubkeyRequest(request);
-            PgpKey primary = requirePrimaryWithPrivate(user, primaryKeyId);
             List<PgpCapability> capabilities = PgpKeyValidator.parseCapabilities(request.capabilities());
             Instant expiresAt = request.validity() != null ? request.validity().expiresAt() : null;
             char[] passphrase = PassphraseUtil.require(request.passphrase());
@@ -111,6 +123,7 @@ public class PgpKeyService {
             try {
                 material =
                         pgpCryptoService.addSubkey(
+                                openpgpVersion,
                                 primary.encryptedPrivateArmored(),
                                 passphrase,
                                 capabilities,
@@ -135,13 +148,15 @@ public class PgpKeyService {
                             primary.label(),
                             material,
                             primary.id(),
+                            openpgpVersion,
                             primary.storageProvider(),
                             primary.storageRef());
 
-            operationLogger.succeeded("create_subkey", user.id(), subkey.id(), System.currentTimeMillis() - start);
+            completeSuccess("create_subkey", user.id(), subkey.id(), openpgpVersion, start);
+            operationMetrics.recordVersionGenerated(openpgpVersion);
             return subkey;
         } catch (RuntimeException ex) {
-            operationLogger.failed("create_subkey", user.id(), primaryKeyId, ex.getClass().getSimpleName(), ex.getMessage());
+            completeFailure("create_subkey", user.id(), primaryKeyId, openpgpVersion, start, ex);
             throw ex;
         }
     }
@@ -149,6 +164,7 @@ public class PgpKeyService {
     public PgpKey revoke(AppUser user, UUID keyId, RevokeKeyRequest request) {
         long start = System.currentTimeMillis();
         operationLogger.started("revoke_key", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
         try {
             PgpKey key = getForUser(user, keyId);
             ensureNotRevoked(key);
@@ -164,6 +180,7 @@ public class PgpKeyService {
                 char[] passphrase = PassphraseUtil.require(request.passphrase());
                 try {
                     PgpKey primary = requirePrimaryWithPrivate(user, primaryForRing.id());
+                    openpgpVersion = primary.openpgpVersion();
                     long targetKeyId = parseKeyId(key);
                     KeyRingUpdate updated =
                             pgpCryptoService.revokeKeyInRing(
@@ -192,10 +209,10 @@ public class PgpKeyService {
                     pgpKeyRepository
                             .markRevoked(key.id(), user.id(), revokedAt, reason)
                             .orElseThrow(() -> new KeyNotFoundException(keyId));
-            operationLogger.succeeded("revoke_key", user.id(), keyId, System.currentTimeMillis() - start);
+            completeSuccess("revoke_key", user.id(), keyId, openpgpVersion, start);
             return revoked;
         } catch (RuntimeException ex) {
-            operationLogger.failed("revoke_key", user.id(), keyId, ex.getClass().getSimpleName(), ex.getMessage());
+            completeFailure("revoke_key", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
         }
     }
@@ -203,6 +220,7 @@ public class PgpKeyService {
     public PgpKey extendExpiry(AppUser user, UUID keyId, ExtendExpiryRequest request) {
         long start = System.currentTimeMillis();
         operationLogger.started("extend_expiry", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
         try {
             if (!request.expiresAt().isAfter(Instant.now())) {
                 throw new BadRequestException("expiresAt must be in the future");
@@ -212,6 +230,7 @@ public class PgpKeyService {
 
             PgpKey primary =
                     key.isPrimary() ? requirePrimaryWithPrivate(user, key.id()) : requirePrimaryWithPrivate(user, key.parentKeyId());
+            openpgpVersion = primary.openpgpVersion();
             char[] passphrase = PassphraseUtil.require(request.passphrase());
             long targetKeyId = parseKeyId(key);
             KeyRingUpdate updated;
@@ -239,10 +258,10 @@ public class PgpKeyService {
                     pgpKeyRepository
                             .updateMetadata(key.id(), user.id(), null, request.expiresAt(), null, null)
                             .orElseThrow(() -> new KeyNotFoundException(keyId));
-            operationLogger.succeeded("extend_expiry", user.id(), keyId, System.currentTimeMillis() - start);
+            completeSuccess("extend_expiry", user.id(), keyId, openpgpVersion, start);
             return updatedKey;
         } catch (RuntimeException ex) {
-            operationLogger.failed("extend_expiry", user.id(), keyId, ex.getClass().getSimpleName(), ex.getMessage());
+            completeFailure("extend_expiry", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
         }
     }
@@ -250,8 +269,12 @@ public class PgpKeyService {
     public RotateResult rotate(AppUser user, UUID keyId, RotateKeyRequest request) {
         long start = System.currentTimeMillis();
         operationLogger.started("rotate_key", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
         try {
             PgpKey previous = getForUser(user, keyId);
+            if (previous.parentKeyId() != null) {
+                openpgpVersion = requirePrimary(user, previous.parentKeyId()).openpgpVersion();
+            }
             if (previous.role() != KeyRole.SUBKEY) {
                 throw new BadRequestException("Rotate is only supported for subkeys");
             }
@@ -276,10 +299,10 @@ public class PgpKeyService {
                             request.passphrase());
             PgpKey newKey = createSubkey(user, previous.parentKeyId(), subRequest);
             PgpKey previousUpdated = getForUser(user, keyId);
-            operationLogger.succeeded("rotate_key", user.id(), newKey.id(), System.currentTimeMillis() - start);
+            completeSuccess("rotate_key", user.id(), newKey.id(), openpgpVersion, start);
             return new RotateResult(newKey, previousUpdated);
         } catch (RuntimeException ex) {
-            operationLogger.failed("rotate_key", user.id(), keyId, ex.getClass().getSimpleName(), ex.getMessage());
+            completeFailure("rotate_key", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
         }
     }
@@ -306,12 +329,14 @@ public class PgpKeyService {
                         : List.of(PgpCapability.CERTIFY, PgpCapability.SIGN);
         PgpKeyValidator.validatePrimaryCapabilities(capabilities);
         Instant expiresAt = request.validity() != null ? request.validity().expiresAt() : request.expiresAt();
+        int openpgpVersion = PgpKeyValidator.normalizeOpenpgpVersion(request.openpgpVersion());
 
         char[] passphrase = PassphraseUtil.require(request.passphrase());
         GeneratedKeyMaterial material;
         try {
             material =
                     pgpCryptoService.generatePrimary(
+                            openpgpVersion,
                             request.userIds(),
                             capabilities,
                             request.algorithmSpec(),
@@ -328,6 +353,7 @@ public class PgpKeyService {
                 KeyType.PRIVATE,
                 KeyRole.PRIMARY,
                 null,
+                openpgpVersion,
                 request.storageProvider(),
                 request.storageRef());
     }
@@ -348,6 +374,8 @@ public class PgpKeyService {
         if (role == KeyRole.PRIMARY) {
             requirePrimaryCapabilitiesIfPresent(request);
         }
+
+        int openpgpVersion = resolveRegisteredOpenpgpVersion(user, request, role, parentKeyId);
 
         try {
             return pgpKeyRepository.insert(
@@ -370,9 +398,23 @@ public class PgpKeyService {
                             request.armoredPublic(),
                             request.encryptedPrivateArmored(),
                             request.storageProvider(),
-                            request.storageRef()));
+                            request.storageRef(),
+                            openpgpVersion));
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("A key with this fingerprint already exists for your account");
+        }
+    }
+
+    private int resolveRegisteredOpenpgpVersion(
+            AppUser user, CreatePgpKeyRequest request, KeyRole role, UUID parentKeyId) {
+        if (role == KeyRole.SUBKEY) {
+            return getForUser(user, parentKeyId).openpgpVersion();
+        }
+        try {
+            return PgpCryptoSupport.detectOpenpgpVersionFromArmored(
+                    request.encryptedPrivateArmored(), request.armoredPublic());
+        } catch (Exception ex) {
+            throw new CryptoException("Failed to detect OpenPGP version from armored key material", ex);
         }
     }
 
@@ -383,6 +425,7 @@ public class PgpKeyService {
             KeyType keyType,
             KeyRole role,
             UUID parentKeyId,
+            int openpgpVersion,
             String storageProvider,
             String storageRef) {
         return insertKey(
@@ -399,6 +442,7 @@ public class PgpKeyService {
                 keyType,
                 role,
                 parentKeyId,
+                openpgpVersion,
                 storageProvider,
                 storageRef);
     }
@@ -408,6 +452,7 @@ public class PgpKeyService {
             String label,
             SubkeyMaterial material,
             UUID parentKeyId,
+            int openpgpVersion,
             String storageProvider,
             String storageRef) {
         return insertKey(
@@ -424,6 +469,7 @@ public class PgpKeyService {
                 KeyType.PRIVATE,
                 KeyRole.SUBKEY,
                 parentKeyId,
+                openpgpVersion,
                 storageProvider,
                 storageRef);
     }
@@ -442,6 +488,7 @@ public class PgpKeyService {
             KeyType keyType,
             KeyRole role,
             UUID parentKeyId,
+            int openpgpVersion,
             String storageProvider,
             String storageRef) {
         try {
@@ -463,10 +510,24 @@ public class PgpKeyService {
                             armoredPublic,
                             armoredPrivate,
                             storageProvider,
-                            storageRef));
+                            storageRef,
+                            openpgpVersion));
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("A key with this fingerprint already exists for your account");
         }
+    }
+
+    private void completeSuccess(String operation, UUID userId, UUID keyId, int openpgpVersion, long startMs) {
+        long durationMs = System.currentTimeMillis() - startMs;
+        operationLogger.succeeded(operation, userId, keyId, openpgpVersion, durationMs);
+        operationMetrics.recordSuccess(operation, openpgpVersion, durationMs);
+    }
+
+    private void completeFailure(
+            String operation, UUID userId, UUID keyId, int openpgpVersion, long startMs, RuntimeException ex) {
+        long durationMs = System.currentTimeMillis() - startMs;
+        operationLogger.failed(operation, userId, keyId, openpgpVersion, ex.getClass().getSimpleName(), ex.getMessage());
+        operationMetrics.recordFailure(operation, openpgpVersion, durationMs);
     }
 
     private void requirePrimaryCapabilitiesIfPresent(CreatePgpKeyRequest request) {

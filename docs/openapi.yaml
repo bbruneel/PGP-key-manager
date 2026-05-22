@@ -7,7 +7,7 @@ info:
 
     **Versioning:** `Accept: application/json; version=1`
     **Auth:** Bearer JWT (Auth0) on `/api/keys/**`
-    **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.84) for generation and lifecycle operations.
+    **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.84). Primary generation supports `openpgpVersion` 4 (default) or 6.
     **Errors:** RFC 7807 `application/problem+json`
 
 servers:
@@ -352,6 +352,13 @@ components:
         passphrase:
           type: string
           writeOnly: true
+        openpgpVersion:
+          type: integer
+          enum: [4, 6]
+          default: 4
+          description: |
+            OpenPGP key packet version for generated primary keys (RFC 4880 v4 or RFC 9580 v6).
+            Omitted defaults to 4. Subkeys inherit the primary key version.
         armoredPublic:
           type: string
         encryptedPrivateArmored:
@@ -458,6 +465,10 @@ components:
         revokedAt:
           type: [string, 'null']
           format: date-time
+        openpgpVersion:
+          type: integer
+          enum: [4, 6]
+          description: OpenPGP packet version for this keyring (primary sets it; subkeys inherit).
     PgpKey:
       allOf:
         - $ref: '#/components/schemas/PgpKeySummary'

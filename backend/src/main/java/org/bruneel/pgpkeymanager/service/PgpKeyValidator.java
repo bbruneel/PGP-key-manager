@@ -9,7 +9,21 @@ import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 
 public final class PgpKeyValidator {
 
+    public static final int OPENPGP_V4 = 4;
+    public static final int OPENPGP_V6 = 6;
+
     private PgpKeyValidator() {}
+
+    /** Normalizes omitted version to v4; rejects values other than 4 or 6. */
+    public static int normalizeOpenpgpVersion(Integer requested) {
+        if (requested == null) {
+            return OPENPGP_V4;
+        }
+        if (requested == OPENPGP_V4 || requested == OPENPGP_V6) {
+            return requested;
+        }
+        throw new BadRequestException("openpgpVersion must be 4 or 6");
+    }
 
     public static List<PgpCapability> parseCapabilities(List<String> raw) {
         if (raw == null || raw.isEmpty()) {

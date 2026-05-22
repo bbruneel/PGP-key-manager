@@ -23,6 +23,7 @@ public record PgpKey(
         String encryptedPrivateArmored,
         String storageProvider,
         String storageRef,
+        int openpgpVersion,
         Instant createdAt,
         Instant updatedAt) {
 

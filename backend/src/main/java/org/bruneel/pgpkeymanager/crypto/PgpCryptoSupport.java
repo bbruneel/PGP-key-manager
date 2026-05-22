@@ -24,6 +24,7 @@ import org.bouncycastle.openpgp.operator.KeyFingerPrintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.util.encoders.Hex;
 import org.bruneel.pgpkeymanager.service.CryptoException;
+import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 
 public final class PgpCryptoSupport {
 
@@ -103,6 +104,34 @@ public final class PgpCryptoSupport {
 
     public static KeyFingerPrintCalculator fingerprintCalculator() {
         return new JcaKeyFingerprintCalculator();
+    }
+
+    /** Reads OpenPGP packet version from the master public key in a secret key ring. */
+    public static int detectOpenpgpVersion(PGPSecretKeyRing ring) {
+        return ring.getSecretKey().getPublicKey().getVersion();
+    }
+
+    public static int detectOpenpgpVersionFromArmored(String armoredPrivate, String armoredPublic)
+            throws IOException, PGPException {
+        if (armoredPrivate != null && !armoredPrivate.isBlank()) {
+            try (InputStream in = decoderStream(armoredPrivate)) {
+                PGPSecretKeyRingCollection collection =
+                        new PGPSecretKeyRingCollection(in, new JcaKeyFingerprintCalculator());
+                if (collection.getKeyRings().hasNext()) {
+                    return detectOpenpgpVersion(collection.getKeyRings().next());
+                }
+            }
+        }
+        if (armoredPublic != null && !armoredPublic.isBlank()) {
+            try (InputStream in = decoderStream(armoredPublic)) {
+                PGPPublicKeyRingCollection collection =
+                        new PGPPublicKeyRingCollection(in, new JcaKeyFingerprintCalculator());
+                if (collection.getKeyRings().hasNext()) {
+                    return collection.getKeyRings().next().getPublicKey().getVersion();
+                }
+            }
+        }
+        return PgpKeyValidator.OPENPGP_V4;
     }
 
     public static PGPPublicKeyRing publicRingFromSecret(PGPSecretKeyRing secretRing) {

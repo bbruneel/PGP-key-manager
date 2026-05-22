@@ -45,6 +45,19 @@ class PgpKeyValidatorTest {
     }
 
     @Test
+    void normalizeOpenpgpVersionDefaultsToV4() {
+        org.assertj.core.api.Assertions.assertThat(PgpKeyValidator.normalizeOpenpgpVersion(null)).isEqualTo(4);
+        org.assertj.core.api.Assertions.assertThat(PgpKeyValidator.normalizeOpenpgpVersion(4)).isEqualTo(4);
+        org.assertj.core.api.Assertions.assertThat(PgpKeyValidator.normalizeOpenpgpVersion(6)).isEqualTo(6);
+    }
+
+    @Test
+    void normalizeOpenpgpVersionRejectsInvalid() {
+        assertThatThrownBy(() -> PgpKeyValidator.normalizeOpenpgpVersion(5))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
     void primaryMustIncludeCertify() {
         assertThatThrownBy(
                         () ->

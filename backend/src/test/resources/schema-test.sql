@@ -26,11 +26,13 @@ CREATE TABLE pgp_keys (
     encrypted_private_armored CLOB,
     storage_provider VARCHAR(64),
     storage_ref VARCHAR(512),
+    openpgp_version INTEGER NOT NULL DEFAULT 4,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pgp_keys_user_fingerprint_unique UNIQUE (user_id, fingerprint),
     CONSTRAINT pgp_keys_key_type_check CHECK (key_type IN ('public', 'private')),
-    CONSTRAINT pgp_keys_role_check CHECK (role IN ('primary', 'subkey'))
+    CONSTRAINT pgp_keys_role_check CHECK (role IN ('primary', 'subkey')),
+    CONSTRAINT pgp_keys_openpgp_version_check CHECK (openpgp_version IN (4, 6))
 );
 
 CREATE INDEX pgp_keys_user_id_idx ON pgp_keys (user_id);

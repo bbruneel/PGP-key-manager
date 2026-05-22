@@ -51,6 +51,7 @@ class PgpKeyLifecycleIntegrationTest {
                                         .formatted(PASSPHRASE)))
                         .andExpect(status().isCreated())
                         .andExpect(jsonPath("$.role").value("primary"))
+                        .andExpect(jsonPath("$.openpgpVersion").value(4))
                         .andExpect(jsonPath("$.fingerprint").exists())
                         .andExpect(jsonPath("$.keyId").value(org.hamcrest.Matchers.matchesRegex("[0-9A-F]{16}")))
                         .andReturn();
@@ -175,6 +176,47 @@ class PgpKeyLifecycleIntegrationTest {
                 .andExpect(jsonPath("$[0].capabilities[0]").value("encrypt"));
 
         mockMvc.perform(get("/api/keys").param("capability", "not-a-capability").with(jwt()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createPrimaryWithExplicitV6() throws Exception {
+        mockMvc.perform(post("/api/keys")
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "label": "v6-primary",
+                                  "keyType": "private",
+                                  "capabilities": ["certify", "sign"],
+                                  "algorithmSpec": { "algorithm": "ed25519" },
+                                  "openpgpVersion": 6,
+                                  "validity": { "expiresAt": "2030-06-01T00:00:00Z" },
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.openpgpVersion").value(6));
+    }
+
+    @Test
+    void invalidOpenpgpVersionReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/keys")
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "label": "bad-version",
+                                  "capabilities": ["certify", "sign"],
+                                  "algorithmSpec": { "algorithm": "ed25519" },
+                                  "openpgpVersion": 5,
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
                 .andExpect(status().isBadRequest());
     }
 
