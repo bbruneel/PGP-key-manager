@@ -1,0 +1,1131 @@
+openapi: 3.1.0
+info:
+  title: PGP Key Manager API
+  version: 1.0.0
+  description: |
+    Versioned JSON API for managing OpenPGP keys.
+
+    **API versioning:** Clients must send `Accept: application/json; version=1` on all requests.
+    The server may echo supported versions in response headers in a future release.
+
+    **Authentication:** Protected routes require a Bearer JWT (Auth0 resource server).
+    `GET /api/hello` is public.
+
+    **Implementation status:** Operations tagged or marked with `x-implementation-status: implemented`
+    match the current Spring Boot backend. Others describe the target contract for primary/subkey
+    modeling and key lifecycle actions.
+
+    **Error format:** Validation and domain errors use [RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807)
+    `application/problem+json` (Spring `ProblemDetail`).
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Health
+    description: Unauthenticated scaffold endpoints
+  - name: Keys
+    description: Key collection and primary key resources
+  - name: Subkeys
+    description: Subkeys bound to a primary key
+  - name: Key lifecycle
+    description: Non-CRUD state transitions (revoke, expiry, rotation)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/hello:
+    get:
+      tags: [Health]
+      summary: API health / connectivity check
+      operationId: getHello
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: API is reachable
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HelloResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys:
+    get:
+      tags: [Keys]
+      summary: List keys for the authenticated user
+      operationId: listKeys
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+        - name: role
+          in: query
+          description: Filter by primary vs subkey (target; ignored by current backend)
+          schema:
+            $ref: '#/components/schemas/KeyRole'
+        - name: status
+          in: query
+          description: Filter by derived lifecycle status (target)
+          schema:
+            $ref: '#/components/schemas/KeyStatus'
+        - name: capability
+          in: query
+          description: Filter keys that include this usage flag (target)
+          schema:
+            $ref: '#/components/schemas/PgpCapability'
+      responses:
+        '200':
+          description: Key list (private ciphertext omitted in list view)
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PgpKeySummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        default:
+          $ref: '#/components/responses/Problem'
+
+    post:
+      tags: [Keys]
+      summary: Register or import a key
+      description: |
+        **Current backend:** Registers a single key record from client-supplied metadata and armored material.
+
+        **Target:** Creates a **primary** key (generate or import). Subkeys are created via
+        `POST /api/keys/{primaryKeyId}/subkeys`.
+      operationId: createKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePgpKeyRequest'
+            examples:
+              registerPublic:
+                summary: Register existing public key (current)
+                value:
+                  label: personal
+                  fingerprint: A1B2C3D4E5F6789012345678ABCDEF0123456789
+                  keyId: "ABCDEF01"
+                  keyType: public
+                  algorithm: ed25519
+                  armoredPublic: |
+                    -----BEGIN PGP PUBLIC KEY BLOCK-----
+                    ...
+                    -----END PGP PUBLIC KEY BLOCK-----
+              createPrimaryRsa:
+                summary: Generate primary RSA key (target)
+                value:
+                  label: work
+                  role: primary
+                  userIds:
+                    - name: Ada Lovelace
+                      email: ada@example.com
+                  algorithm:
+                    algorithm: rsa
+                    keySize: 4096
+                  capabilities: [certify, sign]
+                  validity:
+                    expiresAt: "2028-05-21T00:00:00Z"
+                  passphrase: "use-a-strong-passphrase"
+      responses:
+        '201':
+          description: Key created
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys/{keyId}:
+    parameters:
+      - $ref: '#/components/parameters/KeyId'
+    get:
+      tags: [Keys]
+      summary: Get a key by id
+      operationId: getKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Key details (private ciphertext included when stored)
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Problem'
+
+    patch:
+      tags: [Keys]
+      summary: Update mutable key metadata
+      description: |
+        Updates app-managed fields only. Cryptographic attributes (algorithm, capabilities,
+        fingerprint) are immutable after creation; use lifecycle actions instead.
+      operationId: updateKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePgpKeyRequest'
+      responses:
+        '200':
+          description: Updated key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Problem'
+
+    delete:
+      tags: [Keys]
+      summary: Delete a key record
+      description: |
+        Removes the key from the user's vault. Does not perform an OpenPGP revocation certificate
+        on its own; use `POST .../revoke` first if the private key is available.
+      operationId: deleteKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys/{primaryKeyId}/subkeys:
+    parameters:
+      - $ref: '#/components/parameters/PrimaryKeyId'
+    get:
+      tags: [Subkeys]
+      summary: List subkeys for a primary key
+      operationId: listSubkeys
+      x-implementation-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Subkeys of the primary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PgpKeySummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Problem'
+
+    post:
+      tags: [Subkeys]
+      summary: Create a subkey under a primary key
+      operationId: createSubkey
+      x-implementation-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubkeyRequest'
+            examples:
+              encryptionSubkey:
+                summary: Add CV25519 encryption subkey
+                value:
+                  algorithm:
+                    algorithm: cv25519
+                  capabilities: [encrypt]
+                  validity:
+                    expiresAt: "2027-05-21T00:00:00Z"
+                  passphrase: "use-a-strong-passphrase"
+      responses:
+        '201':
+          description: Subkey created and bound to primary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys/{primaryKeyId}/subkeys/{subkeyId}:
+    parameters:
+      - $ref: '#/components/parameters/PrimaryKeyId'
+      - $ref: '#/components/parameters/SubkeyId'
+    get:
+      tags: [Subkeys]
+      summary: Get a subkey under a primary key
+      operationId: getSubkey
+      x-implementation-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Subkey details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys/{keyId}/revoke:
+    parameters:
+      - $ref: '#/components/parameters/KeyId'
+    post:
+      tags: [Key lifecycle]
+      summary: Revoke a key or subkey
+      operationId: revokeKey
+      x-implementation-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeKeyRequest'
+      responses:
+        '200':
+          description: Key revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys/{keyId}/extend-expiry:
+    parameters:
+      - $ref: '#/components/parameters/KeyId'
+    post:
+      tags: [Key lifecycle]
+      summary: Extend key validity
+      operationId: extendKeyExpiry
+      x-implementation-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtendExpiryRequest'
+      responses:
+        '200':
+          description: Expiry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys/{keyId}/rotate:
+    parameters:
+      - $ref: '#/components/parameters/KeyId'
+    post:
+      tags: [Key lifecycle]
+      summary: Rotate a subkey (create replacement, revoke old)
+      description: |
+        Creates a new subkey with the same intended capabilities, revokes the previous subkey,
+        and rebinds the primary. Only valid when `keyId` refers to a subkey or when rotating
+        a specific capability slot on the primary.
+      operationId: rotateKey
+      x-implementation-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateKeyRequest'
+      responses:
+        '201':
+          description: New key material created; old key revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateKeyResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/Problem'
+
+  /api/keys/{keyId}/export-public:
+    parameters:
+      - $ref: '#/components/parameters/KeyId'
+    get:
+      tags: [Keys]
+      summary: Export armored public key block
+      operationId: exportPublicKey
+      x-implementation-status: planned
+      parameters:
+        - $ref: '#/components/parameters/AcceptVersion'
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: ASCII-armored public key
+          content:
+            application/pgp-keys:
+              schema:
+                type: string
+                description: OpenPGP ASCII-armored public key block
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        default:
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0 access token
+
+  headers:
+    XRequestId:
+      description: Correlation id echoed from request or generated by server
+      schema:
+        type: string
+        format: uuid
+
+  parameters:
+    AcceptVersion:
+      name: Accept
+      in: header
+      required: true
+      description: API version negotiation (required by SPA client)
+      schema:
+        type: string
+        const: application/json; version=1
+        examples:
+          - application/json; version=1
+
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Client-supplied correlation id; echoed on response
+      schema:
+        type: string
+        format: uuid
+
+    KeyId:
+      name: keyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PrimaryKeyId:
+      name: primaryKeyId
+      in: path
+      required: true
+      description: Id of the primary (certify) key
+      schema:
+        type: string
+        format: uuid
+
+    SubkeyId:
+      name: subkeyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Problem:
+      description: Error response (RFC 7807)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblemDetail'
+
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    NotFound:
+      description: Key not found for authenticated user
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    Conflict:
+      description: Duplicate fingerprint or invalid state transition
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  schemas:
+    HelloResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          examples: [ok]
+
+    ProblemDetail:
+      type: object
+      description: RFC 7807 problem details (Spring ProblemDetail)
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+
+    ValidationProblemDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          properties:
+            errors:
+              type: array
+              items:
+                $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    # --- Enums ---
+
+    MaterialKind:
+      type: string
+      description: |
+        Whether this record stores public and/or private material.
+        Distinct from OpenPGP **capabilities** (sign/encrypt/...).
+      enum: [public, private]
+
+    KeyRole:
+      type: string
+      description: Primary (certify) key vs subkey in a keyblock
+      enum: [primary, subkey]
+
+    KeyStatus:
+      type: string
+      description: Derived lifecycle status exposed in API responses
+      enum: [active, expired, revoked]
+
+    PgpCapability:
+      type: string
+      description: OpenPGP key usage flags
+      enum: [certify, sign, encrypt, authenticate]
+
+    PgpAlgorithmName:
+      type: string
+      enum: [rsa, ed25519, cv25519, ecdsa, ecdh]
+
+    PgpCurve:
+      type: string
+      description: Curve name for ECC algorithms (when not implied by algorithm)
+      enum: [ed25519, cv25519, nistp256, nistp384, brainpoolP256r1, brainpoolP384r1]
+
+    RevocationReason:
+      type: string
+      description: OpenPGP revocation reason codes (subset)
+      enum:
+        - no_reason
+        - key_superseded
+        - key_compromised
+        - key_retired
+        - user_id_invalid
+
+    StorageProvider:
+      type: string
+      description: BYO storage backend identifier
+      enum: [local, s3, gcs, azure, dropbox, onedrive, custom]
+      examples: [s3]
+
+    # --- Algorithm specs (conditional validation) ---
+
+    RsaAlgorithmSpec:
+      type: object
+      description: RSA key generation parameters
+      required: [algorithm, keySize]
+      properties:
+        algorithm:
+          type: string
+          const: rsa
+        keySize:
+          type: integer
+          enum: [2048, 3072, 4096]
+          description: RSA modulus length in bits
+
+    Ed25519AlgorithmSpec:
+      type: object
+      description: Ed25519 signing / certification parameters
+      required: [algorithm]
+      properties:
+        algorithm:
+          type: string
+          const: ed25519
+
+    Cv25519AlgorithmSpec:
+      type: object
+      description: X25519-based encryption subkey (modern default)
+      required: [algorithm]
+      properties:
+        algorithm:
+          type: string
+          const: cv25519
+
+    EcdsaAlgorithmSpec:
+      type: object
+      required: [algorithm, curve]
+      properties:
+        algorithm:
+          type: string
+          const: ecdsa
+        curve:
+          $ref: '#/components/schemas/PgpCurve'
+
+    EcdhAlgorithmSpec:
+      type: object
+      required: [algorithm, curve]
+      properties:
+        algorithm:
+          type: string
+          const: ecdh
+        curve:
+          $ref: '#/components/schemas/PgpCurve'
+
+    AlgorithmSpec:
+      description: |
+        Generation parameters. Use `oneOf` branches; `algorithm` acts as discriminator.
+        **Rules:**
+        - `rsa` requires `keySize`
+        - `ed25519` / `cv25519` must not include `keySize`
+        - `ecdsa` / `ecdh` require `curve`
+      oneOf:
+        - $ref: '#/components/schemas/RsaAlgorithmSpec'
+        - $ref: '#/components/schemas/Ed25519AlgorithmSpec'
+        - $ref: '#/components/schemas/Cv25519AlgorithmSpec'
+        - $ref: '#/components/schemas/EcdsaAlgorithmSpec'
+        - $ref: '#/components/schemas/EcdhAlgorithmSpec'
+      discriminator:
+        propertyName: algorithm
+        mapping:
+          rsa: '#/components/schemas/RsaAlgorithmSpec'
+          ed25519: '#/components/schemas/Ed25519AlgorithmSpec'
+          cv25519: '#/components/schemas/Cv25519AlgorithmSpec'
+          ecdsa: '#/components/schemas/EcdsaAlgorithmSpec'
+          ecdh: '#/components/schemas/EcdhAlgorithmSpec'
+
+    ValiditySpec:
+      type: object
+      description: Key validity window for generation or extension
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+          description: Defaults to server time when generating
+        expiresAt:
+          type: string
+          format: date-time
+          description: Must be strictly after createdAt when both are set
+      required: [expiresAt]
+
+    UserIdSpec:
+      type: object
+      description: OpenPGP User ID packet (name + optional email)
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        email:
+          type: string
+          format: email
+          maxLength: 254
+      required: [name]
+
+    CapabilitySet:
+      type: array
+      description: |
+        Intended usage flags. Valid combinations depend on `role`:
+        - **primary:** must include `certify`; typically includes `sign`; must not include `encrypt` on modern keys
+        - **subkey:** must not include `certify`; typically one of `encrypt`, `sign`, or `authenticate`
+      minItems: 1
+      maxItems: 4
+      uniqueItems: true
+      items:
+        $ref: '#/components/schemas/PgpCapability'
+
+    StorageRef:
+      type: object
+      properties:
+        storageProvider:
+          $ref: '#/components/schemas/StorageProvider'
+        storageRef:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          description: Opaque provider-specific object path or id
+
+    Fingerprint:
+      type: string
+      description: Full key fingerprint (hex, no spaces)
+      pattern: '^[0-9A-Fa-f]{16,40}$'
+      examples: [A1B2C3D4E5F6789012345678ABCDEF0123456789]
+
+    KeyIdShort:
+      type: string
+      description: 64-bit key id (8 hex chars) or long id (16 hex)
+      pattern: '^[0-9A-Fa-f]{8,16}$'
+
+    ArmoredPublicKey:
+      type: string
+      minLength: 27
+      pattern: '^-----BEGIN PGP PUBLIC KEY BLOCK-----'
+      description: ASCII-armored public key block
+
+    ArmoredPrivateKeyEncrypted:
+      type: string
+      minLength: 31
+      pattern: '^-----BEGIN PGP PRIVATE KEY BLOCK-----'
+      description: ASCII-armored private key block (passphrase-encrypted)
+
+    # --- Requests ---
+
+    CreatePgpKeyRequest:
+      description: |
+        **Backward-compatible** create/import body (implemented today).
+
+        For new primary key generation, prefer `CreatePrimaryKeyRequest` fields (`role`, `algorithm` object,
+        `capabilities`, `userIds`) in the target implementation while accepting this shape.
+      type: object
+      required: [fingerprint, keyType]
+      properties:
+        label:
+          type: string
+          maxLength: 128
+        fingerprint:
+          $ref: '#/components/schemas/Fingerprint'
+        keyId:
+          $ref: '#/components/schemas/KeyIdShort'
+        keyType:
+          $ref: '#/components/schemas/MaterialKind'
+        algorithm:
+          type: string
+          maxLength: 64
+          description: Free-form algorithm label today; prefer AlgorithmSpec for generation
+        expiresAt:
+          type: string
+          format: date-time
+        armoredPublic:
+          $ref: '#/components/schemas/ArmoredPublicKey'
+        encryptedPrivateArmored:
+          $ref: '#/components/schemas/ArmoredPrivateKeyEncrypted'
+        storageProvider:
+          type: string
+          maxLength: 64
+        storageRef:
+          type: string
+          maxLength: 2048
+        # --- Target fields (optional on register; required on generate) ---
+        role:
+          $ref: '#/components/schemas/KeyRole'
+          default: primary
+        parentKeyId:
+          type: string
+          format: uuid
+          description: Set only when registering an existing subkey
+        capabilities:
+          $ref: '#/components/schemas/CapabilitySet'
+        algorithmSpec:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        validity:
+          $ref: '#/components/schemas/ValiditySpec'
+        userIds:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            $ref: '#/components/schemas/UserIdSpec'
+        passphrase:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 256
+          writeOnly: true
+          description: Required when generating a private key server-side
+      allOf:
+        - if:
+            properties:
+              keyType:
+                const: public
+          then:
+            required: [armoredPublic]
+            not:
+              required: [encryptedPrivateArmored, passphrase]
+        - if:
+            properties:
+              keyType:
+                const: private
+          then:
+            anyOf:
+              - required: [encryptedPrivateArmored]
+              - required: [passphrase, algorithmSpec]
+
+    CreatePrimaryKeyRequest:
+      description: Target request body for generating or importing a primary key
+      type: object
+      required: [role, capabilities]
+      properties:
+        label:
+          type: string
+          maxLength: 128
+        role:
+          type: string
+          const: primary
+        userIds:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            $ref: '#/components/schemas/UserIdSpec'
+        capabilities:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PgpCapability'
+          description: Must include `certify`
+        algorithm:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        validity:
+          $ref: '#/components/schemas/ValiditySpec'
+        passphrase:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 256
+          writeOnly: true
+        armoredPublic:
+          $ref: '#/components/schemas/ArmoredPublicKey'
+        encryptedPrivateArmored:
+          $ref: '#/components/schemas/ArmoredPrivateKeyEncrypted'
+        storage:
+          $ref: '#/components/schemas/StorageRef'
+      allOf:
+        - if:
+            required: [armoredPublic]
+          then:
+            properties:
+              armoredPublic: true
+          else:
+            required: [algorithm, passphrase]
+
+    CreateSubkeyRequest:
+      description: Target request for adding a subkey to an existing primary
+      type: object
+      required: [capabilities, algorithm]
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/CapabilitySet'
+        algorithm:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        validity:
+          $ref: '#/components/schemas/ValiditySpec'
+        passphrase:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 256
+          writeOnly: true
+      allOf:
+        - not:
+            properties:
+              capabilities:
+                contains:
+                  const: certify
+        - if:
+            properties:
+              capabilities:
+                type: array
+                contains:
+                  const: encrypt
+          then:
+            properties:
+              algorithm:
+                oneOf:
+                  - $ref: '#/components/schemas/Cv25519AlgorithmSpec'
+                  - $ref: '#/components/schemas/EcdhAlgorithmSpec'
+                  - $ref: '#/components/schemas/RsaAlgorithmSpec'
+        - if:
+            properties:
+              capabilities:
+                type: array
+                contains:
+                  const: sign
+          then:
+            properties:
+              algorithm:
+                oneOf:
+                  - $ref: '#/components/schemas/Ed25519AlgorithmSpec'
+                  - $ref: '#/components/schemas/EcdsaAlgorithmSpec'
+                  - $ref: '#/components/schemas/RsaAlgorithmSpec'
+
+    UpdatePgpKeyRequest:
+      type: object
+      description: Only mutable app metadata (implemented today)
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          maxLength: 128
+        expiresAt:
+          type: string
+          format: date-time
+        storageProvider:
+          type: string
+          maxLength: 64
+        storageRef:
+          type: string
+          maxLength: 2048
+
+    RevokeKeyRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          $ref: '#/components/schemas/RevocationReason'
+        description:
+          type: string
+          maxLength: 512
+        passphrase:
+          type: string
+          format: password
+          writeOnly: true
+          description: Required when publishing revocation to OpenPGP key material
+
+    ExtendExpiryRequest:
+      type: object
+      required: [expiresAt]
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        passphrase:
+          type: string
+          format: password
+          writeOnly: true
+
+    RotateKeyRequest:
+      type: object
+      required: [capabilities, algorithm]
+      properties:
+        capabilities:
+          $ref: '#/components/schemas/CapabilitySet'
+        algorithm:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        validity:
+          $ref: '#/components/schemas/ValiditySpec'
+        passphrase:
+          type: string
+          format: password
+          minLength: 8
+          writeOnly: true
+        revokePrevious:
+          type: boolean
+          default: true
+
+    RotateKeyResponse:
+      type: object
+      required: [newKey, previousKey]
+      properties:
+        newKey:
+          $ref: '#/components/schemas/PgpKey'
+        previousKey:
+          $ref: '#/components/schemas/PgpKey'
+
+    # --- Responses ---
+
+    PgpKeySummary:
+      type: object
+      description: List item; never includes private ciphertext
+      required: [id, fingerprint, keyType, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: [string, 'null']
+        fingerprint:
+          $ref: '#/components/schemas/Fingerprint'
+        keyId:
+          $ref: '#/components/schemas/KeyIdShort'
+        keyType:
+          $ref: '#/components/schemas/MaterialKind'
+        role:
+          $ref: '#/components/schemas/KeyRole'
+        parentKeyId:
+          type: [string, 'null']
+          format: uuid
+        algorithm:
+          type: string
+        algorithmSpec:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        capabilities:
+          $ref: '#/components/schemas/CapabilitySet'
+        status:
+          $ref: '#/components/schemas/KeyStatus'
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+        storageProvider:
+          type: [string, 'null']
+        storageRef:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PgpKey:
+      allOf:
+        - $ref: '#/components/schemas/PgpKeySummary'
+        - type: object
+          properties:
+            armoredPublic:
+              $ref: '#/components/schemas/ArmoredPublicKey'
+            encryptedPrivateArmored:
+              $ref: '#/components/schemas/ArmoredPrivateKeyEncrypted'
+              description: Omitted in list responses; included on get/create when stored

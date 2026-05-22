@@ -66,6 +66,10 @@ Environment variables (backend):
 | `AUTH0_ISSUER_URI` | Auth0 issuer for JWT validation |
 | `AUTH0_AUDIENCE` | API audience (optional) |
 
+### API contract
+
+OpenAPI 3.1 spec: [`docs/openapi.yaml`](docs/openapi.yaml) (current CRUD + target primary/subkey and lifecycle endpoints).
+
 ### Versioned API headers (frontend)
 
 Protected routes should send:
