@@ -7,7 +7,7 @@ info:
 
     **Versioning:** `Accept: application/json; version=1`
     **Auth:** Bearer JWT (Auth0) on `/api/keys/**`
-    **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.79) for generation and lifecycle operations.
+    **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.84) for generation and lifecycle operations.
     **Errors:** RFC 7807 `application/problem+json`
 
 servers:

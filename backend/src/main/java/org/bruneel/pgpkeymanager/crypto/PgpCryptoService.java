@@ -31,7 +31,6 @@ import org.bouncycastle.openpgp.operator.PBESecretKeyEncryptor;
 import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder;
-import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyConverter;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyEncryptorBuilder;
@@ -48,6 +47,8 @@ public class PgpCryptoService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String PROVIDER = PgpCryptoSupport.PROVIDER;
+    /** OpenPGP v4 key packets (RFC 4880); this project does not generate v6 keys. */
+    private static final int OPENPGP_KEY_VERSION = 4;
 
     static {
         PgpCryptoSupport.fingerprintCalculator();
@@ -263,19 +264,27 @@ public class PgpCryptoService {
 
     private PGPKeyPair generateKeyPair(AlgorithmSpecDto spec, Date creationTime) throws Exception {
         return switch (spec.algorithm().toLowerCase()) {
-            case "ed25519" -> new JcaPGPKeyPair(PublicKeyAlgorithmTags.EDDSA, ed25519Pair(), creationTime);
-            case "cv25519" -> new JcaPGPKeyPair(PublicKeyAlgorithmTags.ECDH, x25519Pair(), creationTime);
+            case "ed25519" ->
+                    new JcaPGPKeyPair(OPENPGP_KEY_VERSION, PublicKeyAlgorithmTags.EDDSA, ed25519Pair(), creationTime);
+            case "cv25519" ->
+                    new JcaPGPKeyPair(OPENPGP_KEY_VERSION, PublicKeyAlgorithmTags.ECDH, x25519Pair(), creationTime);
             case "rsa" -> {
                 int size = spec.keySize() != null ? spec.keySize() : 4096;
                 KeyPairGenerator rsa = KeyPairGenerator.getInstance("RSA", PROVIDER);
                 rsa.initialize(size);
-                yield new JcaPGPKeyPair(PublicKeyAlgorithmTags.RSA_GENERAL, rsa.generateKeyPair(), creationTime);
+                yield new JcaPGPKeyPair(
+                        OPENPGP_KEY_VERSION,
+                        PublicKeyAlgorithmTags.RSA_GENERAL,
+                        rsa.generateKeyPair(),
+                        creationTime);
             }
             case "ecdsa" -> new JcaPGPKeyPair(
+                    OPENPGP_KEY_VERSION,
                     PublicKeyAlgorithmTags.ECDSA,
                     ecKeyPair(resolveCurveName(spec.curve(), "P-256"), "ECDSA"),
                     creationTime);
             case "ecdh" -> new JcaPGPKeyPair(
+                    OPENPGP_KEY_VERSION,
                     PublicKeyAlgorithmTags.ECDH,
                     ecKeyPair(resolveCurveName(spec.curve(), null), "ECDH"),
                     creationTime);
@@ -387,15 +396,5 @@ public class PgpCryptoService {
             return first.name() + " <" + first.email() + ">";
         }
         return first.name();
-    }
-
-    private String algorithmName(PGPPublicKey key) {
-        return switch (key.getAlgorithm()) {
-            case PublicKeyAlgorithmTags.RSA_GENERAL, PublicKeyAlgorithmTags.RSA_ENCRYPT -> "rsa";
-            case PublicKeyAlgorithmTags.EDDSA -> "ed25519";
-            case PublicKeyAlgorithmTags.ECDH -> "cv25519";
-            case PublicKeyAlgorithmTags.ECDSA -> "ecdsa";
-            default -> "unknown";
-        };
     }
 }
