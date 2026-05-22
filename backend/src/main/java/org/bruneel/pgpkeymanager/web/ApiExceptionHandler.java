@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -18,6 +20,8 @@ import org.bruneel.pgpkeymanager.service.UnauthorizedException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(KeyNotFoundException.class)
     public ResponseEntity<ProblemDetail> notFound(KeyNotFoundException ex) {
@@ -57,7 +61,10 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(CryptoException.class)
     public ResponseEntity<ProblemDetail> crypto(CryptoException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        log.warn("Cryptographic operation failed: {}", ex.getMessage(), ex);
+        ProblemDetail problem =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.BAD_REQUEST, "Cryptographic operation failed. Check request parameters.");
         problem.setTitle("Cryptographic Error");
         return ResponseEntity.badRequest().body(problem);
     }

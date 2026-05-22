@@ -7,7 +7,14 @@ public enum PgpCapability {
     AUTHENTICATE;
 
     public static PgpCapability fromApi(String value) {
-        return PgpCapability.valueOf(value.toUpperCase());
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("capability is required");
+        }
+        try {
+            return PgpCapability.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Invalid capability: " + value);
+        }
     }
 
     public String toApi() {

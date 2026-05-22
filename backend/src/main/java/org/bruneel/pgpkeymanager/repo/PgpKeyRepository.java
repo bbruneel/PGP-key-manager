@@ -46,9 +46,6 @@ public class PgpKeyRepository {
         if (status != null) {
             clauses.add(statusClause(status));
         }
-        if (capability != null) {
-            clauses.add("capabilities LIKE :capability");
-        }
         if (!clauses.isEmpty()) {
             sql.append(" AND ").append(String.join(" AND ", clauses));
         }
@@ -58,10 +55,11 @@ public class PgpKeyRepository {
         if (role != null) {
             query = query.param("role", role.toDb());
         }
-        if (capability != null) {
-            query = query.param("capability", "%\"" + capability.toDb() + "\"%");
+        List<PgpKey> keys = query.query((rs, rowNum) -> mapRow(rs)).list();
+        if (capability == null) {
+            return keys;
         }
-        return query.query((rs, rowNum) -> mapRow(rs)).list();
+        return keys.stream().filter(k -> k.capabilities().contains(capability)).toList();
     }
 
     public List<PgpKey> findSubkeysByParentId(UUID parentKeyId, UUID userId) {

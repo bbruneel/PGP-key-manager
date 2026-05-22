@@ -25,6 +25,7 @@ import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.service.CurrentUserService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService;
+import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
@@ -55,7 +56,7 @@ public class PgpKeyController {
             Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         KeyRole keyRole = role != null ? KeyRole.fromDb(role) : null;
-        PgpCapability cap = capability != null ? PgpCapability.fromApi(capability) : null;
+        PgpCapability cap = capability != null ? PgpKeyValidator.parseCapabilityParam(capability) : null;
         return pgpKeyService.listForUser(user, keyRole, status, cap).stream()
                 .map(key -> PgpKeyResponse.from(key, false))
                 .toList();

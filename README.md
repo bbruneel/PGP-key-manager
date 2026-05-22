@@ -70,9 +70,13 @@ Environment variables (backend):
 
 OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, and export-public.
 
-**Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.79). Passphrases and private key plaintext are never logged.
+**Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.79). Supported algorithms: `ed25519`, `cv25519`, `rsa`, `ecdsa`, `ecdh` (with curve). Passphrases are wiped from memory after use and are never logged.
 
-**Security checks:** run `./mvnw test` and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields only (user id, key id, operation, duration).
+**Keyring storage:** armored public/private keyrings are stored on the primary key row only. Subkey rows hold fingerprints, key IDs, capabilities, and expiry metadata.
+
+**Revocation:** cryptographic revocation requires primary private material and a passphrase. Public-only registrations receive metadata revocation only.
+
+**Security checks:** run `./mvnw test` (33 tests) and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields only (user id, key id, operation, duration). API cryptographic failures return a generic client message; details are logged server-side.
 
 ### Versioned API headers (frontend)
 

@@ -70,6 +70,120 @@ class PgpCryptoServiceTest {
     }
 
     @Test
+    void addEcdsaSigningSubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        List.of(new UserIdSpecDto("ECDSA Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "integration-test-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        primary.armoredPrivate(),
+                        "integration-test-passphrase".toCharArray(),
+                        List.of(PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ecdsa", null, "P-256"),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        assertThat(sub.algorithm()).isEqualTo("ecdsa");
+        assertThat(sub.keyId()).hasSize(16);
+    }
+
+    @Test
+    void addEcdhEncryptionSubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        List.of(new UserIdSpecDto("ECDH Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "integration-test-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        primary.armoredPrivate(),
+                        "integration-test-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("ecdh", null, "P-256"),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        assertThat(sub.algorithm()).isEqualTo("ecdh");
+    }
+
+    @Test
+    void keyIdIsZeroPadded() {
+        GeneratedKeyMaterial material =
+                crypto.generatePrimary(
+                        List.of(new UserIdSpecDto("Pad Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "integration-test-passphrase".toCharArray());
+
+        assertThat(material.keyId()).matches("[0-9A-F]{16}");
+    }
+
+    @Test
+    void extendSubkeyExpiryInRing() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        List.of(new UserIdSpecDto("Extend Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "integration-test-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        primary.armoredPrivate(),
+                        "integration-test-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        PgpCryptoService.KeyRingUpdate updated =
+                crypto.extendExpiryInRing(
+                        sub.updatedArmoredPrivate(),
+                        "integration-test-passphrase".toCharArray(),
+                        subKeyId,
+                        Instant.parse("2031-05-21T00:00:00Z"));
+
+        assertThat(updated.armoredPrivate()).contains("BEGIN PGP PRIVATE KEY BLOCK");
+    }
+
+    @Test
+    void revokeSubkeyInRing() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        List.of(new UserIdSpecDto("Revoke Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "integration-test-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        primary.armoredPrivate(),
+                        "integration-test-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        PgpCryptoService.KeyRingUpdate updated =
+                crypto.revokeKeyInRing(
+                        sub.updatedArmoredPrivate(),
+                        "integration-test-passphrase".toCharArray(),
+                        subKeyId,
+                        3);
+
+        assertThat(updated.armoredPublic()).contains("BEGIN PGP PUBLIC KEY BLOCK");
+    }
+
+    @Test
     void rejectsPastExpiry() {
         assertThatThrownBy(
                         () ->

@@ -15,7 +15,11 @@ public final class PgpKeyValidator {
         if (raw == null || raw.isEmpty()) {
             throw new BadRequestException("capabilities must not be empty");
         }
-        return raw.stream().map(PgpCapability::fromApi).distinct().toList();
+        try {
+            return raw.stream().map(PgpCapability::fromApi).distinct().toList();
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException(ex.getMessage());
+        }
     }
 
     public static void validatePrimaryCapabilities(List<PgpCapability> capabilities) {
@@ -52,9 +56,20 @@ public final class PgpKeyValidator {
             if (!List.of("ed25519", "ecdsa", "rsa").contains(alg)) {
                 throw new BadRequestException("Signing subkeys require ed25519, ecdsa, or rsa");
             }
+            if ("ecdsa".equals(alg) && algorithm.curve() == null) {
+                throw new BadRequestException("ecdsa requires curve");
+            }
         }
         if ("rsa".equals(alg) && algorithm.keySize() == null) {
             throw new BadRequestException("rsa requires keySize");
+        }
+    }
+
+    public static PgpCapability parseCapabilityParam(String capability) {
+        try {
+            return PgpCapability.fromApi(capability);
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException(ex.getMessage());
         }
     }
 

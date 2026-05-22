@@ -6,7 +6,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import org.bouncycastle.bcpg.ArmoredInputStream;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
@@ -14,6 +16,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
+import org.bouncycastle.openpgp.PGPSecretKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
@@ -39,8 +42,15 @@ public final class PgpCryptoSupport {
         return Hex.toHexString(key.getFingerprint()).toUpperCase();
     }
 
+    /** OpenPGP key IDs are 64-bit; return zero-padded 16 hex characters (RFC 4880). */
     public static String keyIdHex(PGPPublicKey key) {
-        return Long.toHexString(key.getKeyID()).toUpperCase();
+        long keyId = key.getKeyID();
+        byte[] bytes = new byte[8];
+        for (int i = 7; i >= 0; i--) {
+            bytes[i] = (byte) (keyId & 0xff);
+            keyId >>>= 8;
+        }
+        return Hex.toHexString(bytes).toUpperCase();
     }
 
     public static PGPSecretKeyRing loadSecretKeyRing(String armoredPrivate, char[] passphrase)
@@ -98,7 +108,12 @@ public final class PgpCryptoSupport {
 
     public static PGPPublicKeyRing publicRingFromSecret(PGPSecretKeyRing secretRing) {
         try {
-            return new PGPPublicKeyRing(secretRing.getEncoded(), fingerprintCalculator());
+            List<PGPPublicKey> keys = new ArrayList<>();
+            Iterator<PGPSecretKey> secretKeys = secretRing.getSecretKeys();
+            while (secretKeys.hasNext()) {
+                keys.add(secretKeys.next().getPublicKey());
+            }
+            return new PGPPublicKeyRing(keys);
         } catch (Exception e) {
             throw new CryptoException("Failed to derive public key ring", e);
         }

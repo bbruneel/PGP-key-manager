@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService;
@@ -28,6 +29,7 @@ import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
 @Service
+@Transactional
 public class PgpKeyService {
 
     private final PgpKeyRepository pgpKeyRepository;
@@ -104,15 +106,19 @@ public class PgpKeyService {
             PgpKey primary = requirePrimaryWithPrivate(user, primaryKeyId);
             List<PgpCapability> capabilities = PgpKeyValidator.parseCapabilities(request.capabilities());
             Instant expiresAt = request.validity() != null ? request.validity().expiresAt() : null;
-            char[] passphrase = requirePassphrase(request.passphrase());
-
-            SubkeyMaterial material =
-                    pgpCryptoService.addSubkey(
-                            primary.encryptedPrivateArmored(),
-                            passphrase,
-                            capabilities,
-                            request.algorithm(),
-                            expiresAt);
+            char[] passphrase = PassphraseUtil.require(request.passphrase());
+            SubkeyMaterial material;
+            try {
+                material =
+                        pgpCryptoService.addSubkey(
+                                primary.encryptedPrivateArmored(),
+                                passphrase,
+                                capabilities,
+                                request.algorithm(),
+                                expiresAt);
+            } finally {
+                PassphraseUtil.wipe(passphrase);
+            }
 
             pgpKeyRepository.updateKeyringMaterial(
                     primary.id(),
@@ -124,12 +130,10 @@ public class PgpKeyService {
                     null);
 
             PgpKey subkey =
-                    insertKey(
+                    insertSubkeyRow(
                             user,
                             primary.label(),
                             material,
-                            KeyType.PRIVATE,
-                            KeyRole.SUBKEY,
                             primary.id(),
                             primary.storageProvider(),
                             primary.storageRef());
@@ -148,47 +152,40 @@ public class PgpKeyService {
         try {
             PgpKey key = getForUser(user, keyId);
             ensureNotRevoked(key);
-            RevocationReason reason = RevocationReason.fromApi(request.reason());
+            RevocationReason reason = parseRevocationReason(request.reason());
             Instant revokedAt = Instant.now();
 
-            if (key.isPrimary() && key.encryptedPrivateArmored() != null) {
-                char[] passphrase = requirePassphrase(request.passphrase());
-                long targetKeyId = org.bruneel.pgpkeymanager.crypto.PgpCryptoSupport.parseKeyIdHex(key.keyId());
-                if (targetKeyId == 0) {
-                    targetKeyId = parseKeyId(key);
+            PgpKey primaryForRing =
+                    key.isPrimary() ? key : (key.parentKeyId() != null ? getForUser(user, key.parentKeyId()) : null);
+            boolean primaryHasPrivate =
+                    primaryForRing != null && hasPrivateMaterial(primaryForRing);
+
+            if (primaryHasPrivate) {
+                char[] passphrase = PassphraseUtil.require(request.passphrase());
+                try {
+                    PgpKey primary = requirePrimaryWithPrivate(user, primaryForRing.id());
+                    long targetKeyId = parseKeyId(key);
+                    KeyRingUpdate updated =
+                            pgpCryptoService.revokeKeyInRing(
+                                    primary.encryptedPrivateArmored(),
+                                    passphrase,
+                                    targetKeyId,
+                                    revocationReasonCode(reason));
+                    pgpKeyRepository.updateKeyringMaterial(
+                            primary.id(),
+                            user.id(),
+                            updated.armoredPublic(),
+                            updated.armoredPrivate(),
+                            null,
+                            key.isPrimary() ? revokedAt : null,
+                            key.isPrimary() ? reason : null);
+                } finally {
+                    PassphraseUtil.wipe(passphrase);
                 }
-                KeyRingUpdate updated =
-                        pgpCryptoService.revokeKeyInRing(
-                                key.encryptedPrivateArmored(),
-                                passphrase,
-                                targetKeyId,
-                                revocationReasonCode(reason));
-                pgpKeyRepository.updateKeyringMaterial(
-                        key.id(),
-                        user.id(),
-                        updated.armoredPublic(),
-                        updated.armoredPrivate(),
-                        null,
-                        revokedAt,
-                        reason);
-            } else if (key.parentKeyId() != null) {
-                PgpKey primary = requirePrimaryWithPrivate(user, key.parentKeyId());
-                char[] passphrase = requirePassphrase(request.passphrase());
-                long targetKeyId = parseKeyId(key);
-                KeyRingUpdate updated =
-                        pgpCryptoService.revokeKeyInRing(
-                                primary.encryptedPrivateArmored(),
-                                passphrase,
-                                targetKeyId,
-                                revocationReasonCode(reason));
-                pgpKeyRepository.updateKeyringMaterial(
-                        primary.id(),
-                        user.id(),
-                        updated.armoredPublic(),
-                        updated.armoredPrivate(),
-                        null,
-                        null,
-                        null);
+            } else if (request.passphrase() != null && !request.passphrase().isBlank()) {
+                throw new BadRequestException(
+                        "Passphrase was provided but no primary private key material is stored; "
+                                + "revocation is recorded as metadata only");
             }
 
             PgpKey revoked =
@@ -215,15 +212,19 @@ public class PgpKeyService {
 
             PgpKey primary =
                     key.isPrimary() ? requirePrimaryWithPrivate(user, key.id()) : requirePrimaryWithPrivate(user, key.parentKeyId());
-            char[] passphrase = requirePassphrase(request.passphrase());
+            char[] passphrase = PassphraseUtil.require(request.passphrase());
             long targetKeyId = parseKeyId(key);
-
-            KeyRingUpdate updated =
-                    pgpCryptoService.extendExpiryInRing(
-                            primary.encryptedPrivateArmored(),
-                            passphrase,
-                            targetKeyId,
-                            request.expiresAt());
+            KeyRingUpdate updated;
+            try {
+                updated =
+                        pgpCryptoService.extendExpiryInRing(
+                                primary.encryptedPrivateArmored(),
+                                passphrase,
+                                targetKeyId,
+                                request.expiresAt());
+            } finally {
+                PassphraseUtil.wipe(passphrase);
+            }
 
             pgpKeyRepository.updateKeyringMaterial(
                     primary.id(),
@@ -257,13 +258,14 @@ public class PgpKeyService {
             ensureNotRevoked(previous);
 
             boolean revokePrevious = request.revokePrevious() == null || request.revokePrevious();
-            if (revokePrevious && request.passphrase() != null) {
+            if (revokePrevious && (request.passphrase() == null || request.passphrase().isBlank())) {
+                throw new BadRequestException("passphrase is required when revokePrevious is true");
+            }
+            if (revokePrevious) {
                 revoke(
                         user,
                         keyId,
                         new RevokeKeyRequest("key_superseded", "rotated", request.passphrase()));
-            } else if (revokePrevious) {
-                pgpKeyRepository.markRevoked(keyId, user.id(), Instant.now(), RevocationReason.KEY_SUPERSEDED);
             }
 
             CreateSubkeyRequest subRequest =
@@ -305,13 +307,19 @@ public class PgpKeyService {
         PgpKeyValidator.validatePrimaryCapabilities(capabilities);
         Instant expiresAt = request.validity() != null ? request.validity().expiresAt() : request.expiresAt();
 
-        GeneratedKeyMaterial material =
-                pgpCryptoService.generatePrimary(
-                        request.userIds(),
-                        capabilities,
-                        request.algorithmSpec(),
-                        expiresAt,
-                        request.passphrase().toCharArray());
+        char[] passphrase = PassphraseUtil.require(request.passphrase());
+        GeneratedKeyMaterial material;
+        try {
+            material =
+                    pgpCryptoService.generatePrimary(
+                            request.userIds(),
+                            capabilities,
+                            request.algorithmSpec(),
+                            expiresAt,
+                            passphrase);
+        } finally {
+            PassphraseUtil.wipe(passphrase);
+        }
 
         return insertKey(
                 user,
@@ -395,12 +403,10 @@ public class PgpKeyService {
                 storageRef);
     }
 
-    private PgpKey insertKey(
+    private PgpKey insertSubkeyRow(
             AppUser user,
             String label,
             SubkeyMaterial material,
-            KeyType keyType,
-            KeyRole role,
             UUID parentKeyId,
             String storageProvider,
             String storageRef) {
@@ -413,10 +419,10 @@ public class PgpKeyService {
                 material.algorithmSpecJson(),
                 material.capabilities(),
                 material.expiresAt(),
-                material.updatedArmoredPublic(),
-                material.updatedArmoredPrivate(),
-                keyType,
-                role,
+                null,
+                null,
+                KeyType.PRIVATE,
+                KeyRole.SUBKEY,
                 parentKeyId,
                 storageProvider,
                 storageRef);
@@ -496,11 +502,16 @@ public class PgpKeyService {
         }
     }
 
-    private char[] requirePassphrase(String passphrase) {
-        if (passphrase == null || passphrase.isBlank()) {
-            throw new BadRequestException("passphrase is required for this operation");
+    private RevocationReason parseRevocationReason(String reason) {
+        try {
+            return RevocationReason.fromApi(reason);
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException(ex.getMessage());
         }
-        return passphrase.toCharArray();
+    }
+
+    private boolean hasPrivateMaterial(PgpKey key) {
+        return key.encryptedPrivateArmored() != null && !key.encryptedPrivateArmored().isBlank();
     }
 
     private long parseKeyId(PgpKey key) {

@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.spec.ECGenParameterSpec;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
@@ -147,17 +148,21 @@ public class PgpCryptoService {
                 throw new CryptoException("Key id not found in keyring");
             }
 
+            PGPPublicKey masterPublic = masterSecret.getPublicKey();
             PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
-                    new JcaPGPContentSignerBuilder(
-                                    masterSecret.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA512)
+                    new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA512)
                             .setProvider(PROVIDER));
-            sigGen.init(PGPSignature.KEY_REVOCATION, unlockSecret(masterSecret, passphrase));
+            int revocationType = target.isMasterKey() ? PGPSignature.KEY_REVOCATION : PGPSignature.SUBKEY_REVOCATION;
+            sigGen.init(revocationType, unlockSecret(masterSecret, passphrase));
 
             PGPSignatureSubpacketGenerator spGen = new PGPSignatureSubpacketGenerator();
             spGen.setRevocationReason(false, (byte) revocationReasonCode, "revoked via API");
             sigGen.setHashedSubpackets(spGen.generate());
 
-            PGPSignature revocation = sigGen.generateCertification(target);
+            PGPSignature revocation =
+                    target.isMasterKey()
+                            ? sigGen.generateCertification(target)
+                            : sigGen.generateCertification(masterPublic, target);
             PGPPublicKey revokedPublic = PGPPublicKey.addCertification(target, revocation);
             PGPSecretKeyRing updated = replacePublicKeyInRing(ring, targetKeyId, revokedPublic);
             PGPPublicKeyRing publicRing = PgpCryptoSupport.publicRingFromSecret(updated);
@@ -180,17 +185,22 @@ public class PgpCryptoService {
                 throw new CryptoException("Key id not found in keyring");
             }
 
+            PGPPublicKey masterPublic = masterSecret.getPublicKey();
             PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
-                    new JcaPGPContentSignerBuilder(
-                                    masterSecret.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA512)
+                    new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA512)
                             .setProvider(PROVIDER));
-            sigGen.init(PGPSignature.POSITIVE_CERTIFICATION, unlockSecret(masterSecret, passphrase));
+            int signatureType =
+                    target.isMasterKey() ? PGPSignature.POSITIVE_CERTIFICATION : PGPSignature.SUBKEY_BINDING;
+            sigGen.init(signatureType, unlockSecret(masterSecret, passphrase));
 
             PGPSignatureSubpacketGenerator spGen = new PGPSignatureSubpacketGenerator();
             spGen.setKeyExpirationTime(false, expirySeconds(newExpiresAt));
             sigGen.setHashedSubpackets(spGen.generate());
 
-            PGPSignature sig = sigGen.generateCertification(target);
+            PGPSignature sig =
+                    target.isMasterKey()
+                            ? sigGen.generateCertification(target)
+                            : sigGen.generateCertification(masterPublic, target);
             PGPPublicKey updatedKey = PGPPublicKey.addCertification(target, sig);
             PGPSecretKeyRing updated = replacePublicKeyInRing(ring, targetKeyId, updatedKey);
             PGPPublicKeyRing publicRing = PgpCryptoSupport.publicRingFromSecret(updated);
@@ -199,29 +209,6 @@ public class PgpCryptoService {
                     PgpCryptoSupport.armorSecretRing(updated));
         } catch (Exception e) {
             throw new CryptoException("Failed to extend key expiry in keyring", e);
-        }
-    }
-
-    public GeneratedKeyMaterial importFromArmored(String armoredPublic, String armoredPrivate, char[] passphrase) {
-        try {
-            PGPPublicKeyRing publicRing = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
-            PGPPublicKey master = publicRing.getPublicKey();
-            String privateArmored = armoredPrivate;
-            if (armoredPrivate != null && !armoredPrivate.isBlank()) {
-                PGPSecretKeyRing secretRing = PgpCryptoSupport.loadSecretKeyRing(armoredPrivate, passphrase);
-                privateArmored = PgpCryptoSupport.armorSecretRing(secretRing);
-            }
-            return new GeneratedKeyMaterial(
-                    PgpCryptoSupport.fingerprintHex(master),
-                    PgpCryptoSupport.keyIdHex(master),
-                    algorithmName(master),
-                    null,
-                    List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
-                    null,
-                    PgpCryptoSupport.armorPublicRing(publicRing),
-                    privateArmored);
-        } catch (Exception e) {
-            throw new CryptoException("Failed to import armored key", e);
         }
     }
 
@@ -242,17 +229,6 @@ public class PgpCryptoService {
     }
 
     public record KeyRingUpdate(String armoredPublic, String armoredPrivate) {}
-
-    private PGPSecretKey findSecretKey(PGPSecretKeyRing ring, long keyId) {
-        Iterator<PGPSecretKey> it = ring.getSecretKeys();
-        while (it.hasNext()) {
-            PGPSecretKey k = it.next();
-            if (k.getKeyID() == keyId) {
-                return k;
-            }
-        }
-        throw new CryptoException("Generated subkey not found in temporary ring");
-    }
 
     private PGPPublicKey findPublicKey(PGPPublicKeyRing ring, long keyId) {
         Iterator<PGPPublicKey> keys = ring.getPublicKeys();
@@ -295,6 +271,14 @@ public class PgpCryptoService {
                 rsa.initialize(size);
                 yield new JcaPGPKeyPair(PublicKeyAlgorithmTags.RSA_GENERAL, rsa.generateKeyPair(), creationTime);
             }
+            case "ecdsa" -> new JcaPGPKeyPair(
+                    PublicKeyAlgorithmTags.ECDSA,
+                    ecKeyPair(resolveCurveName(spec.curve(), "P-256"), "ECDSA"),
+                    creationTime);
+            case "ecdh" -> new JcaPGPKeyPair(
+                    PublicKeyAlgorithmTags.ECDH,
+                    ecKeyPair(resolveCurveName(spec.curve(), null), "ECDH"),
+                    creationTime);
             default -> throw new CryptoException("Unsupported algorithm: " + spec.algorithm());
         };
     }
@@ -309,6 +293,36 @@ public class PgpCryptoService {
         return gen.generateKeyPair();
     }
 
+    private KeyPair ecKeyPair(String curveName, String algorithm) throws Exception {
+        KeyPairGenerator gen = KeyPairGenerator.getInstance(algorithm, PROVIDER);
+        gen.initialize(new ECGenParameterSpec(curveName));
+        return gen.generateKeyPair();
+    }
+
+    private String resolveCurveName(String curve, String defaultCurve) {
+        if (curve == null || curve.isBlank()) {
+            if (defaultCurve == null) {
+                throw new CryptoException("curve is required for this algorithm");
+            }
+            return defaultCurve;
+        }
+        String normalized = curve.toLowerCase().replace("_", "").replace("-", "");
+        return switch (normalized) {
+            case "p256", "nistp256", "secp256r1" -> "P-256";
+            case "p384", "nistp384" -> "P-384";
+            case "p521", "nistp521" -> "P-521";
+            default -> resolveCurveNamePassthrough(curve);
+        };
+    }
+
+    private String resolveCurveNamePassthrough(String curve) {
+        if (curve.matches("(?i)P-\\d{3}")) {
+            return curve.toUpperCase().startsWith("P-") ? curve : "P-" + curve.substring(1);
+        }
+        throw new CryptoException("Unknown curve: " + curve);
+    }
+
+    /** SHA-1 digest calculator for OpenPGP v4 key packets (RFC 4880 §5.5.3). */
     private PGPDigestCalculator sha1Calculator() throws PGPException {
         return new JcaPGPDigestCalculatorProviderBuilder()
                 .setProvider(PROVIDER)

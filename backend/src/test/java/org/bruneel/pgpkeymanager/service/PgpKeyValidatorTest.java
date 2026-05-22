@@ -26,6 +26,25 @@ class PgpKeyValidatorTest {
     }
 
     @Test
+    void ecdsaRequiresCurve() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validateSubkeyRequest(
+                                        new CreateSubkeyRequest(
+                                                List.of("sign"),
+                                                new AlgorithmSpecDto("ecdsa", null, null),
+                                                new ValiditySpecDto(null, java.time.Instant.parse("2030-01-01T00:00:00Z")),
+                                                "passphrase-12345678")))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void invalidCapabilityQueryParam() {
+        assertThatThrownBy(() -> PgpKeyValidator.parseCapabilityParam("not-a-capability"))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
     void primaryMustIncludeCertify() {
         assertThatThrownBy(
                         () ->

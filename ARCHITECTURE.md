@@ -99,12 +99,20 @@ sequenceDiagram
   Client->>API: POST /api/keys/{primaryId}/subkeys
   Svc->>Crypto: addSubkey
   Crypto-->>Svc: updated keyring + subkey metadata
-  Svc->>DB: update primary + insert subkey row
+  Svc->>DB: update primary armored material + insert subkey metadata row
 
   Client->>API: POST /api/keys/{id}/revoke
-  Svc->>Crypto: revokeKeyInRing
-  Svc->>DB: mark revoked_at
+  alt primary has private material
+    Svc->>Crypto: revokeKeyInRing (SUBKEY_REVOCATION / KEY_REVOCATION)
+    Svc->>DB: update primary keyring + mark revoked_at
+  else metadata only
+    Svc->>DB: mark revoked_at
+  end
 ```
+
+**Transactional boundaries:** `PgpKeyService` mutations run in a single database transaction so keyring updates and row inserts succeed or roll back together.
+
+**Passphrase handling:** passphrases are converted to `char[]`, used for Bouncy Castle decrypt/sign operations, then zeroed via `PassphraseUtil`.
 
 ## Repository layout
 

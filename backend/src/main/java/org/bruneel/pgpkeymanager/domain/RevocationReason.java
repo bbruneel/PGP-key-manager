@@ -8,7 +8,14 @@ public enum RevocationReason {
     USER_ID_INVALID;
 
     public static RevocationReason fromApi(String value) {
-        return RevocationReason.valueOf(value.toUpperCase());
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("reason is required");
+        }
+        try {
+            return RevocationReason.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Invalid revocation reason: " + value);
+        }
     }
 
     public String toApi() {

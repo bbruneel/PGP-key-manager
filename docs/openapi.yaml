@@ -175,6 +175,11 @@ paths:
       tags: [Key lifecycle]
       operationId: revokeKey
       x-implementation-status: implemented
+      description: |
+        Revokes a primary or subkey. When the account's primary key row stores encrypted private
+        material, `passphrase` is required and the OpenPGP keyring is updated cryptographically.
+        Without stored private material, only database metadata (`revokedAt`, `revocationReason`) is
+        updated. Supplying a passphrase when no private material exists returns 400.
       parameters:
         - $ref: '#/components/parameters/KeyId'
       requestBody:
@@ -213,6 +218,9 @@ paths:
       tags: [Key lifecycle]
       operationId: rotateKey
       x-implementation-status: implemented
+      description: |
+        Creates a replacement subkey on the parent primary. When `revokePrevious` is true (default),
+        the previous subkey is revoked in the OpenPGP keyring and `passphrase` is required.
       parameters:
         - $ref: '#/components/parameters/KeyId'
       requestBody:
@@ -302,6 +310,7 @@ components:
           enum: [2048, 3072, 4096]
         curve:
           type: string
+          description: Required for ecdh; required for ecdsa signing subkeys. Examples P-256, P-384, nistp256.
     ValiditySpec:
       type: object
       required: [expiresAt]
@@ -413,6 +422,7 @@ components:
           writeOnly: true
         revokePrevious:
           type: boolean
+          description: When true, requires passphrase to revoke the previous subkey in the keyring.
     RotateKeyResponse:
       type: object
       required: [newKey, previousKey]
@@ -452,8 +462,13 @@ components:
       allOf:
         - $ref: '#/components/schemas/PgpKeySummary'
         - type: object
+          description: |
+            Primary keys store the full armored keyring. Subkey rows store metadata only; use the
+            parent primary or export-public for armored public material.
           properties:
             armoredPublic:
               type: string
+              description: Present on primary keys; omitted on subkey list/detail responses.
             encryptedPrivateArmored:
               type: string
+              description: Present on primary detail when generated or imported with private material.
