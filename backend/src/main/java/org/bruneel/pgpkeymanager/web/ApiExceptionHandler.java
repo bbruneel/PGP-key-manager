@@ -7,15 +7,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.bruneel.pgpkeymanager.service.BadRequestException;
 import org.bruneel.pgpkeymanager.service.ConflictException;
+import org.bruneel.pgpkeymanager.service.CryptoException;
 import org.bruneel.pgpkeymanager.service.KeyNotFoundException;
 import org.bruneel.pgpkeymanager.service.UnauthorizedException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(KeyNotFoundException.class)
     public ResponseEntity<ProblemDetail> notFound(KeyNotFoundException ex) {
@@ -44,6 +50,23 @@ public class ApiExceptionHandler {
                 ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Resource conflict or duplicate value");
         problem.setTitle("Conflict");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ProblemDetail> badRequest(BadRequestException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Bad Request");
+        return ResponseEntity.badRequest().body(problem);
+    }
+
+    @ExceptionHandler(CryptoException.class)
+    public ResponseEntity<ProblemDetail> crypto(CryptoException ex) {
+        log.warn("Cryptographic operation failed: {}", ex.getMessage(), ex);
+        ProblemDetail problem =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.BAD_REQUEST, "Cryptographic operation failed. Check request parameters.");
+        problem.setTitle("Cryptographic Error");
+        return ResponseEntity.badRequest().body(problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

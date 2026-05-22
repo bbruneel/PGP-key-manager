@@ -14,9 +14,14 @@ CREATE TABLE pgp_keys (
     fingerprint VARCHAR(255) NOT NULL,
     key_id VARCHAR(64),
     key_type VARCHAR(16) NOT NULL,
+    role VARCHAR(16) NOT NULL DEFAULT 'primary',
+    parent_key_id CHAR(36),
+    capabilities VARCHAR(512),
     algorithm VARCHAR(64),
+    algorithm_spec VARCHAR(512),
     expires_at TIMESTAMP WITH TIME ZONE,
     revoked_at TIMESTAMP WITH TIME ZONE,
+    revocation_reason VARCHAR(64),
     armored_public CLOB,
     encrypted_private_armored CLOB,
     storage_provider VARCHAR(64),
@@ -24,9 +29,11 @@ CREATE TABLE pgp_keys (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pgp_keys_user_fingerprint_unique UNIQUE (user_id, fingerprint),
-    CONSTRAINT pgp_keys_key_type_check CHECK (key_type IN ('public', 'private'))
+    CONSTRAINT pgp_keys_key_type_check CHECK (key_type IN ('public', 'private')),
+    CONSTRAINT pgp_keys_role_check CHECK (role IN ('primary', 'subkey'))
 );
 
 CREATE INDEX pgp_keys_user_id_idx ON pgp_keys (user_id);
-
+CREATE INDEX pgp_keys_parent_key_id_idx ON pgp_keys (parent_key_id);
+CREATE INDEX pgp_keys_role_idx ON pgp_keys (user_id, role);
 CREATE INDEX pgp_keys_expires_at_idx ON pgp_keys (expires_at);

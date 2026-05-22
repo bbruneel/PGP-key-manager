@@ -1,19 +1,28 @@
 package org.bruneel.pgpkeymanager.web.dto;
 
 import java.time.Instant;
+import java.util.List;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public record CreatePgpKeyRequest(
-        String label,
-        @NotBlank String fingerprint,
-        String keyId,
-        @NotNull @Pattern(regexp = "public|private", flags = Pattern.Flag.CASE_INSENSITIVE) String keyType,
+        @Size(max = 128) String label,
+        @Pattern(regexp = "^[0-9A-Fa-f]{16,40}$", message = "fingerprint must be hex") String fingerprint,
+        @Pattern(regexp = "^[0-9A-Fa-f]{8,16}$", message = "keyId must be hex") String keyId,
+        @Pattern(regexp = "public|private", flags = Pattern.Flag.CASE_INSENSITIVE) String keyType,
         String algorithm,
         Instant expiresAt,
         String armoredPublic,
         String encryptedPrivateArmored,
         String storageProvider,
-        String storageRef) {}
+        String storageRef,
+        @Pattern(regexp = "primary|subkey", flags = Pattern.Flag.CASE_INSENSITIVE) String role,
+        String parentKeyId,
+        List<@Pattern(regexp = "certify|sign|encrypt|authenticate", flags = Pattern.Flag.CASE_INSENSITIVE) String>
+                capabilities,
+        @Valid AlgorithmSpecDto algorithmSpec,
+        @Valid ValiditySpecDto validity,
+        List<@Valid UserIdSpecDto> userIds,
+        @Size(min = 8, max = 256) String passphrase) {}

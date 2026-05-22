@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,14 +16,24 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import org.bruneel.pgpkeymanager.domain.AppUser;
+import org.bruneel.pgpkeymanager.domain.KeyRole;
+import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.service.CurrentUserService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService;
+import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
+import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
 import org.bruneel.pgpkeymanager.web.dto.PgpKeyResponse;
+import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.RotateKeyResponse;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
 @RestController
@@ -38,9 +49,15 @@ public class PgpKeyController {
     }
 
     @GetMapping
-    public List<PgpKeyResponse> list(Authentication authentication) {
+    public List<PgpKeyResponse> list(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String capability,
+            Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return pgpKeyService.listForUser(user).stream()
+        KeyRole keyRole = role != null ? KeyRole.fromDb(role) : null;
+        PgpCapability cap = capability != null ? PgpKeyValidator.parseCapabilityParam(capability) : null;
+        return pgpKeyService.listForUser(user, keyRole, status, cap).stream()
                 .map(key -> PgpKeyResponse.from(key, false))
                 .toList();
     }
@@ -73,5 +90,73 @@ public class PgpKeyController {
     public void delete(@PathVariable UUID id, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         pgpKeyService.delete(user, id);
+    }
+
+    @GetMapping("/{primaryKeyId}/subkeys")
+    public List<PgpKeyResponse> listSubkeys(
+            @PathVariable UUID primaryKeyId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return pgpKeyService.listSubkeys(user, primaryKeyId).stream()
+                .map(key -> PgpKeyResponse.from(key, false))
+                .toList();
+    }
+
+    @PostMapping(path = "/{primaryKeyId}/subkeys", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public PgpKeyResponse createSubkey(
+            @PathVariable UUID primaryKeyId,
+            @Valid @RequestBody CreateSubkeyRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return PgpKeyResponse.from(pgpKeyService.createSubkey(user, primaryKeyId, request), false);
+    }
+
+    @GetMapping("/{primaryKeyId}/subkeys/{subkeyId}")
+    public PgpKeyResponse getSubkey(
+            @PathVariable UUID primaryKeyId,
+            @PathVariable UUID subkeyId,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return PgpKeyResponse.from(pgpKeyService.getSubkey(user, primaryKeyId, subkeyId), false);
+    }
+
+    @PostMapping(path = "/{keyId}/revoke", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public PgpKeyResponse revoke(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody RevokeKeyRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return PgpKeyResponse.from(pgpKeyService.revoke(user, keyId, request), true);
+    }
+
+    @PostMapping(path = "/{keyId}/extend-expiry", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public PgpKeyResponse extendExpiry(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody ExtendExpiryRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return PgpKeyResponse.from(pgpKeyService.extendExpiry(user, keyId, request), true);
+    }
+
+    @PostMapping(path = "/{keyId}/rotate", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public RotateKeyResponse rotate(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody RotateKeyRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        RotateResult result = pgpKeyService.rotate(user, keyId, request);
+        return new RotateKeyResponse(
+                PgpKeyResponse.from(result.newKey(), false),
+                PgpKeyResponse.from(result.previousKey(), false));
+    }
+
+    @GetMapping(path = "/{keyId}/export-public", produces = {MediaType.TEXT_PLAIN_VALUE, "application/pgp-keys"})
+    public ResponseEntity<String> exportPublic(@PathVariable UUID keyId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        String armored = pgpKeyService.exportPublic(user, keyId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/pgp-keys"))
+                .body(armored);
     }
 }

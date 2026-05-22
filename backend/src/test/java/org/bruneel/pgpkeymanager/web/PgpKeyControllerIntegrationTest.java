@@ -34,17 +34,17 @@ class PgpKeyControllerIntegrationTest {
                         .content(
                                 """
                                 {
-                                  "fingerprint": "DEADBEEF",
+                                  "fingerprint": "DEADBEEF0123456789ABCDEF0123456789ABCD",
                                   "keyType": "public",
                                   "label": "test"
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.fingerprint").value("DEADBEEF"));
+                .andExpect(jsonPath("$.fingerprint").value("DEADBEEF0123456789ABCDEF0123456789ABCD"));
 
         mockMvc.perform(get("/api/keys").with(jwt()).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].fingerprint").value("DEADBEEF"));
+                .andExpect(jsonPath("$[0].fingerprint").value("DEADBEEF0123456789ABCDEF0123456789ABCD"));
     }
 
     @Test

@@ -2,9 +2,9 @@ package org.bruneel.pgpkeymanager.web;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -25,12 +25,15 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.bruneel.pgpkeymanager.TestPgpKeys;
 import org.bruneel.pgpkeymanager.domain.AppUser;
+import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpKey;
-import org.bruneel.pgpkeymanager.domain.PgpKey.KeyType;
 import org.bruneel.pgpkeymanager.service.CurrentUserService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService;
+import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
 @WebMvcTest(controllers = {PgpKeyController.class})
@@ -52,19 +55,20 @@ class PgpKeyControllerTest {
 
     @Test
     void listReturnsKeys() throws Exception {
-        PgpKey key = sampleKey();
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
-        when(pgpKeyService.listForUser(USER)).thenReturn(List.of(key));
+        when(pgpKeyService.listForUser(eq(USER), isNull(), isNull(), isNull())).thenReturn(List.of(key));
 
         mockMvc.perform(get("/api/keys").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].fingerprint").value("ABCD1234"))
+                .andExpect(jsonPath("$[0].fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"))
+                .andExpect(jsonPath("$[0].role").value("primary"))
                 .andExpect(jsonPath("$[0].encryptedPrivateArmored").doesNotExist());
     }
 
     @Test
     void createReturns201() throws Exception {
-        PgpKey key = sampleKey();
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
         when(pgpKeyService.create(eq(USER), any(CreatePgpKeyRequest.class))).thenReturn(key);
 
@@ -73,7 +77,7 @@ class PgpKeyControllerTest {
                         .content(
                                 """
                                 {
-                                  "fingerprint": "ABCD1234",
+                                  "fingerprint": "A1B2C3D4E5F6789012345678ABCDEF0123456789",
                                   "keyType": "public",
                                   "armoredPublic": "-----BEGIN PGP PUBLIC KEY BLOCK-----"
                                 }
@@ -82,6 +86,28 @@ class PgpKeyControllerTest {
                 .andExpect(jsonPath("$.id").value(key.id().toString()));
 
         verify(pgpKeyService).create(eq(USER), any(CreatePgpKeyRequest.class));
+    }
+
+    @Test
+    void createSubkeyReturns201() throws Exception {
+        UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        PgpKey subkey = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.createSubkey(eq(USER), eq(primaryId), any(CreateSubkeyRequest.class)))
+                .thenReturn(subkey);
+
+        mockMvc.perform(post("/api/keys/{id}/subkeys", primaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "capabilities": ["encrypt"],
+                                  "algorithm": { "algorithm": "cv25519" },
+                                  "validity": { "expiresAt": "2030-01-01T00:00:00Z" },
+                                  "passphrase": "test-passphrase-123"
+                                }
+                                """))
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -97,22 +123,7 @@ class PgpKeyControllerTest {
     @Test
     void patchUpdatesKey() throws Exception {
         UUID id = UUID.fromString("00000000-0000-0000-0000-000000000002");
-        PgpKey key = new PgpKey(
-                id,
-                USER.id(),
-                "work",
-                "ABCD1234",
-                "1234ABCD",
-                KeyType.PUBLIC,
-                "ed25519",
-                null,
-                null,
-                "-----BEGIN PGP PUBLIC KEY BLOCK-----",
-                null,
-                null,
-                null,
-                Instant.parse("2026-01-01T00:00:00Z"),
-                Instant.parse("2026-01-02T00:00:00Z"));
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
         when(pgpKeyService.update(eq(USER), eq(id), any(UpdatePgpKeyRequest.class))).thenReturn(key);
 
@@ -120,26 +131,30 @@ class PgpKeyControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"work\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.label").value("work"));
+                .andExpect(jsonPath("$.label").value("personal"));
     }
 
-    private static PgpKey sampleKey() {
-        UUID id = UUID.fromString("00000000-0000-0000-0000-000000000002");
-        return new PgpKey(
-                id,
-                USER.id(),
-                "personal",
-                "ABCD1234",
-                "1234ABCD",
-                KeyType.PUBLIC,
-                "ed25519",
-                null,
-                null,
-                "-----BEGIN PGP PUBLIC KEY BLOCK-----",
-                null,
-                null,
-                null,
-                Instant.parse("2026-01-01T00:00:00Z"),
-                Instant.parse("2026-01-01T00:00:00Z"));
+    @Test
+    void rotateReturns201() throws Exception {
+        UUID subkeyId = UUID.fromString("00000000-0000-0000-0000-000000000004");
+        PgpKey previous = TestPgpKeys.samplePublic(USER.id());
+        PgpKey newKey = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.rotate(eq(USER), eq(subkeyId), any())).thenReturn(new RotateResult(newKey, previous));
+
+        mockMvc.perform(post("/api/keys/{id}/rotate", subkeyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "capabilities": ["encrypt"],
+                                  "algorithm": { "algorithm": "cv25519" },
+                                  "validity": { "expiresAt": "2030-01-01T00:00:00Z" },
+                                  "passphrase": "test-passphrase-123"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.newKey").exists())
+                .andExpect(jsonPath("$.previousKey").exists());
     }
 }

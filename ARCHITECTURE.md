@@ -1,6 +1,6 @@
 # Architecture
 
-The application splits responsibilities between a browser-hosted UI and a JSON API. Authentication is delegated to Auth0; the API is prepared for versioned JSON and bearer tokens on protected routes. Key storage and policy features are planned in the UI shell but not yet implemented in the backend.
+The application splits responsibilities between a browser-hosted UI and a JSON API. Authentication is delegated to Auth0; protected key routes require a Bearer JWT. The backend implements OpenPGP key management (primary/subkey model, lifecycle actions) using Bouncy Castle for cryptographic operations.
 
 This repository is a **monorepo**: a Spring Boot API (`backend/`) and a static-hosted Vite + React SPA (`frontend/`). The browser talks to the API directly (CORS enabled for local Vite); there is no Next.js server.
 
@@ -25,14 +25,14 @@ flowchart TB
     subgraph BE["backend/"]
       API["Spring Boot REST<br/>localhost:8080"]
       Filters["RequestIdFilter · CORS"]
-      Controllers["/api/hello (scaffold)"]
+      Controllers["PgpKeyController<br/>CRUD + subkeys + lifecycle"]
+      Crypto["PgpCryptoService<br/>Bouncy Castle OpenPGP"]
     end
   end
 
-  subgraph Future["Planned (not in repo yet)"]
-    Storage["BYO cloud storage<br/>encrypted key material"]
-    Alerts["Expiry alerts · policies"]
-    PublicKeys["Public key hosting"]
+  subgraph Future["Planned enhancements"]
+    Storage["BYO cloud storage sync"]
+    Alerts["Expiry alert jobs"]
   end
 
   SPA --> UI
@@ -41,6 +41,7 @@ flowchart TB
   SPA <-->|"OAuth redirect · silent token"| Auth0
   APIClient -.->|"Bearer JWT on protected routes"| API
   API --> Filters --> Controllers
+  Controllers --> Crypto
   UI -.-> Future
   API -.-> Future
 
@@ -78,6 +79,40 @@ sequenceDiagram
     SPA->>API: Future protected routes<br/>Authorization: Bearer JWT
   end
 ```
+
+## Key lifecycle (API)
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant API as PgpKeyController
+  participant Svc as PgpKeyService
+  participant Crypto as PgpCryptoService
+  participant DB as pgp_keys
+
+  Client->>API: POST /api/keys (generate primary)
+  API->>Svc: create
+  Svc->>Crypto: generatePrimary
+  Crypto-->>Svc: armored keyring
+  Svc->>DB: insert primary row
+
+  Client->>API: POST /api/keys/{primaryId}/subkeys
+  Svc->>Crypto: addSubkey
+  Crypto-->>Svc: updated keyring + subkey metadata
+  Svc->>DB: update primary armored material + insert subkey metadata row
+
+  Client->>API: POST /api/keys/{id}/revoke
+  alt primary has private material
+    Svc->>Crypto: revokeKeyInRing (SUBKEY_REVOCATION / KEY_REVOCATION)
+    Svc->>DB: update primary keyring + mark revoked_at
+  else metadata only
+    Svc->>DB: mark revoked_at
+  end
+```
+
+**Transactional boundaries:** `PgpKeyService` mutations run in a single database transaction so keyring updates and row inserts succeed or roll back together.
+
+**Passphrase handling:** passphrases are converted to `char[]`, used for Bouncy Castle decrypt/sign operations, then zeroed via `PassphraseUtil`.
 
 ## Repository layout
 
