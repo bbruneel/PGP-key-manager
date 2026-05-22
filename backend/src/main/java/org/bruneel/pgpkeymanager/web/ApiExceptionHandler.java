@@ -10,7 +10,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.bruneel.pgpkeymanager.service.BadRequestException;
 import org.bruneel.pgpkeymanager.service.ConflictException;
+import org.bruneel.pgpkeymanager.service.CryptoException;
 import org.bruneel.pgpkeymanager.service.KeyNotFoundException;
 import org.bruneel.pgpkeymanager.service.UnauthorizedException;
 
@@ -44,6 +46,20 @@ public class ApiExceptionHandler {
                 ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "Resource conflict or duplicate value");
         problem.setTitle("Conflict");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ProblemDetail> badRequest(BadRequestException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Bad Request");
+        return ResponseEntity.badRequest().body(problem);
+    }
+
+    @ExceptionHandler(CryptoException.class)
+    public ResponseEntity<ProblemDetail> crypto(CryptoException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Cryptographic Error");
+        return ResponseEntity.badRequest().body(problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

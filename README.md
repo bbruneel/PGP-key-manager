@@ -66,6 +66,14 @@ Environment variables (backend):
 | `AUTH0_ISSUER_URI` | Auth0 issuer for JWT validation |
 | `AUTH0_AUDIENCE` | API audience (optional) |
 
+### API contract
+
+OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, and export-public.
+
+**Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.79). Passphrases and private key plaintext are never logged.
+
+**Security checks:** run `./mvnw test` and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields only (user id, key id, operation, duration).
+
 ### Versioned API headers (frontend)
 
 Protected routes should send:

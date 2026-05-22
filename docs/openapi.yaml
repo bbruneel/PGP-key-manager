@@ -1,0 +1,459 @@
+openapi: 3.1.0
+info:
+  title: PGP Key Manager API
+  version: 1.0.0
+  description: |
+    Versioned JSON API for OpenPGP key management.
+
+    **Versioning:** `Accept: application/json; version=1`
+    **Auth:** Bearer JWT (Auth0) on `/api/keys/**`
+    **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.79) for generation and lifecycle operations.
+    **Errors:** RFC 7807 `application/problem+json`
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Health
+  - name: Keys
+  - name: Subkeys
+  - name: Key lifecycle
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/hello:
+    get:
+      tags: [Health]
+      operationId: getHello
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HelloResponse'
+
+  /api/keys:
+    get:
+      tags: [Keys]
+      operationId: listKeys
+      x-implementation-status: implemented
+      parameters:
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/KeyRole'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/KeyStatus'
+        - name: capability
+          in: query
+          schema:
+            $ref: '#/components/schemas/PgpCapability'
+      responses:
+        '200':
+          description: Key list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PgpKeySummary'
+    post:
+      tags: [Keys]
+      operationId: createKey
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePgpKeyRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+
+  /api/keys/{keyId}:
+    get:
+      tags: [Keys]
+      operationId: getKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+    patch:
+      tags: [Keys]
+      operationId: updateKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePgpKeyRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+    delete:
+      tags: [Keys]
+      operationId: deleteKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      responses:
+        '204':
+          description: Deleted
+
+  /api/keys/{primaryKeyId}/subkeys:
+    get:
+      tags: [Subkeys]
+      operationId: listSubkeys
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/PrimaryKeyId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PgpKeySummary'
+    post:
+      tags: [Subkeys]
+      operationId: createSubkey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/PrimaryKeyId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubkeyRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+
+  /api/keys/{primaryKeyId}/subkeys/{subkeyId}:
+    get:
+      tags: [Subkeys]
+      operationId: getSubkey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/PrimaryKeyId'
+        - $ref: '#/components/parameters/SubkeyId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+
+  /api/keys/{keyId}/revoke:
+    post:
+      tags: [Key lifecycle]
+      operationId: revokeKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeKeyRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+
+  /api/keys/{keyId}/extend-expiry:
+    post:
+      tags: [Key lifecycle]
+      operationId: extendKeyExpiry
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtendExpiryRequest'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+
+  /api/keys/{keyId}/rotate:
+    post:
+      tags: [Key lifecycle]
+      operationId: rotateKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateKeyRequest'
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateKeyResponse'
+
+  /api/keys/{keyId}/export-public:
+    get:
+      tags: [Keys]
+      operationId: exportPublicKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      responses:
+        '200':
+          content:
+            application/pgp-keys:
+              schema:
+                type: string
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    KeyId:
+      name: keyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PrimaryKeyId:
+      name: primaryKeyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SubkeyId:
+      name: subkeyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    HelloResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    KeyRole:
+      type: string
+      enum: [primary, subkey]
+    KeyStatus:
+      type: string
+      enum: [active, expired, revoked]
+    PgpCapability:
+      type: string
+      enum: [certify, sign, encrypt, authenticate]
+    MaterialKind:
+      type: string
+      enum: [public, private]
+    AlgorithmSpec:
+      type: object
+      required: [algorithm]
+      properties:
+        algorithm:
+          type: string
+          enum: [rsa, ed25519, cv25519, ecdsa, ecdh]
+        keySize:
+          type: integer
+          enum: [2048, 3072, 4096]
+        curve:
+          type: string
+    ValiditySpec:
+      type: object
+      required: [expiresAt]
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+    UserIdSpec:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    CreatePgpKeyRequest:
+      type: object
+      properties:
+        label:
+          type: string
+        fingerprint:
+          type: string
+          pattern: '^[0-9A-Fa-f]{16,40}$'
+        keyType:
+          $ref: '#/components/schemas/MaterialKind'
+        algorithmSpec:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PgpCapability'
+        validity:
+          $ref: '#/components/schemas/ValiditySpec'
+        userIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserIdSpec'
+        passphrase:
+          type: string
+          writeOnly: true
+        armoredPublic:
+          type: string
+        encryptedPrivateArmored:
+          type: string
+    CreateSubkeyRequest:
+      type: object
+      required: [capabilities, algorithm]
+      properties:
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PgpCapability'
+        algorithm:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        validity:
+          $ref: '#/components/schemas/ValiditySpec'
+        passphrase:
+          type: string
+          writeOnly: true
+    UpdatePgpKeyRequest:
+      type: object
+      properties:
+        label:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        storageProvider:
+          type: string
+        storageRef:
+          type: string
+    RevokeKeyRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [no_reason, key_superseded, key_compromised, key_retired, user_id_invalid]
+        description:
+          type: string
+        passphrase:
+          type: string
+          writeOnly: true
+    ExtendExpiryRequest:
+      type: object
+      required: [expiresAt]
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        passphrase:
+          type: string
+          writeOnly: true
+    RotateKeyRequest:
+      type: object
+      required: [capabilities, algorithm]
+      properties:
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PgpCapability'
+        algorithm:
+          $ref: '#/components/schemas/AlgorithmSpec'
+        validity:
+          $ref: '#/components/schemas/ValiditySpec'
+        passphrase:
+          type: string
+          writeOnly: true
+        revokePrevious:
+          type: boolean
+    RotateKeyResponse:
+      type: object
+      required: [newKey, previousKey]
+      properties:
+        newKey:
+          $ref: '#/components/schemas/PgpKey'
+        previousKey:
+          $ref: '#/components/schemas/PgpKey'
+    PgpKeySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        fingerprint:
+          type: string
+        keyType:
+          $ref: '#/components/schemas/MaterialKind'
+        role:
+          $ref: '#/components/schemas/KeyRole'
+        parentKeyId:
+          type: [string, 'null']
+          format: uuid
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PgpCapability'
+        status:
+          $ref: '#/components/schemas/KeyStatus'
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+    PgpKey:
+      allOf:
+        - $ref: '#/components/schemas/PgpKeySummary'
+        - type: object
+          properties:
+            armoredPublic:
+              type: string
+            encryptedPrivateArmored:
+              type: string

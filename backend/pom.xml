@@ -20,6 +20,7 @@
     <properties>
         <java.version>25</java.version>
         <maven.compiler.release>25</maven.compiler.release>
+        <bouncycastle.version>1.79</bouncycastle.version>
     </properties>
 
     <dependencies>
@@ -64,6 +65,16 @@
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
             <version>8.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpg-jdk18on</artifactId>
+            <version>${bouncycastle.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
