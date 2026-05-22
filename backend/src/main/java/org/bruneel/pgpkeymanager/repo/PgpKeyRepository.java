@@ -26,7 +26,7 @@ public class PgpKeyRepository {
             """
             id, user_id, label, fingerprint, key_id, key_type, role, parent_key_id,
             capabilities, algorithm, algorithm_spec, expires_at, revoked_at, revocation_reason,
-            armored_public, encrypted_private_armored, storage_provider, storage_ref,
+            armored_public, encrypted_private_armored, storage_provider, storage_ref, openpgp_version,
             created_at, updated_at
             """;
 
@@ -106,12 +106,12 @@ public class PgpKeyRepository {
                         INSERT INTO pgp_keys (
                             id, user_id, label, fingerprint, key_id, key_type, role, parent_key_id,
                             capabilities, algorithm, algorithm_spec, expires_at, revoked_at, revocation_reason,
-                            armored_public, encrypted_private_armored, storage_provider, storage_ref
+                            armored_public, encrypted_private_armored, storage_provider, storage_ref, openpgp_version
                         )
                         VALUES (
                             :id, :userId, :label, :fingerprint, :keyId, :keyType, :role, :parentKeyId,
                             :capabilities, :algorithm, :algorithmSpec, :expiresAt, :revokedAt, :revocationReason,
-                            :armoredPublic, :encryptedPrivateArmored, :storageProvider, :storageRef
+                            :armoredPublic, :encryptedPrivateArmored, :storageProvider, :storageRef, :openpgpVersion
                         )
                         """)
                 .param("id", id)
@@ -132,6 +132,7 @@ public class PgpKeyRepository {
                 .param("encryptedPrivateArmored", insert.encryptedPrivateArmored())
                 .param("storageProvider", insert.storageProvider())
                 .param("storageRef", insert.storageRef())
+                .param("openpgpVersion", insert.openpgpVersion())
                 .update();
         return findByIdAndUserId(id, insert.userId()).orElseThrow();
     }
@@ -243,7 +244,8 @@ public class PgpKeyRepository {
             String armoredPublic,
             String encryptedPrivateArmored,
             String storageProvider,
-            String storageRef) {}
+            String storageRef,
+            int openpgpVersion) {}
 
     private static String statusClause(String status) {
         return switch (status.toLowerCase()) {
@@ -291,6 +293,7 @@ public class PgpKeyRepository {
                 rs.getString("encrypted_private_armored"),
                 rs.getString("storage_provider"),
                 rs.getString("storage_ref"),
+                rs.getInt("openpgp_version"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("updated_at").toInstant());
     }

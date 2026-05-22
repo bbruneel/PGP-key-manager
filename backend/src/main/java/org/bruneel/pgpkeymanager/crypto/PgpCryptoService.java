@@ -31,11 +31,14 @@ import org.bouncycastle.openpgp.operator.PBESecretKeyEncryptor;
 import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder;
+import org.bouncycastle.openpgp.operator.PGPKeyPairGenerator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPairGeneratorProvider;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyEncryptorBuilder;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.service.CryptoException;
+import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.UserIdSpecDto;
 
@@ -47,14 +50,12 @@ public class PgpCryptoService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String PROVIDER = PgpCryptoSupport.PROVIDER;
-    /** OpenPGP v4 key packets (RFC 4880); this project does not generate v6 keys. */
-    private static final int OPENPGP_KEY_VERSION = 4;
-
     static {
         PgpCryptoSupport.fingerprintCalculator();
     }
 
     public GeneratedKeyMaterial generatePrimary(
+            int openpgpVersion,
             List<UserIdSpecDto> userIds,
             List<PgpCapability> capabilities,
             AlgorithmSpecDto algorithm,
@@ -62,7 +63,7 @@ public class PgpCryptoService {
             char[] passphrase) {
         try {
             Date creationTime = new Date();
-            PGPKeyPair primaryPair = generateKeyPair(algorithm, creationTime);
+            PGPKeyPair primaryPair = generateKeyPair(openpgpVersion, algorithm, creationTime);
             PGPDigestCalculator sha1Calc = sha1Calculator();
             JcaPGPContentSignerBuilder signerBuilder = contentSigner(primaryPair);
             PBESecretKeyEncryptor encryptor = secretKeyEncryptor(sha1Calc, passphrase);
@@ -97,6 +98,7 @@ public class PgpCryptoService {
     }
 
     public SubkeyMaterial addSubkey(
+            int openpgpVersion,
             String armoredPrivate,
             char[] passphrase,
             List<PgpCapability> capabilities,
@@ -104,6 +106,14 @@ public class PgpCryptoService {
             Instant expiresAt) {
         try {
             PGPSecretKeyRing existing = PgpCryptoSupport.loadSecretKeyRing(armoredPrivate, passphrase);
+            int ringVersion = PgpKeyValidator.validateDetectedOpenpgpVersion(PgpCryptoSupport.detectOpenpgpVersion(existing));
+            if (ringVersion != openpgpVersion) {
+                throw new CryptoException(
+                        "Keyring OpenPGP version "
+                                + ringVersion
+                                + " does not match expected version "
+                                + openpgpVersion);
+            }
             PGPDigestCalculator sha1Calc = sha1Calculator();
             JcaPGPContentSignerBuilder signerBuilder = contentSignerFromRing(existing);
             PBESecretKeyEncryptor encryptor = secretKeyEncryptor(sha1Calc, passphrase);
@@ -117,7 +127,7 @@ public class PgpCryptoService {
                             signerBuilder,
                             encryptor);
 
-            PGPKeyPair subPair = generateKeyPair(algorithm, new Date());
+            PGPKeyPair subPair = generateKeyPair(openpgpVersion, algorithm, new Date());
             generator.addSubKey(subPair, subHashed, null);
 
             PGPSecretKeyRing updatedSecret = generator.generateSecretKeyRing();
@@ -262,33 +272,71 @@ public class PgpCryptoService {
                 new JcePBESecretKeyDecryptorBuilder().setProvider(PROVIDER).build(passphrase));
     }
 
-    private PGPKeyPair generateKeyPair(AlgorithmSpecDto spec, Date creationTime) throws Exception {
+    private PGPKeyPair generateKeyPair(int openpgpVersion, AlgorithmSpecDto spec, Date creationTime) throws Exception {
+        if (openpgpVersion == PgpKeyValidator.OPENPGP_V6) {
+            return generateKeyPairV6(spec, creationTime);
+        }
+        return generateKeyPairV4(spec, creationTime);
+    }
+
+    private PGPKeyPair generateKeyPairV4(AlgorithmSpecDto spec, Date creationTime) throws Exception {
         return switch (spec.algorithm().toLowerCase()) {
             case "ed25519" ->
-                    new JcaPGPKeyPair(OPENPGP_KEY_VERSION, PublicKeyAlgorithmTags.EDDSA, ed25519Pair(), creationTime);
+                    new JcaPGPKeyPair(PgpKeyValidator.OPENPGP_V4, PublicKeyAlgorithmTags.EDDSA, ed25519Pair(), creationTime);
             case "cv25519" ->
-                    new JcaPGPKeyPair(OPENPGP_KEY_VERSION, PublicKeyAlgorithmTags.ECDH, x25519Pair(), creationTime);
+                    new JcaPGPKeyPair(PgpKeyValidator.OPENPGP_V4, PublicKeyAlgorithmTags.ECDH, x25519Pair(), creationTime);
             case "rsa" -> {
                 int size = spec.keySize() != null ? spec.keySize() : 4096;
                 KeyPairGenerator rsa = KeyPairGenerator.getInstance("RSA", PROVIDER);
                 rsa.initialize(size);
                 yield new JcaPGPKeyPair(
-                        OPENPGP_KEY_VERSION,
+                        PgpKeyValidator.OPENPGP_V4,
                         PublicKeyAlgorithmTags.RSA_GENERAL,
                         rsa.generateKeyPair(),
                         creationTime);
             }
             case "ecdsa" -> new JcaPGPKeyPair(
-                    OPENPGP_KEY_VERSION,
+                    PgpKeyValidator.OPENPGP_V4,
                     PublicKeyAlgorithmTags.ECDSA,
                     ecKeyPair(resolveCurveName(spec.curve(), "P-256"), "ECDSA"),
                     creationTime);
             case "ecdh" -> new JcaPGPKeyPair(
-                    OPENPGP_KEY_VERSION,
+                    PgpKeyValidator.OPENPGP_V4,
                     PublicKeyAlgorithmTags.ECDH,
                     ecKeyPair(resolveCurveName(spec.curve(), null), "ECDH"),
                     creationTime);
             default -> throw new CryptoException("Unsupported algorithm: " + spec.algorithm());
+        };
+    }
+
+    private PGPKeyPair generateKeyPairV6(AlgorithmSpecDto spec, Date creationTime) throws Exception {
+        PGPKeyPairGenerator generator =
+                new JcaPGPKeyPairGeneratorProvider().setProvider(PROVIDER).get(PgpKeyValidator.OPENPGP_V6, creationTime);
+        return switch (spec.algorithm().toLowerCase()) {
+            case "ed25519" -> generator.generateEd25519KeyPair();
+            case "cv25519" -> generator.generateX25519KeyPair();
+            case "rsa" -> generator.generateRsaKeyPair(spec.keySize() != null ? spec.keySize() : 4096);
+            case "ecdsa" -> generateNistEcdsaV6(generator, spec.curve());
+            case "ecdh" -> generateNistEcdhV6(generator, spec.curve());
+            default -> throw new CryptoException("Unsupported algorithm: " + spec.algorithm());
+        };
+    }
+
+    private PGPKeyPair generateNistEcdsaV6(PGPKeyPairGenerator generator, String curve) throws PGPException {
+        return switch (resolveCurveName(curve, "P-256")) {
+            case "P-256" -> generator.generateNistP256ECDSAKeyPair();
+            case "P-384" -> generator.generateNistP384ECDSAKeyPair();
+            case "P-521" -> generator.generateNistP521ECDSAKeyPair();
+            default -> throw new CryptoException("Unsupported curve for v6 ecdsa: " + curve);
+        };
+    }
+
+    private PGPKeyPair generateNistEcdhV6(PGPKeyPairGenerator generator, String curve) throws PGPException {
+        return switch (resolveCurveName(curve, null)) {
+            case "P-256" -> generator.generateNistP256ECDHKeyPair();
+            case "P-384" -> generator.generateNistP384ECDHKeyPair();
+            case "P-521" -> generator.generateNistP521ECDHKeyPair();
+            default -> throw new CryptoException("Unsupported curve for v6 ecdh: " + curve);
         };
     }
 

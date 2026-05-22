@@ -21,6 +21,7 @@ class PgpCryptoServiceTest {
     void generatePrimaryEd25519() {
         GeneratedKeyMaterial material =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("Test User", "test@example.com")),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -37,6 +38,7 @@ class PgpCryptoServiceTest {
     void addSubkeyToGeneratedPrimary() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("Test User", null)),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -45,6 +47,7 @@ class PgpCryptoServiceTest {
 
         SubkeyMaterial sub =
                 crypto.addSubkey(
+                        4,
                         primary.armoredPrivate(),
                         "integration-test-passphrase".toCharArray(),
                         List.of(PgpCapability.ENCRYPT),
@@ -59,6 +62,7 @@ class PgpCryptoServiceTest {
     void exportPublicFromArmored() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("Export Test", null)),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -73,6 +77,7 @@ class PgpCryptoServiceTest {
     void addEcdsaSigningSubkey() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("ECDSA Test", null)),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -81,6 +86,7 @@ class PgpCryptoServiceTest {
 
         SubkeyMaterial sub =
                 crypto.addSubkey(
+                        4,
                         primary.armoredPrivate(),
                         "integration-test-passphrase".toCharArray(),
                         List.of(PgpCapability.SIGN),
@@ -95,6 +101,7 @@ class PgpCryptoServiceTest {
     void addEcdhEncryptionSubkey() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("ECDH Test", null)),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -103,6 +110,7 @@ class PgpCryptoServiceTest {
 
         SubkeyMaterial sub =
                 crypto.addSubkey(
+                        4,
                         primary.armoredPrivate(),
                         "integration-test-passphrase".toCharArray(),
                         List.of(PgpCapability.ENCRYPT),
@@ -116,6 +124,7 @@ class PgpCryptoServiceTest {
     void keyIdIsZeroPadded() {
         GeneratedKeyMaterial material =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("Pad Test", null)),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -129,6 +138,7 @@ class PgpCryptoServiceTest {
     void extendSubkeyExpiryInRing() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("Extend Test", null)),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -137,6 +147,7 @@ class PgpCryptoServiceTest {
 
         SubkeyMaterial sub =
                 crypto.addSubkey(
+                        4,
                         primary.armoredPrivate(),
                         "integration-test-passphrase".toCharArray(),
                         List.of(PgpCapability.ENCRYPT),
@@ -158,6 +169,7 @@ class PgpCryptoServiceTest {
     void revokeSubkeyInRing() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
+                        4,
                         List.of(new UserIdSpecDto("Revoke Test", null)),
                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                         new AlgorithmSpecDto("ed25519", null, null),
@@ -166,6 +178,7 @@ class PgpCryptoServiceTest {
 
         SubkeyMaterial sub =
                 crypto.addSubkey(
+                        4,
                         primary.armoredPrivate(),
                         "integration-test-passphrase".toCharArray(),
                         List.of(PgpCapability.ENCRYPT),
@@ -184,10 +197,26 @@ class PgpCryptoServiceTest {
     }
 
     @Test
+    void generatePrimaryV6ProducesArmoredKeyring() {
+        GeneratedKeyMaterial material =
+                crypto.generatePrimary(
+                        6,
+                        List.of(new UserIdSpecDto("V6 User", "v6@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "integration-test-passphrase".toCharArray());
+
+        assertThat(material.armoredPublic()).contains("BEGIN PGP PUBLIC KEY BLOCK");
+        assertThat(material.armoredPrivate()).contains("BEGIN PGP PRIVATE KEY BLOCK");
+    }
+
+    @Test
     void rejectsPastExpiry() {
         assertThatThrownBy(
                         () ->
                                 crypto.generatePrimary(
+                                        4,
                                         List.of(new UserIdSpecDto("Bad", null)),
                                         List.of(PgpCapability.CERTIFY),
                                         new AlgorithmSpecDto("ed25519", null, null),

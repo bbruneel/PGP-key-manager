@@ -25,4 +25,5 @@ public record CreatePgpKeyRequest(
         @Valid AlgorithmSpecDto algorithmSpec,
         @Valid ValiditySpecDto validity,
         List<@Valid UserIdSpecDto> userIds,
-        @Size(min = 8, max = 256) String passphrase) {}
+        @Size(min = 8, max = 256) String passphrase,
+        Integer openpgpVersion) {}
