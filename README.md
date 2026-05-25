@@ -10,7 +10,7 @@ For system diagrams, request flows, and component layout, see **[ARCHITECTURE.md
 
 - **JDK 25** (enforced by Maven Enforcer in `backend/pom.xml`). Example: `export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64` on Linux.
 - **Maven** (optional if you use `./mvnw` from `backend/`)
-- **Node.js 24.15.0** and **npm 11.12.1** (pinned for CI; see [`.nvmrc`](.nvmrc) and `frontend/package.json` `engines` / `packageManager`)
+- **Node.js 24.16.0** and **npm 11.15.0** (pinned for CI; see [`.nvmrc`](.nvmrc) and `frontend/package.json` `engines` / `packageManager`)
 
 Tailwind for the SPA uses the official **`@tailwindcss/vite`** plugin (Tailwind v4).
 

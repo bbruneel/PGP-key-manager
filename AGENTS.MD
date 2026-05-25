@@ -18,7 +18,7 @@ The browser calls the Spring API directly (CORS). There is **no** Next.js or oth
 ## Prerequisites
 
 - **JDK 25** (enforced by Maven Enforcer in `backend/pom.xml`)
-- **Node.js 24.15.0** and **npm 11.12.1** (see `.nvmrc` and `frontend/package.json` `engines`)
+- **Node.js 24.16.0** and **npm 11.15.0** (see `.nvmrc` and `frontend/package.json` `engines`)
 
 ## Commands
 
