@@ -18,7 +18,7 @@ The browser calls the Spring API directly (CORS). There is **no** Next.js or oth
 ## Prerequisites
 
 - **JDK 25** (enforced by Maven Enforcer in `backend/pom.xml`)
-- **Node.js 24.15.0** and **npm 11.12.1** (see `.nvmrc` and `frontend/package.json` `engines`)
+- **Node.js 24.16.0** and **npm 11.13.0** (see `.nvmrc` and `frontend/package.json` `engines`)
 
 ## Commands
 
@@ -119,7 +119,7 @@ Changes that break these checks should not be merged.
   export PATH=$JAVA_HOME/bin:$PATH
   ```
   These exports are already in `~/.bashrc` so new interactive shells pick them up automatically.
-- **Node.js 24.15.0** and **npm 11.12.1** are managed via **nvm**. The update script runs `nvm install` from `.nvmrc` automatically. Before running any `npm` command in a new shell, load nvm and activate the pinned version:
+- **Node.js 24.16.0** and **npm 11.13.0** are managed via **nvm**. The update script runs `nvm install` from `.nvmrc` automatically. Before running any `npm` command in a new shell, load nvm and activate the pinned version:
   ```bash
   export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm use
   ```
