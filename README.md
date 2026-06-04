@@ -51,7 +51,7 @@ Uses **JUnit 5**, **`@WebMvcTest`** (slice) via `spring-boot-starter-webmvc-test
 ### Configuration
 
 - Defaults in [`backend/src/main/resources/application.yaml`](backend/src/main/resources/application.yaml).
-- **Secrets:** do not commit credentials. Copy [`backend/src/main/resources/application-secret.yaml.example`](backend/src/main/resources/application-secret.yaml.example) to `backend/application-secret.yaml` (gitignored) or set environment variables.
+- **Secrets:** do not commit credentials. Copy [`backend/src/main/resources/application-secret.yaml.example`](backend/src/main/resources/application-secret.yaml.example) to `backend/src/main/resources/application-secret.yaml` (gitignored; loaded via `spring.config.import` in `application.yaml`) or set environment variables.
 - **Supabase Postgres (Architecture 1):** Spring connects with JDBC; schema is applied by **Flyway** from `backend/src/main/resources/db/migration/`. Use the pooler URL for the app datasource and the direct URL for Flyway (see the example secret file). Cloud project: `pgp-key-manager` (`vwjmyednpakdcunrtyog`).
 - **Auth0 (protected `/api/keys`):** set `AUTH0_ISSUER_URI` and optionally `AUTH0_AUDIENCE` to match your SPA (`VITE_AUTH0_*`).
 - **CORS:** `CORS_ALLOWED_ORIGINS` (comma-separated), default `http://localhost:5173` for Vite.
