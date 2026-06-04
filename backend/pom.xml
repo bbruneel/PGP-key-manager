@@ -107,6 +107,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- WSL: prefer IPv4; disable IDE SOCKS proxy for JDBC (avoids Connect timed out) -->
+                    <jvmArguments>-Djava.net.preferIPv4Stack=true -Djava.net.useSystemProxies=false -DsocksProxyHost=</jvmArguments>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
