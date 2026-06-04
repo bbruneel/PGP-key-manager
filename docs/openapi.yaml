@@ -47,6 +47,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HelloResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys:
     get:
@@ -76,6 +78,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PgpKeySummary'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     post:
       tags: [Keys]
       summary: Create key
@@ -94,6 +98,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}:
     get:
@@ -110,6 +116,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     patch:
       tags: [Keys]
       summary: Update key
@@ -129,6 +137,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     delete:
       tags: [Keys]
       summary: Delete key
@@ -139,6 +149,8 @@ paths:
       responses:
         '204':
           description: Deleted
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{primaryKeyId}/subkeys:
     get:
@@ -157,6 +169,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PgpKeySummary'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     post:
       tags: [Subkeys]
       summary: Create subkey
@@ -176,6 +190,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{primaryKeyId}/subkeys/{subkeyId}:
     get:
@@ -193,6 +209,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/revoke:
     post:
@@ -219,6 +237,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/extend-expiry:
     post:
@@ -240,6 +260,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/rotate:
     post:
@@ -264,6 +286,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RotateKeyResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/export-public:
     get:
@@ -280,6 +304,8 @@ paths:
             application/pgp-keys:
               schema:
                 type: string
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
 components:
   securitySchemes:
@@ -287,6 +313,14 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  responses:
+    ErrorResponse:
+      description: RFC 7807 problem details (typical 400, 401, 404, or 409)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
 
   parameters:
     KeyId:
@@ -312,6 +346,32 @@ components:
         format: uuid
 
   schemas:
+    ProblemDetail:
+      type: object
+      description: RFC 7807 Problem Details (Spring `ProblemDetail` JSON)
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        errors:
+          type: array
+          description: Field validation errors (400 responses)
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
     HelloResponse:
       type: object
       required: [message]
