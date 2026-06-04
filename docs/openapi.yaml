@@ -2,6 +2,12 @@ openapi: 3.1.0
 info:
   title: PGP Key Manager API
   version: 1.0.0
+  contact:
+    name: PGP Key Manager
+    url: https://github.com/bbruneel/PGP-key-manager
+  license:
+    name: Unlicense
+    url: https://opensource.org/licenses/Unlicense
   description: |
     Versioned JSON API for OpenPGP key management.
 
@@ -16,9 +22,13 @@ servers:
 
 tags:
   - name: Health
+    description: Unauthenticated health and sample endpoints.
   - name: Keys
+    description: Primary PGP key registration, listing, and export.
   - name: Subkeys
+    description: Subkeys bound to a primary key.
   - name: Key lifecycle
+    description: Revoke, extend expiry, and rotate operations.
 
 security:
   - bearerAuth: []
@@ -27,6 +37,7 @@ paths:
   /api/hello:
     get:
       tags: [Health]
+      summary: Hello
       operationId: getHello
       security: []
       responses:
@@ -40,6 +51,7 @@ paths:
   /api/keys:
     get:
       tags: [Keys]
+      summary: List keys
       operationId: listKeys
       x-implementation-status: implemented
       parameters:
@@ -66,6 +78,7 @@ paths:
                   $ref: '#/components/schemas/PgpKeySummary'
     post:
       tags: [Keys]
+      summary: Create key
       operationId: createKey
       x-implementation-status: implemented
       requestBody:
@@ -76,7 +89,7 @@ paths:
               $ref: '#/components/schemas/CreatePgpKeyRequest'
       responses:
         '201':
-          description: Created
+          description: Primary key created
           content:
             application/json:
               schema:
@@ -85,18 +98,21 @@ paths:
   /api/keys/{keyId}:
     get:
       tags: [Keys]
+      summary: Get key
       operationId: getKey
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/KeyId'
       responses:
         '200':
+          description: Key details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
     patch:
       tags: [Keys]
+      summary: Update key
       operationId: updateKey
       x-implementation-status: implemented
       parameters:
@@ -108,12 +124,14 @@ paths:
               $ref: '#/components/schemas/UpdatePgpKeyRequest'
       responses:
         '200':
+          description: Updated key
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
     delete:
       tags: [Keys]
+      summary: Delete key
       operationId: deleteKey
       x-implementation-status: implemented
       parameters:
@@ -125,12 +143,14 @@ paths:
   /api/keys/{primaryKeyId}/subkeys:
     get:
       tags: [Subkeys]
+      summary: List subkeys
       operationId: listSubkeys
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/PrimaryKeyId'
       responses:
         '200':
+          description: Subkey list
           content:
             application/json:
               schema:
@@ -139,6 +159,7 @@ paths:
                   $ref: '#/components/schemas/PgpKeySummary'
     post:
       tags: [Subkeys]
+      summary: Create subkey
       operationId: createSubkey
       x-implementation-status: implemented
       parameters:
@@ -150,6 +171,7 @@ paths:
               $ref: '#/components/schemas/CreateSubkeyRequest'
       responses:
         '201':
+          description: Subkey created
           content:
             application/json:
               schema:
@@ -158,6 +180,7 @@ paths:
   /api/keys/{primaryKeyId}/subkeys/{subkeyId}:
     get:
       tags: [Subkeys]
+      summary: Get subkey
       operationId: getSubkey
       x-implementation-status: implemented
       parameters:
@@ -165,6 +188,7 @@ paths:
         - $ref: '#/components/parameters/SubkeyId'
       responses:
         '200':
+          description: Subkey details
           content:
             application/json:
               schema:
@@ -173,6 +197,7 @@ paths:
   /api/keys/{keyId}/revoke:
     post:
       tags: [Key lifecycle]
+      summary: Revoke key
       operationId: revokeKey
       x-implementation-status: implemented
       description: |
@@ -189,6 +214,7 @@ paths:
               $ref: '#/components/schemas/RevokeKeyRequest'
       responses:
         '200':
+          description: Revoked key
           content:
             application/json:
               schema:
@@ -197,6 +223,7 @@ paths:
   /api/keys/{keyId}/extend-expiry:
     post:
       tags: [Key lifecycle]
+      summary: Extend key expiry
       operationId: extendKeyExpiry
       x-implementation-status: implemented
       parameters:
@@ -208,6 +235,7 @@ paths:
               $ref: '#/components/schemas/ExtendExpiryRequest'
       responses:
         '200':
+          description: Key with updated expiry
           content:
             application/json:
               schema:
@@ -216,6 +244,7 @@ paths:
   /api/keys/{keyId}/rotate:
     post:
       tags: [Key lifecycle]
+      summary: Rotate subkey
       operationId: rotateKey
       x-implementation-status: implemented
       description: |
@@ -230,6 +259,7 @@ paths:
               $ref: '#/components/schemas/RotateKeyRequest'
       responses:
         '201':
+          description: Rotation result with new and previous subkeys
           content:
             application/json:
               schema:
@@ -238,12 +268,14 @@ paths:
   /api/keys/{keyId}/export-public:
     get:
       tags: [Keys]
+      summary: Export public key
       operationId: exportPublicKey
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/KeyId'
       responses:
         '200':
+          description: Armored public key material
           content:
             application/pgp-keys:
               schema:

@@ -44,6 +44,19 @@ npm run dev                    # SPA on http://localhost:5173
 
 Copy `frontend/.env.example` to `frontend/.env.local` for local dev (`VITE_API_BASE_URL`, Auth0 vars).
 
+### API docs (Redocly)
+
+From the **repository root** (not `frontend/`):
+
+```bash
+npm ci
+npm run docs:lint      # required when changing docs/openapi.yaml
+npm run docs:build     # docs/.build/index.html
+npm run docs:preview   # http://127.0.0.1:8081 (must run via npm script; starts in docs/)
+```
+
+Published reference: **https://bbruneel.github.io/PGP-key-manager/** (updated on push to `main`).
+
 ### Full local stack
 
 1. Start backend: `cd backend && ./mvnw spring-boot:run`
@@ -55,6 +68,9 @@ Copy `frontend/.env.example` to `frontend/.env.local` for local dev (`VITE_API_B
 
 - **Backend:** `./mvnw --batch-mode test` (Java 25)
 - **Frontend:** `npm ci`, `npm run lint`, `npm run test`, `npm run build`
+- **OpenAPI:** root `npm ci`, `npm run docs:lint`
+
+[`.github/workflows/docs.yml`](.github/workflows/docs.yml) deploys API docs to GitHub Pages on push to `main` only.
 
 Changes that break these checks should not be merged.
 
