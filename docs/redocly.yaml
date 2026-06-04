@@ -1,0 +1,21 @@
+extends:
+  - recommended
+
+apis:
+  pgp@v1:
+    root: openapi.yaml
+
+rules:
+  # Local dev server URL is intentional in servers[0]
+  no-server-example.com: off
+
+# If preview is started from the repo root by mistake, do not scan the monorepo.
+ignore:
+  - '../frontend/**'
+  - '../backend/**'
+  - '../node_modules/**'
+  - '../*.json'
+  - '../*.md'
+  - '../*.yaml'
+  - '!openapi.yaml'
+  - '!redocly.yaml'

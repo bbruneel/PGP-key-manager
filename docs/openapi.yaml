@@ -2,6 +2,12 @@ openapi: 3.1.0
 info:
   title: PGP Key Manager API
   version: 1.0.0
+  contact:
+    name: PGP Key Manager
+    url: https://github.com/bbruneel/PGP-key-manager
+  license:
+    name: Unlicense
+    url: https://opensource.org/licenses/Unlicense
   description: |
     Versioned JSON API for OpenPGP key management.
 
@@ -16,9 +22,13 @@ servers:
 
 tags:
   - name: Health
+    description: Unauthenticated health and sample endpoints.
   - name: Keys
+    description: Primary PGP key registration, listing, and export.
   - name: Subkeys
+    description: Subkeys bound to a primary key.
   - name: Key lifecycle
+    description: Revoke, extend expiry, and rotate operations.
 
 security:
   - bearerAuth: []
@@ -27,6 +37,7 @@ paths:
   /api/hello:
     get:
       tags: [Health]
+      summary: Hello
       operationId: getHello
       security: []
       responses:
@@ -36,10 +47,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HelloResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys:
     get:
       tags: [Keys]
+      summary: List keys
       operationId: listKeys
       x-implementation-status: implemented
       parameters:
@@ -64,8 +78,11 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PgpKeySummary'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     post:
       tags: [Keys]
+      summary: Create key
       operationId: createKey
       x-implementation-status: implemented
       requestBody:
@@ -76,27 +93,34 @@ paths:
               $ref: '#/components/schemas/CreatePgpKeyRequest'
       responses:
         '201':
-          description: Created
+          description: Primary key created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}:
     get:
       tags: [Keys]
+      summary: Get key
       operationId: getKey
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/KeyId'
       responses:
         '200':
+          description: Key details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     patch:
       tags: [Keys]
+      summary: Update key
       operationId: updateKey
       x-implementation-status: implemented
       parameters:
@@ -108,12 +132,16 @@ paths:
               $ref: '#/components/schemas/UpdatePgpKeyRequest'
       responses:
         '200':
+          description: Updated key
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     delete:
       tags: [Keys]
+      summary: Delete key
       operationId: deleteKey
       x-implementation-status: implemented
       parameters:
@@ -121,24 +149,31 @@ paths:
       responses:
         '204':
           description: Deleted
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{primaryKeyId}/subkeys:
     get:
       tags: [Subkeys]
+      summary: List subkeys
       operationId: listSubkeys
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/PrimaryKeyId'
       responses:
         '200':
+          description: Subkey list
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/PgpKeySummary'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
     post:
       tags: [Subkeys]
+      summary: Create subkey
       operationId: createSubkey
       x-implementation-status: implemented
       parameters:
@@ -150,14 +185,18 @@ paths:
               $ref: '#/components/schemas/CreateSubkeyRequest'
       responses:
         '201':
+          description: Subkey created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{primaryKeyId}/subkeys/{subkeyId}:
     get:
       tags: [Subkeys]
+      summary: Get subkey
       operationId: getSubkey
       x-implementation-status: implemented
       parameters:
@@ -165,14 +204,18 @@ paths:
         - $ref: '#/components/parameters/SubkeyId'
       responses:
         '200':
+          description: Subkey details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/revoke:
     post:
       tags: [Key lifecycle]
+      summary: Revoke key
       operationId: revokeKey
       x-implementation-status: implemented
       description: |
@@ -189,14 +232,18 @@ paths:
               $ref: '#/components/schemas/RevokeKeyRequest'
       responses:
         '200':
+          description: Revoked key
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/extend-expiry:
     post:
       tags: [Key lifecycle]
+      summary: Extend key expiry
       operationId: extendKeyExpiry
       x-implementation-status: implemented
       parameters:
@@ -208,14 +255,18 @@ paths:
               $ref: '#/components/schemas/ExtendExpiryRequest'
       responses:
         '200':
+          description: Key with updated expiry
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/rotate:
     post:
       tags: [Key lifecycle]
+      summary: Rotate subkey
       operationId: rotateKey
       x-implementation-status: implemented
       description: |
@@ -230,24 +281,31 @@ paths:
               $ref: '#/components/schemas/RotateKeyRequest'
       responses:
         '201':
+          description: Rotation result with new and previous subkeys
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RotateKeyResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
   /api/keys/{keyId}/export-public:
     get:
       tags: [Keys]
+      summary: Export public key
       operationId: exportPublicKey
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/KeyId'
       responses:
         '200':
+          description: Armored public key material
           content:
             application/pgp-keys:
               schema:
                 type: string
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
 
 components:
   securitySchemes:
@@ -255,6 +313,14 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  responses:
+    ErrorResponse:
+      description: RFC 7807 problem details (typical 400, 401, 404, or 409)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
 
   parameters:
     KeyId:
@@ -280,6 +346,32 @@ components:
         format: uuid
 
   schemas:
+    ProblemDetail:
+      type: object
+      description: RFC 7807 Problem Details (Spring `ProblemDetail` JSON)
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        errors:
+          type: array
+          description: Field validation errors (400 responses)
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
     HelloResponse:
       type: object
       required: [message]

@@ -1,0 +1,12 @@
+{
+  "name": "pgp-key-manager",
+  "private": true,
+  "scripts": {
+    "docs:lint": "redocly --config docs/redocly.yaml lint pgp@v1",
+    "docs:build": "redocly --config docs/redocly.yaml build-docs pgp@v1 -o docs/.build/index.html",
+    "docs:preview": "cd docs && redocly preview --product redoc -p 8081"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.31.6"
+  }
+}

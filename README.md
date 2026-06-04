@@ -14,7 +14,7 @@ For system diagrams, request flows, and component layout, see **[ARCHITECTURE.md
 
 Tailwind for the SPA uses the official **`@tailwindcss/vite`** plugin (Tailwind v4).
 
-**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `backend` Maven tests and `frontend` `npm ci`, lint, test, and build on every push/PR to `main`.
+**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `backend` Maven tests, `frontend` `npm ci` (lint, test, build), and OpenAPI lint (`npm run docs:lint`) on every push/PR to `main`. Pushes to `main` also publish API docs to GitHub Pages via [`.github/workflows/docs.yml`](.github/workflows/docs.yml).
 
 ## Backend (`backend/`)
 
@@ -69,6 +69,29 @@ Environment variables (backend):
 ### API contract
 
 OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, and export-public.
+
+### API documentation (Redocly)
+
+**Published docs (no local setup):** after enabling GitHub Pages (Settings → Pages → **GitHub Actions**), the latest HTML reference is deployed on every push to `main`:
+
+**https://bbruneel.github.io/PGP-key-manager/**
+
+(Forks use `https://<your-github-user>.github.io/PGP-key-manager/`.)
+
+**Source of truth:** [`docs/openapi.yaml`](docs/openapi.yaml) — config in [`docs/redocly.yaml`](docs/redocly.yaml).
+
+**Prerequisites:** Node.js 24.16.0 ([`.nvmrc`](.nvmrc)). From the **repository root**:
+
+```bash
+npm ci
+npm run docs:lint      # validate spec (same check as CI)
+npm run docs:build     # static HTML → docs/.build/index.html (gitignored)
+npm run docs:preview   # live Redoc at http://127.0.0.1:8081 (runs from docs/ so the monorepo is not scanned)
+```
+
+**CI:** OpenAPI lint runs on every PR and push to `main`. Static docs are built and deployed to GitHub Pages only on push to `main`.
+
+**Editing workflow:** change `docs/openapi.yaml` → run `npm run docs:lint` locally → open a PR.
 
 **Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.84). Supported algorithms: `ed25519`, `cv25519`, `rsa`, `ecdsa`, `ecdh` (with curve). Primary key generation accepts optional `openpgpVersion` (`4` default, `6` for RFC 9580); subkeys and lifecycle operations use the primary key’s stored version. Passphrases are wiped from memory after use and are never logged.
 
