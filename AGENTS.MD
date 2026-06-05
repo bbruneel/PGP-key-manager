@@ -174,19 +174,22 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
   export PATH=$JAVA_HOME/bin:$PATH
   ```
   These exports are already in `~/.bashrc` so new interactive shells pick them up automatically.
-- **Node.js 24.16.0** and **npm 11.13.0** are managed via **nvm**. The update script runs `nvm install` from `.nvmrc` automatically. Before running any `npm` command in a new shell, load nvm and activate the pinned version:
+- **Node.js 24.16.0** and **npm 11.13.0** are managed via **nvm**. The update script runs `nvm install` from `.nvmrc` automatically. Before running any `npm` command in a new shell, load nvm and **prepend** the pinned Node bin directory to `PATH` (the VM also has `/exec-daemon/node`, which shadows nvm if it comes first):
   ```bash
   export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm use
+  export PATH="$NVM_DIR/versions/node/v24.16.0/bin:$PATH"
   ```
-- Frontend dependencies are refreshed by the update script (`npm ci` in `frontend/`).
-- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local`.
+- Root and frontend dependencies are refreshed by the update script (`npm ci` at repo root and in `frontend/`).
+- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local` and fill `VITE_AUTH0_*` from secrets when available.
+- **PostgreSQL** must be running on `localhost:5432` for `spring-boot:run` (Flyway migrations on startup). Tests use in-memory H2 and do not need Postgres. For local Postgres with password `postgres`, export `SPRING_DATASOURCE_PASSWORD=postgres` when starting the backend.
 
 ### Running the stack
 
-1. **Backend:** `cd backend && ./mvnw spring-boot:run` — listens on `:8080`.
-2. **Frontend:** `cd frontend && npm run dev` — Vite dev server on `:5173`.
+1. Ensure PostgreSQL is up (`pg_ctlcluster 16 main start` or `sudo service postgresql start` on Ubuntu).
+2. **Backend:** `cd backend && export SPRING_DATASOURCE_PASSWORD=postgres && ./mvnw spring-boot:run` — listens on `:8080`.
+3. **Frontend:** `cd frontend && npm run dev -- --host 0.0.0.0` — Vite dev server on `:5173`.
 
-The frontend health-check indicator ("API Connected") confirms the backend is reachable.
+The Overview page health check (`GET /api/hello` → `ok`) and footer **API Connected** indicator confirm the backend is reachable.
 
 ### Gotchas
 
