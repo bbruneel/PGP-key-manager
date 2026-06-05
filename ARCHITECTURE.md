@@ -96,12 +96,12 @@ sequenceDiagram
   Crypto-->>Svc: armored keyring
   Svc->>DB: insert primary row
 
-  Client->>API: POST /api/keys/{primaryId}/subkeys
+  Client->>API: POST /api/keys/{primaryKeyId}/subkeys
   Svc->>Crypto: addSubkey
   Crypto-->>Svc: updated keyring + subkey metadata
   Svc->>DB: update primary armored material + insert subkey metadata row
 
-  Client->>API: POST /api/keys/{id}/revoke
+  Client->>API: POST /api/keys/{keyId}/revoke
   alt primary has private material
     Svc->>Crypto: revokeKeyInRing (SUBKEY_REVOCATION / KEY_REVOCATION)
     Svc->>DB: update primary keyring + mark revoked_at
