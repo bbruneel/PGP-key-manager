@@ -62,10 +62,10 @@ public class PgpKeyController {
                 .toList();
     }
 
-    @GetMapping("/{id}")
-    public PgpKeyResponse get(@PathVariable UUID id, Authentication authentication) {
+    @GetMapping("/{keyId}")
+    public PgpKeyResponse get(@PathVariable UUID keyId, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return PgpKeyResponse.from(pgpKeyService.getForUser(user, id), true);
+        return PgpKeyResponse.from(pgpKeyService.getForUser(user, keyId), true);
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -76,20 +76,20 @@ public class PgpKeyController {
         return PgpKeyResponse.from(pgpKeyService.create(user, request), true);
     }
 
-    @PatchMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PatchMapping(path = "/{keyId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public PgpKeyResponse update(
-            @PathVariable UUID id,
+            @PathVariable UUID keyId,
             @Valid @RequestBody UpdatePgpKeyRequest request,
             Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return PgpKeyResponse.from(pgpKeyService.update(user, id, request), true);
+        return PgpKeyResponse.from(pgpKeyService.update(user, keyId, request), true);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{keyId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id, Authentication authentication) {
+    public void delete(@PathVariable UUID keyId, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        pgpKeyService.delete(user, id);
+        pgpKeyService.delete(user, keyId);
     }
 
     @GetMapping("/{primaryKeyId}/subkeys")

@@ -59,7 +59,7 @@ class PgpKeyLifecycleIntegrationTest {
         String primaryId = readJsonField(createPrimary.getResponse().getContentAsString(), "id");
 
         MvcResult createSubkey =
-                mockMvc.perform(post("/api/keys/{id}/subkeys", primaryId)
+                mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys", primaryId)
                                 .with(jwt())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(
@@ -81,15 +81,15 @@ class PgpKeyLifecycleIntegrationTest {
 
         String subkeyId = readJsonField(createSubkey.getResponse().getContentAsString(), "id");
 
-        mockMvc.perform(get("/api/keys/{id}/subkeys", primaryId).with(jwt()))
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].role").value("subkey"));
 
-        mockMvc.perform(get("/api/keys/{id}/export-public", primaryId).with(jwt()))
+        mockMvc.perform(get("/api/keys/{keyId}/export-public", primaryId).with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PUBLIC KEY BLOCK")));
 
-        mockMvc.perform(post("/api/keys/{id}/extend-expiry", subkeyId)
+        mockMvc.perform(post("/api/keys/{keyId}/extend-expiry", subkeyId)
                         .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
@@ -103,7 +103,7 @@ class PgpKeyLifecycleIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expiresAt").exists());
 
-        mockMvc.perform(post("/api/keys/{id}/revoke", subkeyId)
+        mockMvc.perform(post("/api/keys/{keyId}/revoke", subkeyId)
                         .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
@@ -123,7 +123,7 @@ class PgpKeyLifecycleIntegrationTest {
         String primaryId = createPrimaryForRotate();
         String subkeyId = createEncryptSubkey(primaryId);
 
-        mockMvc.perform(post("/api/keys/{id}/rotate", subkeyId)
+        mockMvc.perform(post("/api/keys/{keyId}/rotate", subkeyId)
                         .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
@@ -147,7 +147,7 @@ class PgpKeyLifecycleIntegrationTest {
         String primaryId = createPrimaryForRotate();
         String subkeyId = createEncryptSubkey(primaryId);
 
-        mockMvc.perform(post("/api/keys/{id}/rotate", subkeyId)
+        mockMvc.perform(post("/api/keys/{keyId}/rotate", subkeyId)
                         .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
@@ -224,7 +224,7 @@ class PgpKeyLifecycleIntegrationTest {
     void invalidRevocationReasonReturnsBadRequest() throws Exception {
         String primaryId = createPrimaryForRotate();
 
-        mockMvc.perform(post("/api/keys/{id}/revoke", primaryId)
+        mockMvc.perform(post("/api/keys/{keyId}/revoke", primaryId)
                         .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"not_valid\",\"passphrase\":\"%s\"}".formatted(PASSPHRASE)))
@@ -255,7 +255,7 @@ class PgpKeyLifecycleIntegrationTest {
 
     private String createEncryptSubkey(String primaryId) throws Exception {
         MvcResult result =
-                mockMvc.perform(post("/api/keys/{id}/subkeys", primaryId)
+                mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys", primaryId)
                                 .with(jwt())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(

@@ -96,7 +96,7 @@ class PgpKeyControllerTest {
         when(pgpKeyService.createSubkey(eq(USER), eq(primaryId), any(CreateSubkeyRequest.class)))
                 .thenReturn(subkey);
 
-        mockMvc.perform(post("/api/keys/{id}/subkeys", primaryId)
+        mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys", primaryId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
@@ -112,22 +112,22 @@ class PgpKeyControllerTest {
 
     @Test
     void deleteReturns204() throws Exception {
-        UUID id = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
 
-        mockMvc.perform(delete("/api/keys/{id}", id)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/keys/{keyId}", keyId)).andExpect(status().isNoContent());
 
-        verify(pgpKeyService).delete(USER, id);
+        verify(pgpKeyService).delete(USER, keyId);
     }
 
     @Test
     void patchUpdatesKey() throws Exception {
-        UUID id = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
         PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
-        when(pgpKeyService.update(eq(USER), eq(id), any(UpdatePgpKeyRequest.class))).thenReturn(key);
+        when(pgpKeyService.update(eq(USER), eq(keyId), any(UpdatePgpKeyRequest.class))).thenReturn(key);
 
-        mockMvc.perform(patch("/api/keys/{id}", id)
+        mockMvc.perform(patch("/api/keys/{keyId}", keyId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"label\":\"work\"}"))
                 .andExpect(status().isOk())
@@ -142,7 +142,7 @@ class PgpKeyControllerTest {
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
         when(pgpKeyService.rotate(eq(USER), eq(subkeyId), any())).thenReturn(new RotateResult(newKey, previous));
 
-        mockMvc.perform(post("/api/keys/{id}/rotate", subkeyId)
+        mockMvc.perform(post("/api/keys/{keyId}/rotate", subkeyId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
