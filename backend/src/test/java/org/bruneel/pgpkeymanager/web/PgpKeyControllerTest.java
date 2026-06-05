@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,6 +36,8 @@ import org.bruneel.pgpkeymanager.service.PgpKeyService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
+import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
 @WebMvcTest(controllers = {PgpKeyController.class})
@@ -54,6 +58,22 @@ class PgpKeyControllerTest {
     private PgpKeyService pgpKeyService;
 
     @Test
+    void getReturnsKey() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.getForUser(USER, keyId)).thenReturn(key);
+
+        mockMvc.perform(get("/api/keys/{keyId}", keyId).accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(keyId.toString()))
+                .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"))
+                .andExpect(jsonPath("$.role").value("primary"));
+
+        verify(pgpKeyService).getForUser(USER, keyId);
+    }
+
+    @Test
     void listReturnsKeys() throws Exception {
         PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
@@ -64,6 +84,8 @@ class PgpKeyControllerTest {
                 .andExpect(jsonPath("$[0].fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"))
                 .andExpect(jsonPath("$[0].role").value("primary"))
                 .andExpect(jsonPath("$[0].encryptedPrivateArmored").doesNotExist());
+
+        verify(pgpKeyService).listForUser(USER, null, null, null);
     }
 
     @Test
@@ -89,6 +111,36 @@ class PgpKeyControllerTest {
     }
 
     @Test
+    void listSubkeysReturnsKeys() throws Exception {
+        UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        PgpKey subkey = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.listSubkeys(USER, primaryId)).thenReturn(List.of(subkey));
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].role").value("primary"));
+
+        verify(pgpKeyService).listSubkeys(USER, primaryId);
+    }
+
+    @Test
+    void getSubkeyReturnsKey() throws Exception {
+        UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        UUID subkeyId = UUID.fromString("00000000-0000-0000-0000-000000000004");
+        PgpKey subkey = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.getSubkey(USER, primaryId, subkeyId)).thenReturn(subkey);
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys/{subkeyId}", primaryId, subkeyId)
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"));
+
+        verify(pgpKeyService).getSubkey(USER, primaryId, subkeyId);
+    }
+
+    @Test
     void createSubkeyReturns201() throws Exception {
         UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
         PgpKey subkey = TestPgpKeys.samplePublic(USER.id());
@@ -108,6 +160,8 @@ class PgpKeyControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated());
+
+        verify(pgpKeyService).createSubkey(eq(USER), eq(primaryId), any(CreateSubkeyRequest.class));
     }
 
     @Test
@@ -132,6 +186,55 @@ class PgpKeyControllerTest {
                         .content("{\"label\":\"work\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.label").value("personal"));
+
+        verify(pgpKeyService).update(eq(USER), eq(keyId), any(UpdatePgpKeyRequest.class));
+    }
+
+    @Test
+    void revokeReturnsKey() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.revoke(eq(USER), eq(keyId), any(RevokeKeyRequest.class))).thenReturn(key);
+
+        mockMvc.perform(post("/api/keys/{keyId}/revoke", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"key_retired\",\"passphrase\":\"test-passphrase-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"));
+
+        verify(pgpKeyService).revoke(eq(USER), eq(keyId), any(RevokeKeyRequest.class));
+    }
+
+    @Test
+    void extendExpiryReturnsKey() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.extendExpiry(eq(USER), eq(keyId), any(ExtendExpiryRequest.class)))
+                .thenReturn(key);
+
+        mockMvc.perform(post("/api/keys/{keyId}/extend-expiry", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expiresAt\":\"2031-06-01T00:00:00Z\",\"passphrase\":\"test-passphrase-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"));
+
+        verify(pgpKeyService).extendExpiry(eq(USER), eq(keyId), any(ExtendExpiryRequest.class));
+    }
+
+    @Test
+    void exportPublicReturnsArmoredKey() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.exportPublic(USER, keyId))
+                .thenReturn("-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: BCPG v1.84\n");
+
+        mockMvc.perform(get("/api/keys/{keyId}/export-public", keyId))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("BEGIN PGP PUBLIC KEY BLOCK")));
+
+        verify(pgpKeyService).exportPublic(USER, keyId);
     }
 
     @Test
@@ -156,5 +259,7 @@ class PgpKeyControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.newKey").exists())
                 .andExpect(jsonPath("$.previousKey").exists());
+
+        verify(pgpKeyService).rotate(eq(USER), eq(subkeyId), any());
     }
 }

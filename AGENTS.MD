@@ -85,6 +85,45 @@ Changes that break these checks should not be merged.
 - **Logging:** default profile uses readable console logs with `%X{requestId}`; `prod` profile uses JSON (`logstash-logback-encoder`).
 - **Tests:** prefer TDD. Use `@WebMvcTest` for controller slices and `@SpringBootTest` + `MockMvc` for integration (e.g. filter behavior). JUnit 5.
 
+#### API endpoint test coverage (required)
+
+Every REST handler in a controller must have test coverage before a PR is complete. Gaps like “delete and patch are tested but GET is not” are not acceptable, even when the missing test is pre-existing.
+
+**`@WebMvcTest` slice (required per handler):** For each controller method (each HTTP method + path), add at least one focused test in the matching `*ControllerTest` class that:
+
+1. Mocks service dependencies and stubs the call that handler makes.
+2. Performs the HTTP request with `MockMvc`.
+3. Asserts the expected status code and key response fields.
+4. Verifies the service method was invoked (e.g. `verify(...)`).
+
+When you add, change, or remove an endpoint, update the controller’s slice test in the **same PR**. Do not rely on integration tests alone for this layer.
+
+**Integration tests (required for new/changed behavior):** Add or extend `@SpringBootTest` + `MockMvc` tests when an endpoint has non-trivial behavior (auth, validation, persistence, crypto). `PgpKeyLifecycleIntegrationTest` covers multi-step key flows; `*ControllerIntegrationTest` covers simpler CRUD/auth paths.
+
+**Checklist before finishing controller work:**
+
+| Controller | Slice test class | Integration test class |
+|------------|------------------|------------------------|
+| `HelloController` | `HelloControllerTest` | `HelloControllerIntegrationTest` |
+| `PgpKeyController` | `PgpKeyControllerTest` | `PgpKeyControllerIntegrationTest`, `PgpKeyLifecycleIntegrationTest` |
+
+For `PgpKeyController`, every path under `/api/keys` must appear in `PgpKeyControllerTest`:
+
+- `GET /api/keys`
+- `GET /api/keys/{keyId}`
+- `POST /api/keys`
+- `PATCH /api/keys/{keyId}`
+- `DELETE /api/keys/{keyId}`
+- `GET /api/keys/{primaryKeyId}/subkeys`
+- `POST /api/keys/{primaryKeyId}/subkeys`
+- `GET /api/keys/{primaryKeyId}/subkeys/{subkeyId}`
+- `POST /api/keys/{keyId}/revoke`
+- `POST /api/keys/{keyId}/extend-expiry`
+- `POST /api/keys/{keyId}/rotate`
+- `GET /api/keys/{keyId}/export-public`
+
+If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching slice test (and integration test when behavior warrants it) in the same change.
+
 ### Frontend
 
 - Pages in `frontend/src/pages/`, shared UI in `frontend/src/components/`, utilities in `frontend/src/lib/`.
