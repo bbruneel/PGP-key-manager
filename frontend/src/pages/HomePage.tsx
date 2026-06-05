@@ -3,7 +3,8 @@ import { toast } from "sonner"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
-import { apiFetch } from "@/lib/api"
+import { requestJson } from "@/lib/api-client"
+import type { HelloResponse } from "@/types/api"
 
 export type ApiHealth = "healthy" | "degraded" | "unknown"
 
@@ -20,11 +21,10 @@ export function HomePage({ onHealthChange }: HomePageProps) {
     setError(null)
     onHealthChange?.("unknown")
     try {
-      const res = await apiFetch("/api/hello", { method: "GET" })
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
-      }
-      const data = (await res.json()) as { message?: string }
+      const data = await requestJson<HelloResponse>("/api/hello", {
+        operationId: "getHello",
+        method: "GET",
+      })
       setHello(data.message ?? JSON.stringify(data))
       onHealthChange?.("healthy")
     } catch (e) {

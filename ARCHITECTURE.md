@@ -18,8 +18,9 @@ flowchart TB
 
   subgraph Repo["Monorepo"]
     subgraph FE["frontend/"]
-      UI["AppShell · HomePage · HomeAuthPanel"]
-      APIClient["apiFetch<br/>Accept: application/json; version=1<br/>X-Request-Id · Authorization"]
+      UI["AppShell · OverviewPage · KeysPage"]
+      APIClient["requestJson · keysApi<br/>Accept: application/json; version=1<br/>X-Request-Id · Authorization"]
+      Types["api.generated.ts<br/>OpenAPI types"]
     end
 
     subgraph BE["backend/"]
@@ -113,6 +114,18 @@ sequenceDiagram
 **Transactional boundaries:** `PgpKeyService` mutations run in a single database transaction so keyring updates and row inserts succeed or roll back together.
 
 **Passphrase handling:** passphrases are converted to `char[]`, used for Bouncy Castle decrypt/sign operations, then zeroed via `PassphraseUtil`.
+
+## Frontend API client
+
+Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `apiFetch`. Each request carries:
+
+- **`operationId`** — matches OpenAPI operation names (e.g. `listKeys`, `getHello`) for `[pgp-api]` structured logs.
+- **`X-Request-Id`** — client-generated UUID; echoed by the backend `RequestIdFilter` for correlation in logs and error UI.
+- **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
+
+Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 0 exposes `keysApi.list()`; create/import/lifecycle clients will follow in later PRs.
+
+Routes: `/` (overview) and `/keys` (key list panel).
 
 ## Repository layout
 

@@ -114,6 +114,33 @@ The scaffold’s `apiFetch` helper sets these by default. The sample `GET /api/h
 
 ## Frontend (`frontend/`)
 
+### Routes
+
+| Path | Page |
+|------|------|
+| `/` | Overview (API health, Auth0 status, link to keys) |
+| `/keys` | PGP key list (requires Auth0 sign-in) |
+
+### API client layer
+
+The SPA uses a typed client on top of `apiFetch`:
+
+| Module | Role |
+|--------|------|
+| `frontend/src/types/api.generated.ts` | OpenAPI-generated TypeScript types (`npm run generate:api-types`) |
+| `frontend/src/lib/api-client.ts` | `requestJson` — versioned JSON, Bearer token, `X-Request-Id` correlation |
+| `frontend/src/lib/api-error.ts` | RFC 7807 `ProblemDetail` parsing and `ApiError` for UI messages |
+| `frontend/src/lib/logger.ts` | Structured `[pgp-api]` console logs with `operationId` + `requestId` |
+| `frontend/src/lib/keys-api.ts` | Key endpoints (Phase 0: `list` only) |
+| `frontend/src/hooks/use-api-access-token.ts` | Auth0 `getAccessTokenSilently` wrapper |
+
+Regenerate types after changing `docs/openapi.yaml`:
+
+```bash
+cd frontend
+npm run generate:api-types
+```
+
 ### Run (with backend)
 
 Terminal 1 — API:

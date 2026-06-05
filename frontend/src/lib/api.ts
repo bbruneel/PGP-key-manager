@@ -15,6 +15,7 @@ export function newRequestId(): string {
 
 export type ApiFetchOptions = RequestInit & {
   accessToken?: string | null
+  requestId?: string
 }
 
 /**
@@ -26,7 +27,7 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promis
   if (!base) {
     throw new Error("VITE_API_BASE_URL is not set")
   }
-  const { accessToken, headers, ...rest } = init
+  const { accessToken, requestId, headers, ...rest } = init
   const h = new Headers(headers)
   if (!h.has("Accept")) {
     h.set("Accept", API_ACCEPT_HEADER)
@@ -35,7 +36,7 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promis
     h.set("Authorization", `Bearer ${accessToken}`)
   }
   if (!h.has("X-Request-Id")) {
-    h.set("X-Request-Id", newRequestId())
+    h.set("X-Request-Id", requestId ?? newRequestId())
   }
   const url = path.startsWith("http") ? path : joinUrl(base, path)
   return fetch(url, { ...rest, headers: h })

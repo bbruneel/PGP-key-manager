@@ -1,47 +1,39 @@
-import { useAuth0 } from "@auth0/auth0-react"
 import { useCallback, useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { apiFetch } from "@/lib/api"
-import { auth0Configured } from "@/lib/auth0-env"
-
-export type PgpKeySummary = {
-  id: string
-  label: string | null
-  fingerprint: string
-  keyId: string | null
-  keyType: string
-  algorithm: string | null
-  expiresAt: string | null
-}
+import { useApiAccessToken } from "@/hooks/use-api-access-token"
+import { ApiError, getApiErrorMessage } from "@/lib/api-error"
+import { keysApi } from "@/lib/keys-api"
+import type { PgpKeyListItem } from "@/types/api"
 
 export function HomeKeysPanel() {
-  const auth0 = useAuth0()
-  const [keys, setKeys] = useState<PgpKeySummary[]>([])
+  const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
+  const [keys, setKeys] = useState<PgpKeyListItem[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [requestId, setRequestId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const loadKeys = useCallback(async () => {
-    if (!auth0Configured() || !auth0.isAuthenticated) {
+    if (!isConfigured || !isAuthenticated) {
       return
     }
     setLoading(true)
     setError(null)
+    setRequestId(null)
     try {
-      const token = await auth0.getAccessTokenSilently()
-      const res = await apiFetch("/api/keys", { method: "GET", accessToken: token })
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
-      }
-      const data = (await res.json()) as PgpKeySummary[]
+      const token = await getAccessToken()
+      const data = await keysApi.list({ accessToken: token })
       setKeys(data)
     } catch (e) {
       setKeys([])
-      setError(e instanceof Error ? e.message : "Failed to load keys")
+      setError(getApiErrorMessage(e))
+      if (e instanceof ApiError && e.requestId) {
+        setRequestId(e.requestId)
+      }
     } finally {
       setLoading(false)
     }
-  }, [auth0])
+  }, [getAccessToken, isAuthenticated, isConfigured])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -49,7 +41,7 @@ export function HomeKeysPanel() {
     })
   }, [loadKeys])
 
-  if (!auth0Configured()) {
+  if (!isConfigured) {
     return (
       <section className="rounded-lg border border-dashed border-border bg-card/50 p-6 text-sm md:p-8">
         <h2 className="text-xl font-semibold tracking-tight text-foreground">PGP keys</h2>
@@ -60,11 +52,12 @@ export function HomeKeysPanel() {
     )
   }
 
-  if (!auth0.isAuthenticated) {
+  if (!isAuthenticated) {
     return (
       <section className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm md:p-8">
         <h2 className="text-xl font-semibold tracking-tight text-foreground">PGP keys</h2>
         <p className="mt-2 text-sm text-muted-foreground">Sign in to view keys synced to your account.</p>
+        {authError ? <p className="mt-2 text-sm text-destructive">{authError}</p> : null}
       </section>
     )
   }
@@ -87,7 +80,14 @@ export function HomeKeysPanel() {
       </header>
 
       {loading && <p className="text-sm text-muted-foreground">Loading keys…</p>}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="text-sm text-destructive">
+          <p>{error}</p>
+          {requestId ? (
+            <p className="mt-1 text-xs text-muted-foreground">Request ID: {requestId}</p>
+          ) : null}
+        </div>
+      )}
       {!loading && !error && keys.length === 0 && (
         <p className="text-sm text-muted-foreground">No keys yet. Create one via the API or a future import flow.</p>
       )}
