@@ -81,6 +81,16 @@ class PgpKeyLifecycleIntegrationTest {
 
         String subkeyId = readJsonField(createSubkey.getResponse().getContentAsString(), "id");
 
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(primaryId))
+                .andExpect(jsonPath("$.role").value("primary"));
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys/{subkeyId}", primaryId, subkeyId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(subkeyId))
+                .andExpect(jsonPath("$.role").value("subkey"));
+
         mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].role").value("subkey"));
