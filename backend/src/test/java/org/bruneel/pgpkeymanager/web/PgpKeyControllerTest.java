@@ -84,6 +84,8 @@ class PgpKeyControllerTest {
                 .andExpect(jsonPath("$[0].fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"))
                 .andExpect(jsonPath("$[0].role").value("primary"))
                 .andExpect(jsonPath("$[0].encryptedPrivateArmored").doesNotExist());
+
+        verify(pgpKeyService).listForUser(USER, null, null, null);
     }
 
     @Test
@@ -158,6 +160,8 @@ class PgpKeyControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated());
+
+        verify(pgpKeyService).createSubkey(eq(USER), eq(primaryId), any(CreateSubkeyRequest.class));
     }
 
     @Test
@@ -182,6 +186,8 @@ class PgpKeyControllerTest {
                         .content("{\"label\":\"work\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.label").value("personal"));
+
+        verify(pgpKeyService).update(eq(USER), eq(keyId), any(UpdatePgpKeyRequest.class));
     }
 
     @Test
@@ -253,5 +259,7 @@ class PgpKeyControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.newKey").exists())
                 .andExpect(jsonPath("$.previousKey").exists());
+
+        verify(pgpKeyService).rotate(eq(USER), eq(subkeyId), any());
     }
 }
