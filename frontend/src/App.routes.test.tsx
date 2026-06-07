@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AppProviders } from "@/providers"
 
+vi.mock("@/lib/auth0-env", () => ({
+  auth0Configured: vi.fn(() => false),
+}))
+
 vi.mock("@/lib/api-client", () => ({
   requestJson: vi.fn().mockResolvedValue({ message: "ok" }),
 }))
