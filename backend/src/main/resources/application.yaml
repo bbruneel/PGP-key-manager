@@ -16,6 +16,9 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Supabase may already have V1/V2 tables created before Flyway history existed.
+    baseline-on-migrate: true
+    baseline-version: 2
     url: ${FLYWAY_URL:${spring.datasource.url}}
     user: ${FLYWAY_USER:${spring.datasource.username}}
     password: ${FLYWAY_PASSWORD:${spring.datasource.password}}

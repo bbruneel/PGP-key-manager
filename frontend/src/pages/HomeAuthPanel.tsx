@@ -1,9 +1,25 @@
 import { useAuth0 } from "@auth0/auth0-react"
+import { useCallback, useState } from "react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 
 export function HomeAuthPanel() {
   const auth0 = useAuth0()
+  const [copyingToken, setCopyingToken] = useState(false)
+
+  const copyAccessToken = useCallback(async () => {
+    setCopyingToken(true)
+    try {
+      const token = await auth0.getAccessTokenSilently()
+      await navigator.clipboard.writeText(token)
+      toast.success("API access token copied to clipboard")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to copy access token")
+    } finally {
+      setCopyingToken(false)
+    }
+  }, [auth0])
 
   if (auth0.isAuthenticated) {
     return (
@@ -15,14 +31,27 @@ export function HomeAuthPanel() {
         <p className="text-sm text-foreground">
           Signed in as <span className="font-medium">{auth0.user?.email ?? auth0.user?.sub}</span>
         </p>
-        <Button
-          type="button"
-          className="mt-6 transition-colors duration-200"
-          variant="outline"
-          onClick={() => void auth0.logout({ logoutParams: { returnTo: window.location.origin } })}
-        >
-          Log out
-        </Button>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {import.meta.env.DEV ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="transition-colors duration-200"
+              disabled={copyingToken}
+              onClick={() => void copyAccessToken()}
+            >
+              {copyingToken ? "Copying…" : "Copy API token"}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            className="transition-colors duration-200"
+            variant="outline"
+            onClick={() => void auth0.logout({ logoutParams: { returnTo: window.location.origin } })}
+          >
+            Log out
+          </Button>
+        </div>
       </section>
     )
   }
