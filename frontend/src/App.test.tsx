@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const { mockUseAuth0, mockWithAuthenticationRequired } = vi.hoisted(() => ({
@@ -27,17 +28,12 @@ vi.mock("@/lib/auth0-env", () => ({
   auth0Configured: vi.fn(),
 }))
 
-vi.mock("@/pages/HomePage", () => ({
-  HomePage: () => <div>HomePage</div>,
+vi.mock("@/pages/OverviewPage", () => ({
+  OverviewPage: () => <div>OverviewPage</div>,
 }))
 
-vi.mock("@/pages/HomeAuthPanel", () => ({
-  HomeAuthPanel: () => <div>HomeAuthPanel</div>,
-  HomeAuthPlaceholder: () => <div>HomeAuthPlaceholder</div>,
-}))
-
-vi.mock("@/pages/HomeKeysPanel", () => ({
-  HomeKeysPanel: () => <div>HomeKeysPanel</div>,
+vi.mock("@/pages/KeysPage", () => ({
+  KeysPage: () => <div>KeysPage</div>,
 }))
 
 vi.mock("@/components/layout/app-shell", () => ({
@@ -46,6 +42,14 @@ vi.mock("@/components/layout/app-shell", () => ({
 
 import { auth0Configured } from "@/lib/auth0-env"
 import { App } from "@/App"
+
+function renderApp(initialPath = "/") {
+  return render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <App />
+    </MemoryRouter>,
+  )
+}
 
 describe("App auth gate", () => {
   afterEach(() => {
@@ -61,9 +65,9 @@ describe("App auth gate", () => {
   it("renders without auth gate when Auth0 is not configured", () => {
     vi.mocked(auth0Configured).mockReturnValue(false)
 
-    render(<App />)
+    renderApp("/")
 
-    expect(screen.getByText("HomeAuthPlaceholder")).toBeInTheDocument()
+    expect(screen.getByText("OverviewPage")).toBeInTheDocument()
     expect(screen.queryByText("Redirecting to sign in…")).not.toBeInTheDocument()
   })
 
@@ -74,10 +78,10 @@ describe("App auth gate", () => {
       isLoading: false,
     })
 
-    render(<App />)
+    renderApp("/")
 
     expect(screen.getByText("Redirecting to sign in…")).toBeInTheDocument()
-    expect(screen.queryByText("HomePage")).not.toBeInTheDocument()
+    expect(screen.queryByText("OverviewPage")).not.toBeInTheDocument()
   })
 
   it("renders app content when Auth0 is configured and user is authenticated", () => {
@@ -87,10 +91,8 @@ describe("App auth gate", () => {
       isLoading: false,
     })
 
-    render(<App />)
+    renderApp("/")
 
-    expect(screen.getByText("HomePage")).toBeInTheDocument()
-    expect(screen.getByText("HomeAuthPanel")).toBeInTheDocument()
-    expect(screen.getByText("HomeKeysPanel")).toBeInTheDocument()
+    expect(screen.getByText("OverviewPage")).toBeInTheDocument()
   })
 })

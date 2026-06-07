@@ -18,8 +18,9 @@ flowchart TB
 
   subgraph Repo["Monorepo"]
     subgraph FE["frontend/"]
-      UI["AppShell · HomePage · HomeAuthPanel"]
-      APIClient["apiFetch<br/>Accept: application/json; version=1<br/>X-Request-Id · Authorization"]
+      UI["AppShell · OverviewPage · KeysPage"]
+      APIClient["requestJson · keysApi<br/>Accept: application/json; version=1<br/>X-Request-Id · Authorization"]
+      Types["api.generated.ts<br/>OpenAPI types"]
     end
 
     subgraph BE["backend/"]
@@ -125,6 +126,18 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/keys/new` | Create primary key (label, user IDs, expiry, passphrase, algorithm) | Phase 0: route + nav link; Phase 1: form + `POST /api/keys` |
 
 **Recorded decision:** create primary key at **`/keys/new`**, not a modal on `/keys`.
+
+When Auth0 is configured, `requireAuth` wraps the routed app so unauthenticated visitors are redirected to login before protected pages load.
+
+## Frontend API client
+
+Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `apiFetch`. Each request carries:
+
+- **`operationId`** — matches OpenAPI operation names (e.g. `listKeys`, `getHello`) for `[pgp-api]` structured logs.
+- **`X-Request-Id`** — client-generated UUID; echoed by the backend `RequestIdFilter` for correlation in logs and error UI.
+- **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
+
+Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 0 exposes `keysApi.list()`; create/import/lifecycle clients will follow in later PRs.
 
 ## Repository layout
 

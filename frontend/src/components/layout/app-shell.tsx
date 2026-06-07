@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react"
+import { NavLink } from "react-router-dom"
 import {
   ChevronDown,
   Download,
@@ -19,14 +20,14 @@ import packageJson from "../../../package.json"
 
 type NavItem = {
   label: string
+  to?: string
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-  active?: boolean
   children?: string[]
 }
 
 const navItems: NavItem[] = [
-  { label: "Overview", icon: LayoutDashboard, active: true },
-  { label: "Keys", icon: KeyRound, children: ["Public", "Private", "Subkeys"] },
+  { label: "Overview", to: "/", icon: LayoutDashboard },
+  { label: "Keys", to: "/keys", icon: KeyRound, children: ["Public", "Private", "Subkeys"] },
   { label: "Policies", icon: Shield },
   { label: "Settings", icon: Settings },
 ]
@@ -34,9 +35,10 @@ const navItems: NavItem[] = [
 type AppShellProps = {
   children: ReactNode
   footerStatus?: "healthy" | "degraded" | "unknown"
+  pageTitle?: string
 }
 
-export function AppShell({ children, footerStatus = "unknown" }: AppShellProps) {
+export function AppShell({ children, footerStatus = "unknown", pageTitle = "Overview" }: AppShellProps) {
   const isMobile = useIsMobile()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
@@ -109,7 +111,7 @@ export function AppShell({ children, footerStatus = "unknown" }: AppShellProps) 
                 <Menu className="size-4" />
               </Button>
             ) : null}
-            <h1 className="truncate text-lg font-semibold tracking-tight text-foreground">Overview</h1>
+            <h1 className="truncate text-lg font-semibold tracking-tight text-foreground">{pageTitle}</h1>
             <span className="hidden rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground sm:inline">
               Development
             </span>
@@ -149,54 +151,70 @@ export function AppShell({ children, footerStatus = "unknown" }: AppShellProps) 
 function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const Icon = item.icon
   const hasChildren = Boolean(item.children?.length)
-  const [expanded, setExpanded] = useState(Boolean(item.active && hasChildren))
+  const [expanded, setExpanded] = useState(false)
+
+  if (item.to) {
+    return (
+      <div>
+        <div className="flex items-center gap-0.5">
+          <NavLink
+            to={item.to}
+            end={item.to === "/"}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              cn(
+                "flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+              )
+            }
+          >
+            <Icon className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
+            <span className="flex-1 text-left">{item.label}</span>
+          </NavLink>
+          {hasChildren ? (
+            <button
+              type="button"
+              className="mr-2 rounded p-0.5 text-sidebar-foreground hover:bg-sidebar-accent/60"
+              aria-label={expanded ? "Collapse sub-navigation" : "Expand sub-navigation"}
+              onClick={() => setExpanded((open) => !open)}
+            >
+              <ChevronDown
+                className={cn("size-4 shrink-0 opacity-50 transition-transform duration-200", expanded && "rotate-180")}
+              />
+            </button>
+          ) : null}
+        </div>
+        {hasChildren && expanded ? (
+          <ul className="mt-0.5 ml-5 space-y-0.5 border-l border-sidebar-border/80 pl-6">
+            {item.children!.map((child) => (
+              <li key={child}>
+                <button
+                  type="button"
+                  disabled
+                  title="Coming soon"
+                  className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors duration-200 hover:bg-sidebar-accent/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {child}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
-    <div>
-      <button
-        type="button"
-        className={cn(
-          "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200",
-          item.active
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-        )}
-        aria-current={item.active ? "page" : undefined}
-        aria-expanded={hasChildren ? expanded : undefined}
-        onClick={() => {
-          if (hasChildren) {
-            setExpanded((open) => !open)
-            return
-          }
-          onNavigate?.()
-        }}
-      >
-        <Icon className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
-        <span className="flex-1 text-left">{item.label}</span>
-        {hasChildren ? (
-          <ChevronDown
-            className={cn("size-4 shrink-0 opacity-50 transition-transform duration-200", expanded && "rotate-180")}
-          />
-        ) : (
-          <span className="size-4 shrink-0" aria-hidden />
-        )}
-      </button>
-      {hasChildren && expanded ? (
-        <ul className="mt-0.5 ml-5 space-y-0.5 border-l border-sidebar-border/80 pl-6">
-          {item.children!.map((child) => (
-            <li key={child}>
-              <button
-                type="button"
-                disabled
-                title="Coming soon"
-                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors duration-200 hover:bg-sidebar-accent/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {child}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
+    <button
+      type="button"
+      disabled
+      title="Coming soon"
+      className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors duration-200 hover:bg-sidebar-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Icon className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
+      <span className="flex-1 text-left">{item.label}</span>
+    </button>
   )
 }
