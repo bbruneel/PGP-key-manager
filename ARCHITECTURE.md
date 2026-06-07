@@ -114,6 +114,18 @@ sequenceDiagram
 
 **Passphrase handling:** passphrases are converted to `char[]`, used for Bouncy Castle decrypt/sign operations, then zeroed via `PassphraseUtil`.
 
+## Frontend navigation and UX
+
+Key management flows use dedicated routes (not modals) so multi-field PGP forms stay deep-linkable and usable on small screens.
+
+| Route | Purpose | Phase |
+|-------|---------|-------|
+| `/` | Overview (health, auth status) | Current |
+| `/keys` | List keys for the signed-in user | Current |
+| `/keys/new` | Create primary key (label, user IDs, expiry, passphrase, algorithm) | Phase 0: route + nav link; Phase 1: form + `POST /api/keys` |
+
+**Recorded decision:** create primary key at **`/keys/new`**, not a modal on `/keys`.
+
 ## Repository layout
 
 ```mermaid
