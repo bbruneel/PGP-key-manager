@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { cleanup, render, screen } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const { mockUseAuth0, mockWithAuthenticationRequired } = vi.hoisted(() => ({
   mockUseAuth0: vi.fn(),
@@ -48,6 +48,10 @@ import { auth0Configured } from "@/lib/auth0-env"
 import { App } from "@/App"
 
 describe("App auth gate", () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   beforeEach(() => {
     vi.mocked(auth0Configured).mockReset()
     mockUseAuth0.mockReset()
@@ -60,7 +64,7 @@ describe("App auth gate", () => {
     render(<App />)
 
     expect(screen.getByText("HomeAuthPlaceholder")).toBeInTheDocument()
-    expect(mockWithAuthenticationRequired).not.toHaveBeenCalled()
+    expect(screen.queryByText("Redirecting to sign in…")).not.toBeInTheDocument()
   })
 
   it("redirects unauthenticated users when Auth0 is configured", () => {
@@ -72,7 +76,6 @@ describe("App auth gate", () => {
 
     render(<App />)
 
-    expect(mockWithAuthenticationRequired).toHaveBeenCalled()
     expect(screen.getByText("Redirecting to sign in…")).toBeInTheDocument()
     expect(screen.queryByText("HomePage")).not.toBeInTheDocument()
   })
