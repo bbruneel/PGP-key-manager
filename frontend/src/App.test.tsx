@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const mockUseAuth0 = vi.fn()
-const mockWithAuthenticationRequired = vi.fn()
+const { mockUseAuth0, mockWithAuthenticationRequired } = vi.hoisted(() => ({
+  mockUseAuth0: vi.fn(),
+  mockWithAuthenticationRequired: vi.fn(),
+}))
 
 vi.mock("@auth0/auth0-react", () => ({
   useAuth0: () => mockUseAuth0(),
