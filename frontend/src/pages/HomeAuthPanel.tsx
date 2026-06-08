@@ -3,6 +3,7 @@ import { useCallback, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { authLoginParams } from "@/lib/auth-session"
 
 export function HomeAuthPanel() {
   const auth0 = useAuth0()
@@ -62,7 +63,15 @@ export function HomeAuthPanel() {
         <h2 className="text-xl font-semibold tracking-tight text-foreground">Authentication</h2>
         <p className="mt-1 text-sm text-muted-foreground">Sign in to sync keys and policies with your account.</p>
       </header>
-      <Button type="button" className="transition-colors duration-200" onClick={() => void auth0.loginWithRedirect()}>
+      <Button
+        type="button"
+        className="transition-colors duration-200"
+        onClick={() =>
+          void auth0.loginWithRedirect({
+            authorizationParams: authLoginParams(),
+          })
+        }
+      >
         Log in
       </Button>
     </section>

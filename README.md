@@ -120,6 +120,7 @@ The scaffold’s `apiFetch` helper sets these by default. The sample `GET /api/h
 |------|------|
 | `/` | Overview (API health, Auth0 status, link to keys) |
 | `/keys` | PGP key list (requires Auth0 sign-in) |
+| `/keys/new` | Create primary key — generate Ed25519 key via `POST /api/keys` |
 
 ### API client layer
 
@@ -131,7 +132,9 @@ The SPA uses a typed client on top of `apiFetch`:
 | `frontend/src/lib/api-client.ts` | `requestJson` — versioned JSON, Bearer token, `X-Request-Id` correlation |
 | `frontend/src/lib/api-error.ts` | RFC 7807 `ProblemDetail` parsing and `ApiError` for UI messages |
 | `frontend/src/lib/logger.ts` | Structured `[pgp-api]` console logs with `operationId` + `requestId` |
-| `frontend/src/lib/keys-api.ts` | Key endpoints (Phase 0: `list` only) |
+| `frontend/src/lib/keys-api.ts` | Key endpoints (`list`, `create`) |
+| `frontend/src/lib/ui-logger.ts` | Structured `[pgp-ui]` console logs with `eventId` (e.g. `createKey.submit`) |
+| `frontend/src/lib/create-key-validation.ts` | Client-side create form validation and `CreatePgpKeyRequest` builder |
 | `frontend/src/hooks/use-api-access-token.ts` | Auth0 `getAccessTokenSilently` wrapper |
 
 Regenerate types after changing `docs/openapi.yaml`:

@@ -123,11 +123,11 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 |-------|---------|-------|
 | `/` | Overview (health, auth status) | Current |
 | `/keys` | List keys for the signed-in user | Current |
-| `/keys/new` | Create primary key (label, user IDs, expiry, passphrase, algorithm) | Phase 0: route + nav link; Phase 1: form + `POST /api/keys` |
+| `/keys/new` | Create primary key (label, user IDs, expiry, passphrase, Ed25519, OpenPGP v4/v6) | Phase 1 (implemented) |
 
 **Recorded decision:** create primary key at **`/keys/new`**, not a modal on `/keys`.
 
-When Auth0 is configured, `requireAuth` wraps the routed app so unauthenticated visitors are redirected to login before protected pages load.
+When Auth0 is configured, `requireAuth` wraps the routed app so unauthenticated visitors are redirected to login before protected pages load. `AuthSessionGuard` recovers stale sessions (e.g. cached user without a refresh token) by redirecting to Auth0 with `prompt=login` instead of showing a broken half-authenticated state. The SPA requests `offline_access` and enables `useRefreshTokensFallback` so new logins receive refresh tokens for silent API access.
 
 ## Frontend API client
 
@@ -137,7 +137,15 @@ Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `ap
 - **`X-Request-Id`** — client-generated UUID; echoed by the backend `RequestIdFilter` for correlation in logs and error UI.
 - **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
 
-Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 0 exposes `keysApi.list()`; create/import/lifecycle clients will follow in later PRs.
+Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.list()` and `keysApi.create()` (`operationId: createKey`); import/lifecycle clients will follow in later PRs.
+
+## Create primary key flow (Phase 1)
+
+1. User opens `/keys/new` and completes identity, passphrase, expiry, and optional advanced OpenPGP version.
+2. Client validates input (`create-key-validation.ts`) and logs `[pgp-ui]` events (`createKey.pageView`, `createKey.submit`, `createKey.validationFailed`, `createKey.apiSuccess`, `createKey.apiError`).
+3. `keysApi.create()` sends `POST /api/keys` with `operationId: createKey` and `X-Request-Id` correlation.
+4. On success: sonner toast with fingerprint, redirect to `/keys` (list reloads). Passphrase fields are cleared locally; the server never stores the passphrase.
+5. On failure: RFC 7807 `detail` and optional request ID shown in the form (mirrors key list error UX).
 
 ## Repository layout
 
