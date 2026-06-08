@@ -135,7 +135,8 @@ export function ImportKeyPage() {
       <header className="mb-6">
         <h2 className="text-xl font-semibold tracking-tight text-foreground">Import key</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Register an existing OpenPGP key by pasting armored blocks and its fingerprint.
+          Register an existing OpenPGP key by pasting armored blocks. The server derives fingerprint,
+          algorithm, capabilities, and expiry from the key material.
         </p>
       </header>
 

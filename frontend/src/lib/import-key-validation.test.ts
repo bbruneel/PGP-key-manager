@@ -49,10 +49,10 @@ describe("validateImportKeyForm", () => {
     expect(result.fieldErrors).toEqual({})
   })
 
-  it("rejects blank fingerprint", () => {
+  it("accepts blank fingerprint", () => {
     const result = validateImportKeyForm(validValues({ fingerprint: "  " }))
-    expect(result.valid).toBe(false)
-    expect(result.fieldErrors.fingerprint).toBeDefined()
+    expect(result.valid).toBe(true)
+    expect(result.fieldErrors.fingerprint).toBeUndefined()
   })
 
   it("rejects invalid fingerprint format", () => {
@@ -165,5 +165,12 @@ describe("buildImportKeyRequest", () => {
   it("omits label when blank", () => {
     const request = buildImportKeyRequest(validValues({ label: "  " }))
     expect(request.label).toBeUndefined()
+  })
+
+  it("omits fingerprint when blank", () => {
+    const request = buildImportKeyRequest(validValues({ fingerprint: "  " }))
+    expect(request.fingerprint).toBeUndefined()
+    expect(request.keyType).toBe("public")
+    expect(request.armoredPublic).toBe(SAMPLE_PUBLIC_ARMOR)
   })
 })

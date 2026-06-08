@@ -9,8 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
+import org.bruneel.pgpkeymanager.crypto.ImportedKeyMetadata;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoSupport;
+import org.bruneel.pgpkeymanager.crypto.PgpKeyMetadataParser;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService.KeyRingUpdate;
 import org.bruneel.pgpkeymanager.crypto.SubkeyMaterial;
 import org.bruneel.pgpkeymanager.domain.AppUser;
@@ -35,16 +37,19 @@ public class PgpKeyService {
 
     private final PgpKeyRepository pgpKeyRepository;
     private final PgpCryptoService pgpCryptoService;
+    private final PgpKeyMetadataParser metadataParser;
     private final KeyOperationLogger operationLogger;
     private final KeyOperationMetrics operationMetrics;
 
     public PgpKeyService(
             PgpKeyRepository pgpKeyRepository,
             PgpCryptoService pgpCryptoService,
+            PgpKeyMetadataParser metadataParser,
             KeyOperationLogger operationLogger,
             KeyOperationMetrics operationMetrics) {
         this.pgpKeyRepository = pgpKeyRepository;
         this.pgpCryptoService = pgpCryptoService;
+        this.metadataParser = metadataParser;
         this.operationLogger = operationLogger;
         this.operationMetrics = operationMetrics;
     }
@@ -61,23 +66,22 @@ public class PgpKeyService {
 
     public PgpKey create(AppUser user, CreatePgpKeyRequest request) {
         long start = System.currentTimeMillis();
+        boolean generate = isGenerateRequest(request);
+        String operation = generate ? "create_key" : "register_key";
         int openpgpVersion =
-                isGenerateRequest(request)
+                generate
                         ? PgpKeyValidator.normalizeOpenpgpVersion(request.openpgpVersion())
                         : PgpKeyValidator.OPENPGP_V4;
-        operationLogger.started("create_key", user.id(), null, openpgpVersion);
+        operationLogger.started(operation, user.id(), null, openpgpVersion);
         try {
-            PgpKey created =
-                    isGenerateRequest(request)
-                            ? generatePrimary(user, request)
-                            : registerKey(user, request);
-            completeSuccess("create_key", user.id(), created.id(), created.openpgpVersion(), start);
-            if (isGenerateRequest(request)) {
+            PgpKey created = generate ? generatePrimary(user, request) : registerKey(user, request);
+            completeSuccess(operation, user.id(), created.id(), created.openpgpVersion(), start);
+            if (generate) {
                 operationMetrics.recordVersionGenerated(created.openpgpVersion());
             }
             return created;
         } catch (RuntimeException ex) {
-            completeFailure("create_key", user.id(), null, openpgpVersion, start, ex);
+            completeFailure(operation, user.id(), null, openpgpVersion, start, ex);
             throw ex;
         }
     }
@@ -363,9 +367,6 @@ public class PgpKeyService {
 
     private PgpKey registerKey(AppUser user, CreatePgpKeyRequest request) {
         PgpKeyValidator.rejectOpenpgpVersionOnRegister(request.openpgpVersion());
-        if (request.fingerprint() == null || request.fingerprint().isBlank()) {
-            throw new BadRequestException("fingerprint is required when registering a key");
-        }
         if (request.keyType() == null || request.keyType().isBlank()) {
             throw new BadRequestException("keyType is required");
         }
@@ -377,9 +378,48 @@ public class PgpKeyService {
         }
         if (role == KeyRole.PRIMARY) {
             requirePrimaryCapabilitiesIfPresent(request);
+            return registerPrimaryKey(user, request, keyType);
         }
+        return registerSubkey(user, request, keyType, parentKeyId);
+    }
 
-        int openpgpVersion = resolveRegisteredOpenpgpVersion(user, request, role, parentKeyId);
+    private PgpKey registerPrimaryKey(AppUser user, CreatePgpKeyRequest request, KeyType keyType) {
+        ImportedKeyMetadata metadata =
+                metadataParser.parse(request.armoredPublic(), request.encryptedPrivateArmored());
+        metadataParser.validateFingerprintMatch(metadata, request.fingerprint());
+
+        try {
+            return pgpKeyRepository.insert(
+                    new PgpKeyInsert(
+                            user.id(),
+                            request.label(),
+                            metadata.fingerprint(),
+                            metadata.keyId(),
+                            keyType,
+                            KeyRole.PRIMARY,
+                            null,
+                            metadata.capabilities(),
+                            metadata.algorithm(),
+                            metadata.algorithmSpecJson(),
+                            metadata.expiresAt(),
+                            null,
+                            null,
+                            request.armoredPublic(),
+                            request.encryptedPrivateArmored(),
+                            request.storageProvider(),
+                            request.storageRef(),
+                            metadata.openpgpVersion()));
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException("A key with this fingerprint already exists for your account");
+        }
+    }
+
+    private PgpKey registerSubkey(
+            AppUser user, CreatePgpKeyRequest request, KeyType keyType, UUID parentKeyId) {
+        if (request.fingerprint() == null || request.fingerprint().isBlank()) {
+            throw new BadRequestException("fingerprint is required when registering a subkey");
+        }
+        int openpgpVersion = getForUser(user, parentKeyId).openpgpVersion();
 
         try {
             return pgpKeyRepository.insert(
@@ -389,7 +429,7 @@ public class PgpKeyService {
                             request.fingerprint().toUpperCase(),
                             request.keyId(),
                             keyType,
-                            role,
+                            KeyRole.SUBKEY,
                             parentKeyId,
                             request.capabilities() != null
                                     ? PgpKeyValidator.parseCapabilities(request.capabilities())
@@ -406,23 +446,6 @@ public class PgpKeyService {
                             openpgpVersion));
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("A key with this fingerprint already exists for your account");
-        }
-    }
-
-    private int resolveRegisteredOpenpgpVersion(
-            AppUser user, CreatePgpKeyRequest request, KeyRole role, UUID parentKeyId) {
-        if (role == KeyRole.SUBKEY) {
-            return getForUser(user, parentKeyId).openpgpVersion();
-        }
-        try {
-            int detected =
-                    PgpCryptoSupport.detectOpenpgpVersionFromArmored(
-                            request.encryptedPrivateArmored(), request.armoredPublic());
-            return PgpKeyValidator.validateDetectedOpenpgpVersion(detected);
-        } catch (BadRequestException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new CryptoException("Failed to detect OpenPGP version from armored key material", ex);
         }
     }
 

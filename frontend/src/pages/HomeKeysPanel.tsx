@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
+import { formatCapabilities, formatKeyExpiry } from "@/lib/key-display"
 import { keysApi } from "@/lib/keys-api"
 import type { PgpKeyListItem } from "@/types/api"
 
@@ -119,9 +120,15 @@ export function HomeKeysPanel() {
             >
               <p className="font-medium text-foreground">{key.label ?? "Unlabeled key"}</p>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{key.fingerprint}</p>
+              {key.keyId ? (
+                <p className="mt-1 font-mono text-xs text-muted-foreground">Key ID {key.keyId}</p>
+              ) : null}
               <p className="mt-1 text-xs text-muted-foreground">
                 {key.keyType}
                 {key.algorithm ? ` · ${key.algorithm}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatCapabilities(key.capabilities)} · {formatKeyExpiry(key.expiresAt)}
               </p>
             </li>
           ))}

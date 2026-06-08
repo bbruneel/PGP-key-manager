@@ -38,8 +38,11 @@ describe("HomeKeysPanel", () => {
         id: "key-1",
         label: "Work key",
         fingerprint: "ABCD1234",
+        keyId: "EF567890",
         keyType: "private",
         algorithm: "ed25519",
+        capabilities: ["certify", "sign"],
+        expiresAt: null,
       },
     ])
 
@@ -51,6 +54,8 @@ describe("HomeKeysPanel", () => {
 
     expect(await screen.findByText("Work key")).toBeInTheDocument()
     expect(screen.getByText("ABCD1234")).toBeInTheDocument()
+    expect(screen.getByText(/Key ID EF567890/)).toBeInTheDocument()
+    expect(screen.getByText(/certify, sign · Does not expire/)).toBeInTheDocument()
     expect(keysApi.list).toHaveBeenCalledWith({ accessToken: "access-token" })
   })
 

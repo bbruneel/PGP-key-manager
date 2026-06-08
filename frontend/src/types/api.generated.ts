@@ -218,8 +218,20 @@ export interface components {
             /** Format: email */
             email?: string;
         };
+        /**
+         * @description Dual-purpose body for `POST /api/keys`.
+         *
+         *     **Generate path:** include `algorithmSpec`, `passphrase`, and optional `userIds` / `validity`.
+         *     **Register/import path:** include `armoredPublic` and/or `encryptedPrivateArmored`; the server parses
+         *     metadata (fingerprint, key ID, algorithm, capabilities, expiry) from the armored material.
+         *     `fingerprint` is optional on register — when omitted the server derives it; when provided it must match.
+         */
         CreatePgpKeyRequest: {
             label?: string;
+            /**
+             * @description Optional on register/import. When omitted, derived from armored key material.
+             *     When provided, must match the parsed fingerprint or the request is rejected.
+             */
             fingerprint?: string;
             keyType?: components["schemas"]["MaterialKind"];
             algorithmSpec?: components["schemas"]["AlgorithmSpec"];
@@ -234,7 +246,9 @@ export interface components {
              * @enum {integer}
              */
             openpgpVersion: 4 | 6;
+            /** @description Required for register/import unless `encryptedPrivateArmored` is provided. */
             armoredPublic?: string;
+            /** @description Required for private register/import when `armoredPublic` is omitted. */
             encryptedPrivateArmored?: string;
         };
         CreateSubkeyRequest: {
@@ -281,9 +295,13 @@ export interface components {
             role?: components["schemas"]["KeyRole"];
             /** Format: uuid */
             parentKeyId?: string | null;
+            /** @description Always present in responses; empty array when no capabilities are stored. */
             capabilities?: components["schemas"]["PgpCapability"][];
             status?: components["schemas"]["KeyStatus"];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Key expiration instant. `null` means the key does not expire (no OpenPGP key-expiration subpacket).
+             */
             expiresAt?: string | null;
             /** Format: date-time */
             revokedAt?: string | null;

@@ -107,7 +107,7 @@ export function ImportKeyForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="import-key-fingerprint">Fingerprint</Label>
+          <Label htmlFor="import-key-fingerprint">Fingerprint (optional)</Label>
           <Input
             id="import-key-fingerprint"
             value={values.fingerprint}
@@ -118,8 +118,9 @@ export function ImportKeyForm({
             className="font-mono text-sm"
           />
           <p className="text-xs text-muted-foreground">
-            Run <code className="rounded bg-muted px-1 py-0.5 font-mono">gpg --fingerprint &lt;key-id&gt;</code>{" "}
-            in your terminal to copy the fingerprint for the key you are importing.
+            The server derives the fingerprint from your armored key block. Optionally paste{" "}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono">gpg --fingerprint &lt;key-id&gt;</code>{" "}
+            output to verify before import.
           </p>
           <FieldError message={fieldErrors.fingerprint} />
         </div>

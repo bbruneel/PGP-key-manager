@@ -49,9 +49,7 @@ export function validateImportKeyForm(values: ImportKeyFormValues): ImportKeyVal
   }
 
   const normalizedFingerprint = normalizeFingerprint(values.fingerprint)
-  if (!normalizedFingerprint) {
-    fieldErrors.fingerprint = "Fingerprint is required"
-  } else if (!FINGERPRINT_PATTERN.test(normalizedFingerprint)) {
+  if (normalizedFingerprint && !FINGERPRINT_PATTERN.test(normalizedFingerprint)) {
     fieldErrors.fingerprint = "Enter a valid hex fingerprint (16–40 characters)"
   }
 
@@ -79,9 +77,13 @@ export function validateImportKeyForm(values: ImportKeyFormValues): ImportKeyVal
 
 export function buildImportKeyRequest(values: ImportKeyFormValues): RegisterPgpKeyRequest {
   const request: RegisterPgpKeyRequest = {
-    fingerprint: normalizeFingerprint(values.fingerprint).toUpperCase(),
     keyType: values.importMode,
     armoredPublic: values.armoredPublic.trim(),
+  }
+
+  const normalizedFingerprint = normalizeFingerprint(values.fingerprint)
+  if (normalizedFingerprint) {
+    request.fingerprint = normalizedFingerprint.toUpperCase()
   }
 
   const label = values.label.trim()
