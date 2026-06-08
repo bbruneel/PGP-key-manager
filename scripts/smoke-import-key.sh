@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FIXTURE="${SCRIPT_DIR}/fixtures/smoke-import-public.asc"
 API_BASE_URL="${API_BASE_URL:-http://localhost:8080}"
 TOKEN="${ACCESS_TOKEN:-${1:-}}"
 
@@ -20,23 +22,40 @@ if [[ -z "${TOKEN}" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${FIXTURE}" ]]; then
+  echo "error: missing fixture ${FIXTURE}" >&2
+  echo "tip: run (cd backend && ./mvnw test-compile exec:java -Dexec.classpathScope=test -Dexec.mainClass=org.bruneel.pgpkeymanager.SmokeArmoredKeyExporter) > ${FIXTURE}" >&2
+  exit 1
+fi
+
 REQUEST_ID="$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)"
-FINGERPRINT="SMOKEIMP0123456789ABCDEF0123456789AB"
 LABEL="smoke-test-import-public"
 
-echo "→ POST ${API_BASE_URL}/api/keys (register public key)"
+JSON_PAYLOAD="$(
+  python3 - "${LABEL}" "${FIXTURE}" <<'PY'
+import json
+import sys
+
+label, fixture_path = sys.argv[1:3]
+with open(fixture_path, encoding="utf-8") as handle:
+    armored_public = handle.read()
+
+print(json.dumps({
+    "label": label,
+    "keyType": "public",
+    "armoredPublic": armored_public,
+}))
+PY
+)"
+
+echo "→ POST ${API_BASE_URL}/api/keys (register public key, server-derived metadata)"
 CREATE_RESPONSE="$(
   curl -sS -w '\n%{http_code}' -X POST "${API_BASE_URL}/api/keys" \
     -H 'Accept: application/json; version=1' \
     -H 'Content-Type: application/json' \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "X-Request-Id: ${REQUEST_ID}" \
-    -d "{
-      \"label\": \"${LABEL}\",
-      \"fingerprint\": \"${FINGERPRINT}\",
-      \"keyType\": \"public\",
-      \"armoredPublic\": \"-----BEGIN PGP PUBLIC KEY BLOCK-----\\nVersion: Smoke\\n\\nmQENBGsmoke\\n-----END PGP PUBLIC KEY BLOCK-----\"
-    }"
+    -d "${JSON_PAYLOAD}"
 )"
 
 CREATE_BODY="$(echo "${CREATE_RESPONSE}" | sed '$d')"
@@ -50,9 +69,19 @@ fi
 
 KEY_ID="$(echo "${CREATE_BODY}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")"
 IMPORTED_FINGERPRINT="$(echo "${CREATE_BODY}" | python3 -c "import json,sys; print(json.load(sys.stdin)['fingerprint'])")"
+PARSED_KEY_ID="$(echo "${CREATE_BODY}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('keyId') or '')")"
+PARSED_ALGORITHM="$(echo "${CREATE_BODY}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('algorithm') or '')")"
 
 echo "✓ imported key id=${KEY_ID}"
 echo "  fingerprint=${IMPORTED_FINGERPRINT}"
+echo "  keyId=${PARSED_KEY_ID}"
+echo "  algorithm=${PARSED_ALGORITHM}"
+
+if [[ -z "${PARSED_KEY_ID}" || -z "${PARSED_ALGORITHM}" ]]; then
+  echo "error: expected parsed keyId and algorithm in register response" >&2
+  echo "${CREATE_BODY}" >&2
+  exit 1
+fi
 
 echo "→ GET ${API_BASE_URL}/api/keys"
 LIST_RESPONSE="$(

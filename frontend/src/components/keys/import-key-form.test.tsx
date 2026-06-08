@@ -52,6 +52,8 @@ describe("ImportKeyForm", () => {
     )
 
     expect(screen.getByLabelText(/armored private key/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/armored public key \(optional\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/derive metadata from the private key alone/i)).toBeInTheDocument()
   })
 
   it("calls onChange when import mode changes", async () => {
@@ -81,7 +83,7 @@ describe("ImportKeyForm", () => {
     render(
       <ImportKeyForm
         values={defaultImportKeyFormValues()}
-        fieldErrors={{ fingerprint: "Fingerprint is required" }}
+        fieldErrors={{ armoredPublic: "Armored public key block is required" }}
         apiError="A key with this fingerprint already exists for your account"
         requestId="req-import-fail"
         submitting={false}
@@ -91,7 +93,7 @@ describe("ImportKeyForm", () => {
       />,
     )
 
-    expect(screen.getByText("Fingerprint is required")).toBeInTheDocument()
+    expect(screen.getByText("Armored public key block is required")).toBeInTheDocument()
     expect(
       screen.getByText("A key with this fingerprint already exists for your account"),
     ).toBeInTheDocument()

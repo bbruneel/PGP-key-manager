@@ -421,12 +421,25 @@ components:
           format: email
     CreatePgpKeyRequest:
       type: object
+      description: |
+        Dual-purpose body for `POST /api/keys`.
+
+        **Generate path:** include `algorithmSpec`, `passphrase`, and optional `userIds` / `validity`.
+        **Register/import path:** include `armoredPublic` and/or `encryptedPrivateArmored`; the server parses
+        metadata (fingerprint, key ID, algorithm, capabilities, expiry) from the armored material.
+        `fingerprint` is optional on register — when omitted the server derives it; when provided it must match.
+        When both armored blocks are sent they must refer to the same key or the request is rejected.
+        Client-supplied `capabilities`, `algorithm`, `keyId`, and `expiresAt` are ignored on register;
+        parsed values from the armored material are always stored.
       properties:
         label:
           type: string
         fingerprint:
           type: string
           pattern: '^[0-9A-Fa-f]{16,40}$'
+          description: |
+            Optional on register/import. When omitted, derived from armored key material.
+            When provided, must match the parsed fingerprint or the request is rejected.
         keyType:
           $ref: '#/components/schemas/MaterialKind'
         algorithmSpec:
@@ -453,8 +466,10 @@ components:
             Omitted defaults to 4. Subkeys inherit the primary key version.
         armoredPublic:
           type: string
+          description: Required for register/import unless `encryptedPrivateArmored` is provided.
         encryptedPrivateArmored:
           type: string
+          description: Required for private register/import when `armoredPublic` is omitted.
     CreateSubkeyRequest:
       type: object
       required: [capabilities, algorithm]
@@ -549,11 +564,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PgpCapability'
+          description: Always present in responses; empty array when no capabilities are stored.
         status:
           $ref: '#/components/schemas/KeyStatus'
         expiresAt:
           type: [string, 'null']
           format: date-time
+          description: |
+            Key expiration instant. `null` means the key does not expire (no OpenPGP key-expiration subpacket).
         revokedAt:
           type: [string, 'null']
           format: date-time

@@ -49,25 +49,28 @@ export function validateImportKeyForm(values: ImportKeyFormValues): ImportKeyVal
   }
 
   const normalizedFingerprint = normalizeFingerprint(values.fingerprint)
-  if (!normalizedFingerprint) {
-    fieldErrors.fingerprint = "Fingerprint is required"
-  } else if (!FINGERPRINT_PATTERN.test(normalizedFingerprint)) {
+  if (normalizedFingerprint && !FINGERPRINT_PATTERN.test(normalizedFingerprint)) {
     fieldErrors.fingerprint = "Enter a valid hex fingerprint (16–40 characters)"
   }
 
   const trimmedPublic = values.armoredPublic.trim()
-  if (!trimmedPublic) {
-    fieldErrors.armoredPublic = "Armored public key block is required"
-  } else if (!trimmedPublic.includes(PUBLIC_ARMOR_HEADER)) {
-    fieldErrors.armoredPublic = "Paste a valid armored public key block"
-  }
+  const trimmedPrivate = values.encryptedPrivateArmored.trim()
 
-  if (values.importMode === "private") {
-    const trimmedPrivate = values.encryptedPrivateArmored.trim()
+  if (values.importMode === "public") {
+    if (!trimmedPublic) {
+      fieldErrors.armoredPublic = "Armored public key block is required"
+    } else if (!trimmedPublic.includes(PUBLIC_ARMOR_HEADER)) {
+      fieldErrors.armoredPublic = "Paste a valid armored public key block"
+    }
+  } else {
     if (!trimmedPrivate) {
       fieldErrors.encryptedPrivateArmored = "Armored private key block is required"
     } else if (!containsArmorHeader(trimmedPrivate, PRIVATE_ARMOR_HEADERS)) {
       fieldErrors.encryptedPrivateArmored = "Paste a valid armored private or secret key block"
+    }
+
+    if (trimmedPublic && !trimmedPublic.includes(PUBLIC_ARMOR_HEADER)) {
+      fieldErrors.armoredPublic = "Paste a valid armored public key block"
     }
   }
 
@@ -79,9 +82,17 @@ export function validateImportKeyForm(values: ImportKeyFormValues): ImportKeyVal
 
 export function buildImportKeyRequest(values: ImportKeyFormValues): RegisterPgpKeyRequest {
   const request: RegisterPgpKeyRequest = {
-    fingerprint: normalizeFingerprint(values.fingerprint).toUpperCase(),
     keyType: values.importMode,
-    armoredPublic: values.armoredPublic.trim(),
+  }
+
+  const trimmedPublic = values.armoredPublic.trim()
+  if (trimmedPublic) {
+    request.armoredPublic = trimmedPublic
+  }
+
+  const normalizedFingerprint = normalizeFingerprint(values.fingerprint)
+  if (normalizedFingerprint) {
+    request.fingerprint = normalizedFingerprint.toUpperCase()
   }
 
   const label = values.label.trim()

@@ -148,13 +148,16 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 4. On success: sonner toast with fingerprint, redirect to `/keys` (list reloads). Passphrase fields are cleared locally; the server never stores the passphrase.
 5. On failure: RFC 7807 `detail` and optional request ID shown in the form (mirrors key list error UX).
 
-## Import key flow (Phase 2)
+## Import key flow (Phase 2 + metadata enrichment)
 
-1. User opens `/keys/import`, selects public or private mode, and pastes armored blocks plus a manual fingerprint (`gpg --fingerprint <key-id>` helper shown in the form).
+1. User opens `/keys/import`, selects public or private mode, and pastes armored blocks. Fingerprint is optional — the server derives it from the armored material.
 2. Client validates input (`import-key-validation.ts`) and logs `[pgp-ui]` events (`importKey.pageView`, `importKey.submit`, `importKey.validationFailed`, `importKey.apiSuccess`, `importKey.apiError`).
 3. `keysApi.register()` sends `POST /api/keys` with a register-only body (no `passphrase`, `algorithmSpec`, or `openpgpVersion`) and `operationId: createKey`.
-4. On success: sonner toast with fingerprint, redirect to `/keys`. Armored paste fields are cleared locally.
-5. On failure: RFC 7807 `detail` and optional request ID shown in the form.
+4. Backend `PgpKeyMetadataParser` parses the master public key from armor and stores fingerprint, key ID, algorithm, capabilities, expiry, and OpenPGP version. Logs `register_key_metadata_parsed` and uses operation id `register_key`.
+5. On success: sonner toast with fingerprint, redirect to `/keys`. The key list shows capabilities and expiry (`Does not expire` when `expiresAt` is null).
+6. On failure: RFC 7807 `detail` and optional request ID shown in the form.
+
+**Next phase (not implemented):** import subkey rows from multi-key armored exports.
 
 ## Repository layout
 

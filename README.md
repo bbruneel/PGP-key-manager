@@ -97,6 +97,8 @@ npm run docs:preview   # live Redoc at http://127.0.0.1:8081 (runs from docs/ so
 
 **Keyring storage:** armored public/private keyrings are stored on the primary key row only. Subkey rows hold fingerprints, key IDs, capabilities, and expiry metadata.
 
+**Register/import metadata:** when registering via `POST /api/keys`, the server parses the master public key from armored material and populates fingerprint, key ID, algorithm, capabilities, and expiry. Optional client fingerprint is validated when provided. Backend logs `register_key` / `register_key_metadata_parsed`.
+
 **Revocation:** cryptographic revocation requires primary private material and a passphrase. Public-only registrations receive metadata revocation only.
 
 **Security checks:** run `./mvnw test` (40 tests) and review dependencies (`./mvnw dependency:tree`). Lifecycle logs use structured fields including `openpgpVersion` where applicable (user id, key id, operation, duration). Micrometer metrics: `pgp.key.operation.count`, `pgp.key.operation.duration`, `pgp.key.version.generated.count`. API cryptographic failures return a generic client message; details are logged server-side.
@@ -121,7 +123,7 @@ The scaffold’s `apiFetch` helper sets these by default. The sample `GET /api/h
 | `/` | Overview (API health, Auth0 status, link to keys) |
 | `/keys` | PGP key list (requires Auth0 sign-in) |
 | `/keys/new` | Create primary key — generate Ed25519 key via `POST /api/keys` |
-| `/keys/import` | Import existing key — register armored public/private blocks via `POST /api/keys` |
+| `/keys/import` | Import existing key — register armored public/private blocks via `POST /api/keys` (server parses metadata from armor) |
 
 ### API client layer
 
@@ -136,6 +138,7 @@ The SPA uses a typed client on top of `apiFetch`:
 | `frontend/src/lib/keys-api.ts` | Key endpoints (`list`, `create`, `register`) |
 | `frontend/src/lib/ui-logger.ts` | Structured `[pgp-ui]` console logs with `eventId` (e.g. `createKey.submit`, `importKey.submit`) |
 | `frontend/src/lib/create-key-validation.ts` | Client-side create form validation and `CreatePgpKeyRequest` builder |
+| `frontend/src/lib/key-display.ts` | Human-readable key list helpers (`formatKeyExpiry`, `formatCapabilities`) |
 | `frontend/src/lib/import-key-validation.ts` | Client-side import form validation and register-only `CreatePgpKeyRequest` builder |
 | `frontend/src/hooks/use-api-access-token.ts` | Auth0 `getAccessTokenSilently` wrapper |
 

@@ -47,6 +47,12 @@ Version: Test
 mQENBGexample
 -----END PGP PUBLIC KEY BLOCK-----`
 
+const SAMPLE_PRIVATE_ARMOR = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+Version: Test
+
+hQEMAexample
+-----END PGP PRIVATE KEY BLOCK-----`
+
 function renderImportKeyPage() {
   return render(
     <MemoryRouter initialEntries={["/keys/import"]}>
@@ -81,7 +87,48 @@ describe("ImportKeyPage", () => {
 
     await user.click(getSubmitButton())
 
-    expect(await screen.findByText("Fingerprint is required")).toBeInTheDocument()
+    expect(await screen.findByText("Armored public key block is required")).toBeInTheDocument()
+    expect(keysApi.register).not.toHaveBeenCalled()
+  })
+
+  it("imports a private-only key and navigates to /keys on success", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.register).mockResolvedValue({
+      id: "key-imported-private",
+      fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+    })
+
+    renderImportKeyPage()
+
+    await user.click(screen.getByRole("radio", { name: /private key/i }))
+    await user.type(screen.getByLabelText(/armored private key/i), SAMPLE_PRIVATE_ARMOR)
+    await user.click(getSubmitButton())
+
+    await waitFor(() => {
+      expect(keysApi.register).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        body: expect.objectContaining({
+          keyType: "private",
+          encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR,
+        }),
+      })
+    })
+
+    const registerCall = vi.mocked(keysApi.register).mock.calls[0]![0]
+    expect(registerCall.body).not.toHaveProperty("armoredPublic")
+    expect(registerCall.body).not.toHaveProperty("fingerprint")
+    expect(navigate).toHaveBeenCalledWith("/keys")
+  })
+
+  it("shows private-mode validation errors without calling the API", async () => {
+    const user = userEvent.setup()
+    renderImportKeyPage()
+
+    await user.click(screen.getByRole("radio", { name: /private key/i }))
+    await user.click(getSubmitButton())
+
+    expect(await screen.findByText("Armored private key block is required")).toBeInTheDocument()
+    expect(screen.queryByText("Armored public key block is required")).not.toBeInTheDocument()
     expect(keysApi.register).not.toHaveBeenCalled()
   })
 
@@ -94,7 +141,6 @@ describe("ImportKeyPage", () => {
 
     renderImportKeyPage()
 
-    await user.type(screen.getByLabelText(/fingerprint/i), "deadbeef0123456789abcdef0123456789abcd")
     await user.type(screen.getByLabelText(/armored public key/i), SAMPLE_PUBLIC_ARMOR)
     await user.click(getSubmitButton())
 
@@ -102,7 +148,6 @@ describe("ImportKeyPage", () => {
       expect(keysApi.register).toHaveBeenCalledWith({
         accessToken: "access-token",
         body: expect.objectContaining({
-          fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
           keyType: "public",
           armoredPublic: SAMPLE_PUBLIC_ARMOR,
         }),
@@ -110,6 +155,7 @@ describe("ImportKeyPage", () => {
     })
 
     const registerCall = vi.mocked(keysApi.register).mock.calls[0]![0]
+    expect(registerCall.body).not.toHaveProperty("fingerprint")
     expect(registerCall.body).not.toHaveProperty("passphrase")
     expect(registerCall.body).not.toHaveProperty("algorithmSpec")
     expect(navigate).toHaveBeenCalledWith("/keys")
@@ -129,7 +175,6 @@ describe("ImportKeyPage", () => {
 
     renderImportKeyPage()
 
-    await user.type(screen.getByLabelText(/fingerprint/i), "deadbeef0123456789abcdef0123456789abcd")
     await user.type(screen.getByLabelText(/armored public key/i), SAMPLE_PUBLIC_ARMOR)
     await user.click(getSubmitButton())
 

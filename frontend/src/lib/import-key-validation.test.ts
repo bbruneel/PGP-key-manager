@@ -49,10 +49,10 @@ describe("validateImportKeyForm", () => {
     expect(result.fieldErrors).toEqual({})
   })
 
-  it("rejects blank fingerprint", () => {
+  it("accepts blank fingerprint", () => {
     const result = validateImportKeyForm(validValues({ fingerprint: "  " }))
-    expect(result.valid).toBe(false)
-    expect(result.fieldErrors.fingerprint).toBeDefined()
+    expect(result.valid).toBe(true)
+    expect(result.fieldErrors.fingerprint).toBeUndefined()
   })
 
   it("rejects invalid fingerprint format", () => {
@@ -92,6 +92,30 @@ describe("validateImportKeyForm", () => {
     )
     expect(result.valid).toBe(false)
     expect(result.fieldErrors.encryptedPrivateArmored).toBeDefined()
+  })
+
+  it("accepts private-only import without armored public block", () => {
+    const result = validateImportKeyForm(
+      validValues({
+        importMode: "private",
+        armoredPublic: "",
+        encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR,
+      }),
+    )
+    expect(result.valid).toBe(true)
+    expect(result.fieldErrors.armoredPublic).toBeUndefined()
+  })
+
+  it("rejects invalid optional armored public block in private mode", () => {
+    const result = validateImportKeyForm(
+      validValues({
+        importMode: "private",
+        armoredPublic: "not a pgp block",
+        encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR,
+      }),
+    )
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.armoredPublic).toBeDefined()
   })
 
   it("accepts secret key block header in private mode", () => {
@@ -162,8 +186,33 @@ describe("buildImportKeyRequest", () => {
     expect(request).not.toHaveProperty("algorithmSpec")
   })
 
+  it("omits armored public when blank in private mode", () => {
+    const request = buildImportKeyRequest(
+      validValues({
+        importMode: "private",
+        armoredPublic: "",
+        fingerprint: "",
+        encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR,
+      }),
+    )
+
+    expect(request).toEqual({
+      keyType: "private",
+      encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR,
+    })
+    expect(request).not.toHaveProperty("armoredPublic")
+    expect(request).not.toHaveProperty("fingerprint")
+  })
+
   it("omits label when blank", () => {
     const request = buildImportKeyRequest(validValues({ label: "  " }))
     expect(request.label).toBeUndefined()
+  })
+
+  it("omits fingerprint when blank", () => {
+    const request = buildImportKeyRequest(validValues({ fingerprint: "  " }))
+    expect(request.fingerprint).toBeUndefined()
+    expect(request.keyType).toBe("public")
+    expect(request.armoredPublic).toBe(SAMPLE_PUBLIC_ARMOR)
   })
 })

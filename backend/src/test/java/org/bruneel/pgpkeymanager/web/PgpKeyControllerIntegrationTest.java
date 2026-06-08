@@ -18,7 +18,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import org.bruneel.pgpkeymanager.TestArmoredKeys;
 import org.bruneel.pgpkeymanager.TestJwtConfiguration;
+import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -31,27 +33,34 @@ class PgpKeyControllerIntegrationTest {
 
     @Test
     void createAndListKeys() throws Exception {
+        GeneratedKeyMaterial material = TestArmoredKeys.sampleEd25519PublicKey();
+        String armoredPublic = jsonEscape(material.armoredPublic());
+
         mockMvc.perform(post("/api/keys")
                         .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(
                                 """
                                 {
-                                  "fingerprint": "DEADBEEF0123456789ABCDEF0123456789ABCD",
                                   "keyType": "public",
-                                  "label": "test"
+                                  "label": "test",
+                                  "armoredPublic": "%s"
                                 }
-                                """))
+                                """
+                                        .formatted(armoredPublic)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.fingerprint").value("DEADBEEF0123456789ABCDEF0123456789ABCD"));
+                .andExpect(jsonPath("$.fingerprint").value(material.fingerprint()));
 
         mockMvc.perform(get("/api/keys").with(jwt()).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].fingerprint").value("DEADBEEF0123456789ABCDEF0123456789ABCD"));
+                .andExpect(jsonPath("$[0].fingerprint").value(material.fingerprint()));
     }
 
     @Test
     void getPatchAndDeleteKey() throws Exception {
+        GeneratedKeyMaterial material = TestArmoredKeys.sampleEd25519PublicKey();
+        String armoredPublic = jsonEscape(material.armoredPublic());
+
         MvcResult created =
                 mockMvc.perform(post("/api/keys")
                                 .with(jwt())
@@ -59,11 +68,12 @@ class PgpKeyControllerIntegrationTest {
                                 .content(
                                         """
                                         {
-                                          "fingerprint": "CAFEBABE0123456789ABCDEF0123456789ABCD",
                                           "keyType": "public",
-                                          "label": "before-patch"
+                                          "label": "before-patch",
+                                          "armoredPublic": "%s"
                                         }
-                                        """))
+                                        """
+                                                .formatted(armoredPublic)))
                         .andExpect(status().isCreated())
                         .andReturn();
 
@@ -101,5 +111,9 @@ class PgpKeyControllerIntegrationTest {
         start += marker.length();
         int end = json.indexOf('"', start);
         return json.substring(start, end);
+    }
+
+    private static String jsonEscape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
     }
 }
