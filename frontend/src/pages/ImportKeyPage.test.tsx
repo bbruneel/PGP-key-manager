@@ -120,6 +120,18 @@ describe("ImportKeyPage", () => {
     expect(navigate).toHaveBeenCalledWith("/keys")
   })
 
+  it("shows private-mode validation errors without calling the API", async () => {
+    const user = userEvent.setup()
+    renderImportKeyPage()
+
+    await user.click(screen.getByRole("radio", { name: /private key/i }))
+    await user.click(getSubmitButton())
+
+    expect(await screen.findByText("Armored private key block is required")).toBeInTheDocument()
+    expect(screen.queryByText("Armored public key block is required")).not.toBeInTheDocument()
+    expect(keysApi.register).not.toHaveBeenCalled()
+  })
+
   it("imports a public key and navigates to /keys on success", async () => {
     const user = userEvent.setup()
     vi.mocked(keysApi.register).mockResolvedValue({
