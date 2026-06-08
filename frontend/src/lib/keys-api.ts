@@ -6,6 +6,7 @@ import type {
   PgpCapability,
   PgpKey,
   PgpKeyListItem,
+  RegisterPgpKeyRequest,
 } from "@/types/api"
 
 export type ListKeysOptions = {
@@ -20,8 +21,13 @@ export type CreateKeyOptions = {
   body: CreatePgpKeyRequest
 }
 
+export type RegisterKeyOptions = {
+  accessToken: string
+  body: RegisterPgpKeyRequest
+}
+
 /**
- * Key API client. Phase 1 adds create; import/lifecycle will follow in later phases.
+ * Key API client. Phase 1 adds create; Phase 2 adds register (import).
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeyListItem[]> {
@@ -46,6 +52,19 @@ export const keysApi = {
   },
 
   create(options: CreateKeyOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>("/api/keys", {
+      operationId: "createKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+    })
+  },
+
+  /**
+   * Register/import an existing key via POST /api/keys (register path).
+   * Callers must use buildImportKeyRequest — do not send passphrase or algorithmSpec.
+   */
+  register(options: RegisterKeyOptions): Promise<PgpKey> {
     return requestJson<PgpKey>("/api/keys", {
       operationId: "createKey",
       accessToken: options.accessToken,

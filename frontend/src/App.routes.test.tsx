@@ -58,6 +58,12 @@ describe("App routes", () => {
     expect(screen.getByRole("heading", { name: /create primary key/i, level: 2 })).toBeInTheDocument()
   })
 
+  it("renders import key page at /keys/import", async () => {
+    renderApp("/keys/import")
+    expect(await screen.findByRole("heading", { name: /import key/i, level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /import key/i, level: 2 })).toBeInTheDocument()
+  })
+
   it("navigates between overview and keys via sidebar links", async () => {
     const user = userEvent.setup()
     renderApp("/")

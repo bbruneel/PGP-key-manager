@@ -74,6 +74,9 @@ export function HomeKeysPanel() {
           <Button type="button" variant="default" className="transition-colors duration-200" asChild>
             <Link to="/keys/new">Create key</Link>
           </Button>
+          <Button type="button" variant="outline" className="transition-colors duration-200" asChild>
+            <Link to="/keys/import">Import key</Link>
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -96,10 +99,15 @@ export function HomeKeysPanel() {
       )}
       {!loading && !error && keys.length === 0 && (
         <div className="text-sm text-muted-foreground">
-          <p>No keys yet. Create your first primary key to get started.</p>
-          <Button type="button" variant="default" className="mt-3" asChild>
-            <Link to="/keys/new">Create key</Link>
-          </Button>
+          <p>No keys yet. Create a new key or import an existing one to get started.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="button" variant="default" asChild>
+              <Link to="/keys/new">Create key</Link>
+            </Button>
+            <Button type="button" variant="outline" asChild>
+              <Link to="/keys/import">Import key</Link>
+            </Button>
+          </div>
         </div>
       )}
       {!loading && keys.length > 0 && (

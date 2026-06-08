@@ -4,6 +4,12 @@ export type ProblemDetail = components["schemas"]["ProblemDetail"]
 export type PgpKeySummary = components["schemas"]["PgpKeySummary"]
 export type PgpKey = components["schemas"]["PgpKey"]
 export type CreatePgpKeyRequest = components["schemas"]["CreatePgpKeyRequest"]
+
+/** Register/import path for POST /api/keys — omit generate-only fields. */
+export type RegisterPgpKeyRequest = Pick<
+  CreatePgpKeyRequest,
+  "label" | "fingerprint" | "keyType" | "armoredPublic" | "encryptedPrivateArmored"
+>
 export type KeyRole = components["schemas"]["KeyRole"]
 export type KeyStatus = components["schemas"]["KeyStatus"]
 export type PgpCapability = components["schemas"]["PgpCapability"]

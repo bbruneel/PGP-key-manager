@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { requestJson } from "@/lib/api-client"
 import { keysApi } from "@/lib/keys-api"
+import type { RegisterPgpKeyRequest } from "@/types/api"
 
 vi.mock("@/lib/api-client", () => ({
   requestJson: vi.fn(),
@@ -71,5 +72,32 @@ describe("keysApi.create", () => {
       body,
     })
     expect(result).toEqual({ id: "key-new", fingerprint: "ABCD1234" })
+  })
+})
+
+describe("keysApi.register", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys with register payload and createKey operationId", async () => {
+    const body: RegisterPgpKeyRequest = {
+      fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+      keyType: "public",
+      armoredPublic: "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQENBGexample\n-----END PGP PUBLIC KEY BLOCK-----",
+    }
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-imported", fingerprint: body.fingerprint })
+
+    const result = await keysApi.register({ accessToken: "token-abc", body })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys", {
+      operationId: "createKey",
+      accessToken: "token-abc",
+      method: "POST",
+      body,
+    })
+    expect(result).toEqual({ id: "key-imported", fingerprint: body.fingerprint })
+    expect(body).not.toHaveProperty("passphrase")
+    expect(body).not.toHaveProperty("algorithmSpec")
   })
 })
