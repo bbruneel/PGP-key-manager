@@ -1,5 +1,12 @@
 import { requestJson } from "@/lib/api-client"
-import type { KeyRole, KeyStatus, PgpCapability, PgpKeyListItem } from "@/types/api"
+import type {
+  CreatePgpKeyRequest,
+  KeyRole,
+  KeyStatus,
+  PgpCapability,
+  PgpKey,
+  PgpKeyListItem,
+} from "@/types/api"
 
 export type ListKeysOptions = {
   accessToken: string
@@ -8,8 +15,13 @@ export type ListKeysOptions = {
   capability?: PgpCapability
 }
 
+export type CreateKeyOptions = {
+  accessToken: string
+  body: CreatePgpKeyRequest
+}
+
 /**
- * Key API client. Phase 0 implements list only; create/import/lifecycle will be added in later phases.
+ * Key API client. Phase 1 adds create; import/lifecycle will follow in later phases.
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeyListItem[]> {
@@ -30,6 +42,15 @@ export const keysApi = {
       operationId: "listKeys",
       accessToken: options.accessToken,
       method: "GET",
+    })
+  },
+
+  create(options: CreateKeyOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>("/api/keys", {
+      operationId: "createKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
     })
   },
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
@@ -69,14 +70,19 @@ export function HomeKeysPanel() {
           <h2 className="text-xl font-semibold tracking-tight text-foreground">PGP keys</h2>
           <p className="mt-1 text-sm text-muted-foreground">Keys stored in Supabase for your account.</p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="transition-colors duration-200"
-          onClick={() => void loadKeys()}
-        >
-          Refresh
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="default" className="transition-colors duration-200" asChild>
+            <Link to="/keys/new">Create key</Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="transition-colors duration-200"
+            onClick={() => void loadKeys()}
+          >
+            Refresh
+          </Button>
+        </div>
       </header>
 
       {loading && <p className="text-sm text-muted-foreground">Loading keys…</p>}
@@ -89,7 +95,12 @@ export function HomeKeysPanel() {
         </div>
       )}
       {!loading && !error && keys.length === 0 && (
-        <p className="text-sm text-muted-foreground">No keys yet. Create one via the API or a future import flow.</p>
+        <div className="text-sm text-muted-foreground">
+          <p>No keys yet. Create your first primary key to get started.</p>
+          <Button type="button" variant="default" className="mt-3" asChild>
+            <Link to="/keys/new">Create key</Link>
+          </Button>
+        </div>
       )}
       {!loading && keys.length > 0 && (
         <ul className="space-y-3">

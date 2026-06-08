@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "@/lib/api-error"
@@ -42,7 +43,11 @@ describe("HomeKeysPanel", () => {
       },
     ])
 
-    render(<HomeKeysPanel />)
+    render(
+      <MemoryRouter>
+        <HomeKeysPanel />
+      </MemoryRouter>,
+    )
 
     expect(await screen.findByText("Work key")).toBeInTheDocument()
     expect(screen.getByText("ABCD1234")).toBeInTheDocument()
@@ -60,12 +65,30 @@ describe("HomeKeysPanel", () => {
       }),
     )
 
-    render(<HomeKeysPanel />)
+    render(
+      <MemoryRouter>
+        <HomeKeysPanel />
+      </MemoryRouter>,
+    )
 
     await waitFor(() => {
       expect(screen.getByText("Invalid token")).toBeInTheDocument()
     })
     expect(screen.getByText(/request id: req-fail-1/i)).toBeInTheDocument()
     expect(screen.queryByText(/HTTP 401/i)).not.toBeInTheDocument()
+  })
+
+  it("shows create key links", async () => {
+    vi.mocked(keysApi.list).mockResolvedValue([])
+
+    render(
+      <MemoryRouter>
+        <HomeKeysPanel />
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("link", { name: /create key/i }).length).toBeGreaterThanOrEqual(1)
+    })
   })
 })

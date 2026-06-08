@@ -128,7 +128,7 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
 
 #### Product decisions
 
-- **Create primary key UX:** dedicated page at `/keys/new` (not a modal on `/keys`). Phase 0: route + nav link only; Phase 1: form + `POST /api/keys` generate flow.
+- **Create primary key UX:** dedicated page at `/keys/new` (not a modal on `/keys`). Phase 1 (implemented): form + `keysApi.create()` + `[pgp-ui]` event IDs. Phase 2: import/register; Phase 3: detail + lifecycle.
 
 - Pages in `frontend/src/pages/`, shared UI in `frontend/src/components/`, utilities in `frontend/src/lib/`.
 - Use `apiFetch` from `frontend/src/lib/api.ts` for API calls. It sets:

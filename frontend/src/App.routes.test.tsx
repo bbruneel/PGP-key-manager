@@ -52,6 +52,12 @@ describe("App routes", () => {
     expect(screen.getByText(/configure auth0 to list and manage keys/i)).toBeInTheDocument()
   })
 
+  it("renders create key page at /keys/new", async () => {
+    renderApp("/keys/new")
+    expect(await screen.findByRole("heading", { name: /create key/i, level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /create primary key/i, level: 2 })).toBeInTheDocument()
+  })
+
   it("navigates between overview and keys via sidebar links", async () => {
     const user = userEvent.setup()
     renderApp("/")
