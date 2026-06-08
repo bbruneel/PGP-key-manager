@@ -6,6 +6,7 @@ import { requireAuth } from "@/components/auth/require-auth"
 import { AppShell } from "@/components/layout/app-shell"
 import { auth0Configured } from "@/lib/auth0-env"
 import { CreateKeyPage } from "@/pages/CreateKeyPage"
+import { ImportKeyPage } from "@/pages/ImportKeyPage"
 import { KeysPage } from "@/pages/KeysPage"
 import { OverviewPage } from "@/pages/OverviewPage"
 import type { ApiHealth } from "@/pages/HomePage"
@@ -19,9 +20,11 @@ function AppContent() {
 
   const pageTitle = location.pathname === "/keys/new"
     ? "Create key"
-    : location.pathname.startsWith("/keys")
-      ? "Keys"
-      : "Overview"
+    : location.pathname === "/keys/import"
+      ? "Import key"
+      : location.pathname.startsWith("/keys")
+        ? "Keys"
+        : "Overview"
 
   return (
     <AppShell footerStatus={apiHealth} pageTitle={pageTitle}>
@@ -29,6 +32,7 @@ function AppContent() {
         <Route path="/" element={<OverviewPage onHealthChange={handleHealthChange} />} />
         <Route path="/keys" element={<KeysPage />} />
         <Route path="/keys/new" element={<CreateKeyPage />} />
+        <Route path="/keys/import" element={<ImportKeyPage />} />
       </Routes>
     </AppShell>
   )

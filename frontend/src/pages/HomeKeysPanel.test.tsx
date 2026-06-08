@@ -78,7 +78,7 @@ describe("HomeKeysPanel", () => {
     expect(screen.queryByText(/HTTP 401/i)).not.toBeInTheDocument()
   })
 
-  it("shows create key links", async () => {
+  it("shows create and import key links", async () => {
     vi.mocked(keysApi.list).mockResolvedValue([])
 
     render(
@@ -89,6 +89,7 @@ describe("HomeKeysPanel", () => {
 
     await waitFor(() => {
       expect(screen.getAllByRole("link", { name: /create key/i }).length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByRole("link", { name: /import key/i }).length).toBeGreaterThanOrEqual(1)
     })
   })
 })
