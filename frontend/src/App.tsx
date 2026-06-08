@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react"
 import { Route, Routes, useLocation } from "react-router-dom"
 
+import { AuthSessionGuard } from "@/components/auth/auth-session-guard"
 import { requireAuth } from "@/components/auth/require-auth"
 import { AppShell } from "@/components/layout/app-shell"
 import { auth0Configured } from "@/lib/auth0-env"
@@ -37,7 +38,11 @@ const AuthenticatedAppContent = requireAuth(AppContent)
 
 export function App() {
   if (auth0Configured()) {
-    return <AuthenticatedAppContent />
+    return (
+      <AuthSessionGuard>
+        <AuthenticatedAppContent />
+      </AuthSessionGuard>
+    )
   }
   return <AppContent />
 }

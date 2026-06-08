@@ -127,7 +127,7 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 
 **Recorded decision:** create primary key at **`/keys/new`**, not a modal on `/keys`.
 
-When Auth0 is configured, `requireAuth` wraps the routed app so unauthenticated visitors are redirected to login before protected pages load.
+When Auth0 is configured, `requireAuth` wraps the routed app so unauthenticated visitors are redirected to login before protected pages load. `AuthSessionGuard` recovers stale sessions (e.g. cached user without a refresh token) by redirecting to Auth0 with `prompt=login` instead of showing a broken half-authenticated state. The SPA requests `offline_access` and enables `useRefreshTokensFallback` so new logins receive refresh tokens for silent API access.
 
 ## Frontend API client
 

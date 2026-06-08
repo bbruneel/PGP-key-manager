@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { logApiEvent } from "@/lib/logger"
 
 const getAccessTokenSilently = vi.fn()
+const loginWithRedirect = vi.fn()
 const authState = vi.hoisted(() => ({
   isAuthenticated: true,
   isLoading: false,
@@ -15,6 +16,7 @@ vi.mock("@auth0/auth0-react", () => ({
     isAuthenticated: authState.isAuthenticated,
     isLoading: authState.isLoading,
     getAccessTokenSilently,
+    loginWithRedirect,
     error: authState.error,
   }),
 }))
@@ -35,6 +37,8 @@ describe("useApiAccessToken", () => {
     authState.isLoading = false
     authState.error = undefined
     getAccessTokenSilently.mockReset()
+    loginWithRedirect.mockReset()
+    loginWithRedirect.mockResolvedValue(undefined)
     vi.mocked(logApiEvent).mockClear()
   })
 
@@ -68,6 +72,14 @@ describe("useApiAccessToken", () => {
     const { result } = renderHook(() => useApiAccessToken())
 
     await expect(result.current.getAccessToken()).rejects.toThrow("login_required")
+    expect(loginWithRedirect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authorizationParams: expect.objectContaining({
+          scope: expect.stringContaining("offline_access"),
+          prompt: "login",
+        }),
+      }),
+    )
     expect(logApiEvent).toHaveBeenCalledWith(
       "error",
       expect.objectContaining({

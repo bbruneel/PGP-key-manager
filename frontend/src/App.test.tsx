@@ -36,6 +36,10 @@ vi.mock("@/pages/KeysPage", () => ({
   KeysPage: () => <div>KeysPage</div>,
 }))
 
+vi.mock("@/components/auth/auth-session-guard", () => ({
+  AuthSessionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
 vi.mock("@/components/layout/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }))

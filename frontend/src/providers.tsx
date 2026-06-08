@@ -5,6 +5,7 @@ import { Auth0Provider } from "@auth0/auth0-react"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import { auth0Configured } from "@/lib/auth0-env"
+import { AUTH0_SCOPE } from "@/lib/auth-session"
 
 function Auth0Shell({ children }: { children: ReactNode }) {
   if (!auth0Configured()) {
@@ -21,9 +22,11 @@ function Auth0Shell({ children }: { children: ReactNode }) {
       authorizationParams={{
         audience: audience || undefined,
         redirect_uri: window.location.origin,
+        scope: AUTH0_SCOPE,
       }}
       cacheLocation="localstorage"
       useRefreshTokens
+      useRefreshTokensFallback
     >
       {children}
     </Auth0Provider>
