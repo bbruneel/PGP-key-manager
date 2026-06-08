@@ -19,6 +19,8 @@ export type CreateKeyValidationResult = {
 }
 
 const LABEL_MAX_LENGTH = 128
+const USER_NAME_MAX_LENGTH = 256
+const EMAIL_MAX_LENGTH = 254
 const PASSPHRASE_MIN_LENGTH = 8
 const PASSPHRASE_MAX_LENGTH = 256
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -59,10 +61,17 @@ export function validateCreateKeyForm(values: CreateKeyFormValues): CreateKeyVal
 
   if (!values.userName.trim()) {
     fieldErrors.userName = "Name is required"
+  } else if (values.userName.length > USER_NAME_MAX_LENGTH) {
+    fieldErrors.userName = `Name must be at most ${USER_NAME_MAX_LENGTH} characters`
   }
 
-  if (values.userEmail.trim() && !EMAIL_PATTERN.test(values.userEmail.trim())) {
-    fieldErrors.userEmail = "Enter a valid email address"
+  const trimmedEmail = values.userEmail.trim()
+  if (trimmedEmail) {
+    if (trimmedEmail.length > EMAIL_MAX_LENGTH) {
+      fieldErrors.userEmail = `Email must be at most ${EMAIL_MAX_LENGTH} characters`
+    } else if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      fieldErrors.userEmail = "Enter a valid email address"
+    }
   }
 
   if (values.passphrase.length < PASSPHRASE_MIN_LENGTH) {

@@ -57,6 +57,19 @@ describe("validateCreateKeyForm", () => {
     expect(result.fieldErrors.label).toBeDefined()
   })
 
+  it("rejects user name longer than 256 characters", () => {
+    const result = validateCreateKeyForm(validValues({ userName: "a".repeat(257) }))
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.userName).toBeDefined()
+  })
+
+  it("rejects email longer than 254 characters", () => {
+    const longLocal = "a".repeat(250)
+    const result = validateCreateKeyForm(validValues({ userEmail: `${longLocal}@example.com` }))
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.userEmail).toBeDefined()
+  })
+
   it("rejects expiry in the past", () => {
     const result = validateCreateKeyForm(validValues({ expiresAt: "2020-01-01" }))
     expect(result.valid).toBe(false)
