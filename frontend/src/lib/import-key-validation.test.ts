@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildImportKeyRequest,
   defaultImportKeyFormValues,
+  normalizeFingerprint,
   validateImportKeyForm,
   type ImportKeyFormValues,
 } from "@/lib/import-key-validation"
@@ -64,6 +65,13 @@ describe("validateImportKeyForm", () => {
     const result = validateImportKeyForm(validValues({ fingerprint: "ABCDEF012345678" }))
     expect(result.valid).toBe(false)
     expect(result.fieldErrors.fingerprint).toBeDefined()
+  })
+
+  it("accepts gpg-style spaced fingerprint", () => {
+    const spaced = "DEAD BEEF 0123 4567 89AB CDEF 0123 4567 89AB CD"
+    const result = validateImportKeyForm(validValues({ fingerprint: spaced }))
+    expect(result.valid).toBe(true)
+    expect(normalizeFingerprint(spaced)).toBe(VALID_FINGERPRINT)
   })
 
   it("rejects missing armored public block", () => {

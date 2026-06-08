@@ -19,6 +19,11 @@ export type ImportKeyValidationResult = {
 
 const LABEL_MAX_LENGTH = 128
 const FINGERPRINT_PATTERN = /^[0-9A-Fa-f]{16,40}$/
+
+/** Strip whitespace and colons so pasted `gpg --fingerprint` output validates. */
+export function normalizeFingerprint(value: string): string {
+  return value.replace(/[\s:]/g, "")
+}
 const PUBLIC_ARMOR_HEADER = "BEGIN PGP PUBLIC KEY BLOCK"
 const PRIVATE_ARMOR_HEADERS = ["BEGIN PGP PRIVATE KEY BLOCK", "BEGIN PGP SECRET KEY BLOCK"] as const
 
@@ -43,10 +48,10 @@ export function validateImportKeyForm(values: ImportKeyFormValues): ImportKeyVal
     fieldErrors.label = `Label must be at most ${LABEL_MAX_LENGTH} characters`
   }
 
-  const trimmedFingerprint = values.fingerprint.trim()
-  if (!trimmedFingerprint) {
+  const normalizedFingerprint = normalizeFingerprint(values.fingerprint)
+  if (!normalizedFingerprint) {
     fieldErrors.fingerprint = "Fingerprint is required"
-  } else if (!FINGERPRINT_PATTERN.test(trimmedFingerprint)) {
+  } else if (!FINGERPRINT_PATTERN.test(normalizedFingerprint)) {
     fieldErrors.fingerprint = "Enter a valid hex fingerprint (16–40 characters)"
   }
 
@@ -74,7 +79,7 @@ export function validateImportKeyForm(values: ImportKeyFormValues): ImportKeyVal
 
 export function buildImportKeyRequest(values: ImportKeyFormValues): RegisterPgpKeyRequest {
   const request: RegisterPgpKeyRequest = {
-    fingerprint: values.fingerprint.trim().toUpperCase(),
+    fingerprint: normalizeFingerprint(values.fingerprint).toUpperCase(),
     keyType: values.importMode,
     armoredPublic: values.armoredPublic.trim(),
   }
