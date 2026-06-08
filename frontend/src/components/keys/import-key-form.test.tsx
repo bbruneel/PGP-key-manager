@@ -52,6 +52,8 @@ describe("ImportKeyForm", () => {
     )
 
     expect(screen.getByLabelText(/armored private key/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/armored public key \(optional\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/derive metadata from the private key alone/i)).toBeInTheDocument()
   })
 
   it("calls onChange when import mode changes", async () => {

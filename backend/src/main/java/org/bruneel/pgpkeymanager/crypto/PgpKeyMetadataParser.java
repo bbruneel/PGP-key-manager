@@ -43,7 +43,8 @@ public class PgpKeyMetadataParser {
         } catch (BadRequestException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new BadRequestException("Invalid or unreadable armored key material: " + ex.getMessage());
+            log.warn("Failed to parse armored key metadata", ex);
+            throw new BadRequestException("Invalid or unreadable armored key material");
         }
     }
 
@@ -91,22 +92,38 @@ public class PgpKeyMetadataParser {
 
     private PGPPublicKey loadMasterPublicKey(String armoredPublic, String encryptedPrivateArmored)
             throws IOException, PGPException {
-        if (armoredPublic != null && !armoredPublic.isBlank()) {
-            PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
-            return ring.getPublicKey();
+        boolean hasPublic = armoredPublic != null && !armoredPublic.isBlank();
+        boolean hasPrivate = encryptedPrivateArmored != null && !encryptedPrivateArmored.isBlank();
+        if (!hasPublic && !hasPrivate) {
+            throw new BadRequestException("armoredPublic or encryptedPrivateArmored is required when registering a key");
         }
-        if (encryptedPrivateArmored != null && !encryptedPrivateArmored.isBlank()) {
-            try (InputStream in = PgpCryptoSupport.decoderStream(encryptedPrivateArmored)) {
-                PGPSecretKeyRingCollection collection =
-                        new PGPSecretKeyRingCollection(in, new JcaKeyFingerprintCalculator());
-                Iterator<PGPSecretKeyRing> rings = collection.getKeyRings();
-                if (!rings.hasNext()) {
-                    throw new BadRequestException("No secret key ring found in armored private key");
-                }
-                return rings.next().getPublicKey();
+        if (hasPublic && hasPrivate) {
+            PGPPublicKey fromPublic = PgpCryptoSupport.loadPublicKeyRing(armoredPublic).getPublicKey();
+            PGPPublicKey fromPrivate = loadMasterPublicKeyFromPrivate(encryptedPrivateArmored);
+            String publicFingerprint = PgpCryptoSupport.fingerprintHex(fromPublic);
+            String privateFingerprint = PgpCryptoSupport.fingerprintHex(fromPrivate);
+            if (!publicFingerprint.equalsIgnoreCase(privateFingerprint)) {
+                throw new BadRequestException("armored public and private key blocks do not match");
             }
+            return fromPublic;
         }
-        throw new BadRequestException("armoredPublic or encryptedPrivateArmored is required when registering a key");
+        if (hasPublic) {
+            return PgpCryptoSupport.loadPublicKeyRing(armoredPublic).getPublicKey();
+        }
+        return loadMasterPublicKeyFromPrivate(encryptedPrivateArmored);
+    }
+
+    private PGPPublicKey loadMasterPublicKeyFromPrivate(String encryptedPrivateArmored)
+            throws IOException, PGPException {
+        try (InputStream in = PgpCryptoSupport.decoderStream(encryptedPrivateArmored)) {
+            PGPSecretKeyRingCollection collection =
+                    new PGPSecretKeyRingCollection(in, new JcaKeyFingerprintCalculator());
+            Iterator<PGPSecretKeyRing> rings = collection.getKeyRings();
+            if (!rings.hasNext()) {
+                throw new BadRequestException("No secret key ring found in armored private key");
+            }
+            return rings.next().getPublicKey();
+        }
     }
 
     private List<PgpCapability> resolveCapabilities(PGPPublicKey master) {

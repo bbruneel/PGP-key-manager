@@ -82,10 +82,70 @@ class PgpKeyMetadataParserTest {
     }
 
     @Test
+    void parseRsaPrimary() {
+        GeneratedKeyMaterial material =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("RSA Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("rsa", 4096, null),
+                        null,
+                        "rsa-test-passphrase".toCharArray());
+
+        ImportedKeyMetadata metadata = parser.parse(material.armoredPublic(), null);
+
+        assertThat(metadata.algorithm()).isEqualTo("rsa");
+        assertThat(metadata.algorithmSpecJson()).contains("\"keySize\":4096");
+        assertThat(metadata.fingerprint()).isEqualTo(material.fingerprint());
+    }
+
+    @Test
+    void parseEcdsaPrimary() {
+        GeneratedKeyMaterial material =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("ECDSA Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ecdsa", null, "P-256"),
+                        null,
+                        "ecdsa-test-passphrase".toCharArray());
+
+        ImportedKeyMetadata metadata = parser.parse(material.armoredPublic(), null);
+
+        assertThat(metadata.algorithm()).isEqualTo("ecdsa");
+        assertThat(metadata.algorithmSpecJson()).contains("P-256");
+        assertThat(metadata.fingerprint()).isEqualTo(material.fingerprint());
+    }
+
+    @Test
+    void mismatchedPublicAndPrivateThrowsBadRequest() {
+        GeneratedKeyMaterial first =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("First", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "first-passphrase".toCharArray());
+        GeneratedKeyMaterial second =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Second", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "second-passphrase".toCharArray());
+
+        assertThatThrownBy(() -> parser.parse(first.armoredPublic(), second.armoredPrivate()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("do not match");
+    }
+
+    @Test
     void invalidArmorThrowsBadRequest() {
         assertThatThrownBy(() -> parser.parse("not armored data", null))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("armored");
+                .hasMessage("Invalid or unreadable armored key material");
     }
 
     @Test

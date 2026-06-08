@@ -126,7 +126,9 @@ export function ImportKeyForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="import-key-armored-public">Armored public key</Label>
+          <Label htmlFor="import-key-armored-public">
+            Armored public key{values.importMode === "private" ? " (optional)" : ""}
+          </Label>
           <Textarea
             id="import-key-armored-public"
             value={values.armoredPublic}
@@ -136,6 +138,12 @@ export function ImportKeyForm({
             disabled={submitting}
             className={cn("min-h-32 font-mono text-xs")}
           />
+          {values.importMode === "private" ? (
+            <p className="text-xs text-muted-foreground">
+              Optional when importing a private block — the server can derive metadata from the private
+              key alone. Include both blocks when you have them so the server can verify they match.
+            </p>
+          ) : null}
           <FieldError message={fieldErrors.armoredPublic} />
         </div>
 

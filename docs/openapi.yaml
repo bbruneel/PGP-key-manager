@@ -428,6 +428,9 @@ components:
         **Register/import path:** include `armoredPublic` and/or `encryptedPrivateArmored`; the server parses
         metadata (fingerprint, key ID, algorithm, capabilities, expiry) from the armored material.
         `fingerprint` is optional on register — when omitted the server derives it; when provided it must match.
+        When both armored blocks are sent they must refer to the same key or the request is rejected.
+        Client-supplied `capabilities`, `algorithm`, `keyId`, and `expiresAt` are ignored on register;
+        parsed values from the armored material are always stored.
       properties:
         label:
           type: string
