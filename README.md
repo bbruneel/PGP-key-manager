@@ -124,6 +124,7 @@ The scaffold’s `apiFetch` helper sets these by default. The sample `GET /api/h
 | `/keys` | PGP key list (requires Auth0 sign-in) |
 | `/keys/new` | Create primary key — generate Ed25519 key via `POST /api/keys` |
 | `/keys/import` | Import existing key — register armored public/private blocks via `POST /api/keys` (server parses metadata from armor) |
+| `/keys/:id` | Key detail — subkeys list, add subkey, revoke, extend, rotate, export public key |
 
 ### API client layer
 
@@ -135,7 +136,7 @@ The SPA uses a typed client on top of `apiFetch`:
 | `frontend/src/lib/api-client.ts` | `requestJson` — versioned JSON, Bearer token, `X-Request-Id` correlation |
 | `frontend/src/lib/api-error.ts` | RFC 7807 `ProblemDetail` parsing and `ApiError` for UI messages |
 | `frontend/src/lib/logger.ts` | Structured `[pgp-api]` console logs with `operationId` + `requestId` |
-| `frontend/src/lib/keys-api.ts` | Key endpoints (`list`, `create`, `register`) |
+| `frontend/src/lib/keys-api.ts` | Key endpoints (`list`, `create`, `register`, `get`, `listSubkeys`, `createSubkey`, lifecycle, `exportPublic`) |
 | `frontend/src/lib/ui-logger.ts` | Structured `[pgp-ui]` console logs with `eventId` (e.g. `createKey.submit`, `importKey.submit`) |
 | `frontend/src/lib/create-key-validation.ts` | Client-side create form validation and `CreatePgpKeyRequest` builder |
 | `frontend/src/lib/key-display.ts` | Human-readable key list helpers (`formatKeyExpiry`, `formatCapabilities`) |

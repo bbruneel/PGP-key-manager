@@ -5,6 +5,7 @@ import {
   defaultRotateKeyFormValues,
   validateRotateKeyForm,
 } from "@/lib/rotate-key-validation"
+import type { PgpCapability } from "@/types/api"
 
 describe("validateRotateKeyForm", () => {
   it("requires at least one capability", () => {
@@ -12,6 +13,16 @@ describe("validateRotateKeyForm", () => {
     const result = validateRotateKeyForm(values)
     expect(result.valid).toBe(false)
     expect(result.fieldErrors.capabilities).toBeDefined()
+  })
+
+  it("rejects certify capability", () => {
+    const values = {
+      ...defaultRotateKeyFormValues(),
+      capabilities: ["certify", "sign"] as PgpCapability[],
+    }
+    const result = validateRotateKeyForm(values)
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.capabilities).toMatch(/certify/i)
   })
 
   it("requires passphrase even when revokePrevious is false", () => {

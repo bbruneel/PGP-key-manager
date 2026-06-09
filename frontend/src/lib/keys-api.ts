@@ -1,6 +1,7 @@
 import { requestJson, requestText } from "@/lib/api-client"
 import type {
   CreatePgpKeyRequest,
+  CreateSubkeyRequest,
   ExtendExpiryRequest,
   KeyRole,
   KeyStatus,
@@ -41,6 +42,12 @@ export type ListSubkeysOptions = {
   primaryKeyId: string
 }
 
+export type CreateSubkeyOptions = {
+  accessToken: string
+  primaryKeyId: string
+  body: CreateSubkeyRequest
+}
+
 export type RevokeKeyOptions = {
   accessToken: string
   keyId: string
@@ -66,7 +73,7 @@ export type ExportPublicKeyOptions = {
 
 /**
  * Key API client. Phase 1 adds create; Phase 2 adds register (import);
- * Phase 3 adds detail, subkeys, and lifecycle actions.
+ * Phase 3 adds detail, subkeys, and lifecycle actions; Phase 4 adds createSubkey.
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeyListItem[]> {
@@ -125,6 +132,15 @@ export const keysApi = {
       operationId: "listSubkeys",
       accessToken: options.accessToken,
       method: "GET",
+    })
+  },
+
+  createSubkey(options: CreateSubkeyOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>(`/api/keys/${options.primaryKeyId}/subkeys`, {
+      operationId: "createSubkey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
     })
   },
 

@@ -18,6 +18,7 @@ export type PgpCapability = components["schemas"]["PgpCapability"]
 export type HelloResponse = components["schemas"]["HelloResponse"]
 export type RevokeKeyRequest = components["schemas"]["RevokeKeyRequest"]
 export type ExtendExpiryRequest = components["schemas"]["ExtendExpiryRequest"]
+export type CreateSubkeyRequest = components["schemas"]["CreateSubkeyRequest"]
 export type RotateKeyRequest = components["schemas"]["RotateKeyRequest"]
 export type RotateKeyResponse = components["schemas"]["RotateKeyResponse"]
 

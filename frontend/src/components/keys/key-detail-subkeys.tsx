@@ -69,7 +69,9 @@ export function KeyDetailSubkeys({ primaryKeyId, getAccessToken, refreshToken = 
       ) : null}
 
       {!loading && !error && subkeys.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No subkeys yet.</p>
+        <p className="text-sm text-muted-foreground">
+          No subkeys yet. Use the add subkey form below to create one.
+        </p>
       ) : null}
 
       {!loading && subkeys.length > 0 ? (

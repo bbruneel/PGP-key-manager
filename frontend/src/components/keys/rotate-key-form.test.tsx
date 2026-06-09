@@ -49,6 +49,24 @@ describe("RotateKeyForm", () => {
     expect(screen.getByLabelText(/^passphrase$/i)).toBeInTheDocument()
   })
 
+  it("does not offer certify capability", () => {
+    render(
+      <RotateKeyForm
+        values={defaultRotateKeyFormValues()}
+        fieldErrors={{}}
+        apiError={null}
+        requestId={null}
+        submitting={false}
+        disabled={false}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByLabelText("certify")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("sign")).toBeInTheDocument()
+  })
+
   it("disables submit when not available", () => {
     render(
       <RotateKeyForm

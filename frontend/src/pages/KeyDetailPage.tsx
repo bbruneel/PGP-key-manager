@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { CreateSubkeyForm } from "@/components/keys/create-subkey-form"
 import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
 import { KeyDetailSubkeys } from "@/components/keys/key-detail-subkeys"
 import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
@@ -10,6 +11,13 @@ import { RevokeKeyForm } from "@/components/keys/revoke-key-form"
 import { RotateKeyForm } from "@/components/keys/rotate-key-form"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
+import {
+  buildCreateSubkeyRequest,
+  defaultCreateSubkeyFormValues,
+  validateCreateSubkeyForm,
+  type CreateSubkeyFieldErrors,
+  type CreateSubkeyFormValues,
+} from "@/lib/create-subkey-validation"
 import {
   buildExtendExpiryRequest,
   defaultExtendExpiryFormValues,
@@ -70,6 +78,14 @@ export function KeyDetailPage() {
   const [rotateRequestId, setRotateRequestId] = useState<string | null>(null)
   const [rotateSubmitting, setRotateSubmitting] = useState(false)
 
+  const [createSubkeyValues, setCreateSubkeyValues] = useState<CreateSubkeyFormValues>(
+    defaultCreateSubkeyFormValues,
+  )
+  const [createSubkeyFieldErrors, setCreateSubkeyFieldErrors] = useState<CreateSubkeyFieldErrors>({})
+  const [createSubkeyApiError, setCreateSubkeyApiError] = useState<string | null>(null)
+  const [createSubkeyRequestId, setCreateSubkeyRequestId] = useState<string | null>(null)
+  const [createSubkeySubmitting, setCreateSubkeySubmitting] = useState(false)
+
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
       return
@@ -121,6 +137,86 @@ export function KeyDetailPage() {
   const isSubkey = keyData?.role === "subkey"
   const canExtend = Boolean(requiresPassphrase && !isRevoked)
   const canRotate = Boolean(isSubkey && !isRevoked && requiresPassphrase)
+  const isPrimary = keyData?.role === "primary"
+  const canCreateSubkey = Boolean(isPrimary && !isRevoked && requiresPassphrase)
+  const showMetadataOnlyHint = Boolean(isPrimary && !requiresPassphrase && !isRevoked)
+
+  const handleCreateSubkeySubmit = useCallback(async () => {
+    if (!id || !keyData || keyData.role !== "primary" || !keyData.id) {
+      return
+    }
+
+    logUiEvent("info", {
+      eventId: "keyDetail.createSubkey.submit",
+      message: "Create subkey form submitted",
+      keyId: id,
+    })
+
+    setCreateSubkeyApiError(null)
+    setCreateSubkeyRequestId(null)
+
+    const validation = validateCreateSubkeyForm(createSubkeyValues)
+    if (!validation.valid) {
+      setCreateSubkeyFieldErrors(validation.fieldErrors)
+      logUiEvent("warn", {
+        eventId: "keyDetail.createSubkey.validationFailed",
+        message: "Client-side create subkey validation failed",
+        keyId: id,
+      })
+      return
+    }
+
+    setCreateSubkeyFieldErrors({})
+    setCreateSubkeySubmitting(true)
+
+    try {
+      const token = await getAccessToken()
+      const created = await keysApi.createSubkey({
+        accessToken: token,
+        primaryKeyId: keyData.id,
+        body: buildCreateSubkeyRequest(createSubkeyValues),
+      })
+
+      logUiEvent("info", {
+        eventId: "keyDetail.createSubkey.apiSuccess",
+        message: "Subkey created",
+        operationId: "createSubkey",
+        keyId: created.id ?? undefined,
+        fingerprint: created.fingerprint ?? undefined,
+      })
+
+      toast.success("Subkey created", {
+        description: created.fingerprint ? `Fingerprint: ${created.fingerprint}` : undefined,
+      })
+
+      setCreateSubkeyValues(clearPassphrase(createSubkeyValues))
+      setSubkeysRefreshToken((value) => value + 1)
+      if (created.id) {
+        navigate(`/keys/${created.id}`)
+        return
+      }
+      await loadKey()
+    } catch (error) {
+      const message = getApiErrorMessage(error)
+      setCreateSubkeyApiError(message)
+      if (error instanceof ApiError) {
+        if (error.requestId) {
+          setCreateSubkeyRequestId(error.requestId)
+        }
+        logUiEvent("error", {
+          eventId: "keyDetail.createSubkey.apiError",
+          message: "Create subkey API request failed",
+          operationId: error.operationId,
+          requestId: error.requestId,
+          status: error.status,
+          keyId: id,
+        })
+      }
+    } finally {
+      setCreateSubkeySubmitting(false)
+      setCreateSubkeyValues((current) => clearPassphrase(current))
+    }
+  }, [createSubkeyValues, getAccessToken, id, keyData, loadKey, navigate])
 
   const handleRevokeSubmit = useCallback(async () => {
     if (!id || !keyData) {
@@ -418,6 +514,28 @@ export function KeyDetailPage() {
               primaryKeyId={keyData.id}
               getAccessToken={getAccessToken}
               refreshToken={subkeysRefreshToken}
+            />
+          ) : null}
+
+          {showMetadataOnlyHint ? (
+            <p className="text-sm text-muted-foreground">
+              Import or register private key material to add subkeys.
+            </p>
+          ) : null}
+
+          {canCreateSubkey ? (
+            <CreateSubkeyForm
+              values={createSubkeyValues}
+              fieldErrors={createSubkeyFieldErrors}
+              apiError={createSubkeyApiError}
+              requestId={createSubkeyRequestId}
+              submitting={createSubkeySubmitting}
+              disabled={false}
+              onChange={(nextValues) => {
+                setCreateSubkeyValues(nextValues)
+                setCreateSubkeyFieldErrors({})
+              }}
+              onSubmit={() => void handleCreateSubkeySubmit()}
             />
           ) : null}
 
