@@ -129,7 +129,8 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
 #### Product decisions
 
 - **Create primary key UX:** dedicated page at `/keys/new` (not a modal on `/keys`). Phase 1 (implemented): form + `keysApi.create()` + `[pgp-ui]` event IDs.
-- **Import key UX:** dedicated page at `/keys/import`. Phase 2 (implemented): public/private armored paste + `keysApi.register()` + `buildImportKeyRequest()` (register-only payload — never send `passphrase` or `algorithmSpec`). Server parses metadata from armor (`PgpKeyMetadataParser`, operation log `register_key`); fingerprint optional on the form. Phase 3: detail + lifecycle. **Future:** import subkey rows from multi-key armored exports.
+- **Import key UX:** dedicated page at `/keys/import`. Phase 2 (implemented): public/private armored paste + `keysApi.register()` + `buildImportKeyRequest()` (register-only payload — never send `passphrase` or `algorithmSpec`). Server parses metadata from armor (`PgpKeyMetadataParser`, operation log `register_key`); fingerprint optional on the form.
+- **Key detail UX:** dedicated page at `/keys/:id`. Phase 3 (implemented): `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, `exportPublic()` + lifecycle validation modules + `[pgp-ui]` `keyDetail.*` events. List page links to detail (`role=primary` filter). **Future:** import subkey rows from multi-key armored exports; create subkey UI (`POST /subkeys`).
 
 - Pages in `frontend/src/pages/`, shared UI in `frontend/src/components/`, utilities in `frontend/src/lib/`.
 - Use `apiFetch` from `frontend/src/lib/api.ts` for API calls. It sets:

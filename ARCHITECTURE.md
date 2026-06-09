@@ -125,6 +125,7 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/keys` | List keys for the signed-in user | Current |
 | `/keys/new` | Create primary key (label, user IDs, expiry, passphrase, Ed25519, OpenPGP v4/v6) | Phase 1 (implemented) |
 | `/keys/import` | Import/register existing key (public or private armored blocks + fingerprint) | Phase 2 (implemented) |
+| `/keys/:id` | Key detail, subkeys list, lifecycle actions (revoke, extend, rotate, export) | Phase 3 (implemented) |
 
 **Recorded decision:** create primary key at **`/keys/new`** and import at **`/keys/import`**, not modals on `/keys`.
 
@@ -138,7 +139,7 @@ Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `ap
 - **`X-Request-Id`** — client-generated UUID; echoed by the backend `RequestIdFilter` for correlation in logs and error UI.
 - **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
 
-Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); lifecycle clients will follow in later PRs.
+Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`. Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text.
 
 ## Create primary key flow (Phase 1)
 
@@ -157,7 +158,19 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 5. On success: sonner toast with fingerprint, redirect to `/keys`. The key list shows capabilities and expiry (`Does not expire` when `expiresAt` is null).
 6. On failure: RFC 7807 `detail` and optional request ID shown in the form.
 
-**Next phase (not implemented):** import subkey rows from multi-key armored exports.
+## Key detail and lifecycle (Phase 3)
+
+1. User opens `/keys/:id` from the primary key list (`role=primary` filter on `/keys`).
+2. `keysApi.get()` loads key metadata; primary keys also load subkeys via `keysApi.listSubkeys()`.
+3. Lifecycle forms validate client-side (`revoke-key-validation.ts`, `extend-key-validation.ts`, `rotate-key-validation.ts`) and log `[pgp-ui]` events:
+   - `keyDetail.pageView`, `keyDetail.subkeysLoaded`
+   - `keyDetail.export.submit` / `keyDetail.export.success` / `keyDetail.export.error`
+   - `keyDetail.revoke.*`, `keyDetail.extendExpiry.*`, `keyDetail.rotate.*`
+4. `keysApi.exportPublic()` uses `requestText` + `copyTextToClipboard` or download as `.asc`.
+5. Revoke and extend require passphrase when the primary keyring stores private material; rotate is subkey-only and requires passphrase when `revokePrevious` is true (default).
+6. On success: sonner toast, refetch key/subkeys; rotate navigates to the new subkey. Passphrase fields are cleared after submit.
+
+**Future (not implemented):** import subkey rows from multi-key armored exports; create subkey UI (`POST /subkeys`).
 
 ## Repository layout
 

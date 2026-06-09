@@ -23,3 +23,46 @@ export function formatCapabilities(capabilities: readonly string[] | null | unde
 
   return capabilities.join(", ")
 }
+
+export type KeyStatusValue = "active" | "expired" | "revoked"
+
+export function formatKeyStatus(status: KeyStatusValue | string | null | undefined): string {
+  switch (status) {
+    case "active":
+      return "Active"
+    case "expired":
+      return "Expired"
+    case "revoked":
+      return "Revoked"
+    default:
+      return "Unknown"
+  }
+}
+
+export function formatRevokedAt(revokedAt: string | null | undefined): string | null {
+  if (!revokedAt) {
+    return null
+  }
+
+  const date = new Date(revokedAt)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+export function hasPrivateMaterial(key: {
+  encryptedPrivateArmored?: string | null
+  keyType?: string | null
+}): boolean {
+  if (key.encryptedPrivateArmored) {
+    return true
+  }
+  return key.keyType === "private"
+}

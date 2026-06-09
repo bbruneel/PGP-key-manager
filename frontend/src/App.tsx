@@ -7,6 +7,7 @@ import { AppShell } from "@/components/layout/app-shell"
 import { auth0Configured } from "@/lib/auth0-env"
 import { CreateKeyPage } from "@/pages/CreateKeyPage"
 import { ImportKeyPage } from "@/pages/ImportKeyPage"
+import { KeyDetailPage } from "@/pages/KeyDetailPage"
 import { KeysPage } from "@/pages/KeysPage"
 import { OverviewPage } from "@/pages/OverviewPage"
 import type { ApiHealth } from "@/pages/HomePage"
@@ -22,9 +23,13 @@ function AppContent() {
     ? "Create key"
     : location.pathname === "/keys/import"
       ? "Import key"
-      : location.pathname.startsWith("/keys")
-        ? "Keys"
-        : "Overview"
+      : /^\/keys\/[^/]+$/.test(location.pathname) &&
+          location.pathname !== "/keys/new" &&
+          location.pathname !== "/keys/import"
+        ? "Key detail"
+        : location.pathname.startsWith("/keys")
+          ? "Keys"
+          : "Overview"
 
   return (
     <AppShell footerStatus={apiHealth} pageTitle={pageTitle}>
@@ -33,6 +38,7 @@ function AppContent() {
         <Route path="/keys" element={<KeysPage />} />
         <Route path="/keys/new" element={<CreateKeyPage />} />
         <Route path="/keys/import" element={<ImportKeyPage />} />
+        <Route path="/keys/:id" element={<KeyDetailPage />} />
       </Routes>
     </AppShell>
   )

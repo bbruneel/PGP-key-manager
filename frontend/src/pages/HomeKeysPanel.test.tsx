@@ -56,7 +56,7 @@ describe("HomeKeysPanel", () => {
     expect(screen.getByText("ABCD1234")).toBeInTheDocument()
     expect(screen.getByText(/Key ID EF567890/)).toBeInTheDocument()
     expect(screen.getByText(/certify, sign · Does not expire/)).toBeInTheDocument()
-    expect(keysApi.list).toHaveBeenCalledWith({ accessToken: "access-token" })
+    expect(keysApi.list).toHaveBeenCalledWith({ accessToken: "access-token", role: "primary" })
   })
 
   it("shows ApiError detail and request id on failure", async () => {
@@ -81,6 +81,28 @@ describe("HomeKeysPanel", () => {
     })
     expect(screen.getByText(/request id: req-fail-1/i)).toBeInTheDocument()
     expect(screen.queryByText(/HTTP 401/i)).not.toBeInTheDocument()
+  })
+
+  it("links list items to key detail", async () => {
+    vi.mocked(keysApi.list).mockResolvedValue([
+      {
+        id: "key-1",
+        label: "Work key",
+        fingerprint: "ABCD1234",
+        keyType: "private",
+        capabilities: ["certify"],
+        expiresAt: null,
+      },
+    ])
+
+    render(
+      <MemoryRouter>
+        <HomeKeysPanel />
+      </MemoryRouter>,
+    )
+
+    const viewLink = await screen.findByRole("link", { name: /view/i })
+    expect(viewLink).toHaveAttribute("href", "/keys/key-1")
   })
 
   it("shows create and import key links", async () => {

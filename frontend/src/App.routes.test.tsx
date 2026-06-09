@@ -23,6 +23,20 @@ vi.mock("@/hooks/use-api-access-token", () => ({
   }),
 }))
 
+vi.mock("@/lib/keys-api", () => ({
+  keysApi: {
+    get: vi.fn().mockResolvedValue({
+      id: "key-detail-1",
+      label: "Detail key",
+      fingerprint: "DETAILFINGERPRINT",
+      role: "primary",
+      status: "active",
+      capabilities: ["certify"],
+    }),
+    listSubkeys: vi.fn().mockResolvedValue([]),
+  },
+}))
+
 import { App } from "@/App"
 
 function renderApp(initialPath = "/") {
@@ -62,6 +76,12 @@ describe("App routes", () => {
     renderApp("/keys/import")
     expect(await screen.findByRole("heading", { name: /import key/i, level: 1 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: /import key/i, level: 2 })).toBeInTheDocument()
+  })
+
+  it("renders key detail page at /keys/:id", async () => {
+    renderApp("/keys/key-detail-1")
+    expect(await screen.findByRole("heading", { name: /key detail/i, level: 1 })).toBeInTheDocument()
+    expect(screen.getAllByRole("heading", { name: /key detail/i }).length).toBeGreaterThanOrEqual(1)
   })
 
   it("navigates between overview and keys via sidebar links", async () => {
