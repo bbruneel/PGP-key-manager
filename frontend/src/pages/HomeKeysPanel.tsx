@@ -24,7 +24,7 @@ export function HomeKeysPanel() {
     setRequestId(null)
     try {
       const token = await getAccessToken()
-      const data = await keysApi.list({ accessToken: token })
+      const data = await keysApi.list({ accessToken: token, role: "primary" })
       setKeys(data)
     } catch (e) {
       setKeys([])
@@ -118,18 +118,27 @@ export function HomeKeysPanel() {
               key={key.id}
               className="rounded-md border border-input bg-background px-3 py-2.5 text-sm"
             >
-              <p className="font-medium text-foreground">{key.label ?? "Unlabeled key"}</p>
-              <p className="mt-1 font-mono text-xs text-muted-foreground">{key.fingerprint}</p>
-              {key.keyId ? (
-                <p className="mt-1 font-mono text-xs text-muted-foreground">Key ID {key.keyId}</p>
-              ) : null}
-              <p className="mt-1 text-xs text-muted-foreground">
-                {key.keyType}
-                {key.algorithm ? ` · ${key.algorithm}` : ""}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {formatCapabilities(key.capabilities)} · {formatKeyExpiry(key.expiresAt)}
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium text-foreground">{key.label ?? "Unlabeled key"}</p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">{key.fingerprint}</p>
+                  {key.keyId ? (
+                    <p className="mt-1 font-mono text-xs text-muted-foreground">Key ID {key.keyId}</p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {key.keyType}
+                    {key.algorithm ? ` · ${key.algorithm}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatCapabilities(key.capabilities)} · {formatKeyExpiry(key.expiresAt)}
+                  </p>
+                </div>
+                {key.id ? (
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <Link to={`/keys/${key.id}`}>View</Link>
+                  </Button>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>

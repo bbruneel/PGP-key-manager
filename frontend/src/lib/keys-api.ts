@@ -1,12 +1,17 @@
-import { requestJson } from "@/lib/api-client"
+import { requestJson, requestText } from "@/lib/api-client"
 import type {
   CreatePgpKeyRequest,
+  ExtendExpiryRequest,
   KeyRole,
   KeyStatus,
   PgpCapability,
   PgpKey,
+  PgpKeyDetail,
   PgpKeyListItem,
   RegisterPgpKeyRequest,
+  RevokeKeyRequest,
+  RotateKeyRequest,
+  RotateKeyResponse,
 } from "@/types/api"
 
 export type ListKeysOptions = {
@@ -26,8 +31,42 @@ export type RegisterKeyOptions = {
   body: RegisterPgpKeyRequest
 }
 
+export type GetKeyOptions = {
+  accessToken: string
+  keyId: string
+}
+
+export type ListSubkeysOptions = {
+  accessToken: string
+  primaryKeyId: string
+}
+
+export type RevokeKeyOptions = {
+  accessToken: string
+  keyId: string
+  body: RevokeKeyRequest
+}
+
+export type ExtendExpiryOptions = {
+  accessToken: string
+  keyId: string
+  body: ExtendExpiryRequest
+}
+
+export type RotateKeyOptions = {
+  accessToken: string
+  keyId: string
+  body: RotateKeyRequest
+}
+
+export type ExportPublicKeyOptions = {
+  accessToken: string
+  keyId: string
+}
+
 /**
- * Key API client. Phase 1 adds create; Phase 2 adds register (import).
+ * Key API client. Phase 1 adds create; Phase 2 adds register (import);
+ * Phase 3 adds detail, subkeys, and lifecycle actions.
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeyListItem[]> {
@@ -70,6 +109,57 @@ export const keysApi = {
       accessToken: options.accessToken,
       method: "POST",
       body: options.body,
+    })
+  },
+
+  get(options: GetKeyOptions): Promise<PgpKeyDetail> {
+    return requestJson<PgpKeyDetail>(`/api/keys/${options.keyId}`, {
+      operationId: "getKey",
+      accessToken: options.accessToken,
+      method: "GET",
+    })
+  },
+
+  listSubkeys(options: ListSubkeysOptions): Promise<PgpKeyListItem[]> {
+    return requestJson<PgpKeyListItem[]>(`/api/keys/${options.primaryKeyId}/subkeys`, {
+      operationId: "listSubkeys",
+      accessToken: options.accessToken,
+      method: "GET",
+    })
+  },
+
+  revoke(options: RevokeKeyOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>(`/api/keys/${options.keyId}/revoke`, {
+      operationId: "revokeKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+    })
+  },
+
+  extendExpiry(options: ExtendExpiryOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>(`/api/keys/${options.keyId}/extend-expiry`, {
+      operationId: "extendKeyExpiry",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+    })
+  },
+
+  rotate(options: RotateKeyOptions): Promise<RotateKeyResponse> {
+    return requestJson<RotateKeyResponse>(`/api/keys/${options.keyId}/rotate`, {
+      operationId: "rotateKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+    })
+  },
+
+  exportPublic(options: ExportPublicKeyOptions): Promise<string> {
+    return requestText(`/api/keys/${options.keyId}/export-public`, {
+      operationId: "exportPublicKey",
+      accessToken: options.accessToken,
+      method: "GET",
     })
   },
 }

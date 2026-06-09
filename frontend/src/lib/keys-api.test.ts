@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { requestJson } from "@/lib/api-client"
+import { requestJson, requestText } from "@/lib/api-client"
 import { keysApi } from "@/lib/keys-api"
 import type { RegisterPgpKeyRequest } from "@/types/api"
 
 vi.mock("@/lib/api-client", () => ({
   requestJson: vi.fn(),
+  requestText: vi.fn(),
 }))
 
 describe("keysApi.list", () => {
@@ -99,5 +100,140 @@ describe("keysApi.register", () => {
     expect(result).toEqual({ id: "key-imported", fingerprint: body.fingerprint })
     expect(body).not.toHaveProperty("passphrase")
     expect(body).not.toHaveProperty("algorithmSpec")
+  })
+})
+
+describe("keysApi.get", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls GET /api/keys/{keyId} with getKey operationId", async () => {
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-1", fingerprint: "ABCD" })
+
+    const result = await keysApi.get({ accessToken: "token-abc", keyId: "key-1" })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1", {
+      operationId: "getKey",
+      accessToken: "token-abc",
+      method: "GET",
+    })
+    expect(result).toEqual({ id: "key-1", fingerprint: "ABCD" })
+  })
+})
+
+describe("keysApi.listSubkeys", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls GET /api/keys/{primaryKeyId}/subkeys with listSubkeys operationId", async () => {
+    vi.mocked(requestJson).mockResolvedValue([{ id: "sub-1", role: "subkey" }])
+
+    const result = await keysApi.listSubkeys({
+      accessToken: "token-abc",
+      primaryKeyId: "primary-1",
+    })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/primary-1/subkeys", {
+      operationId: "listSubkeys",
+      accessToken: "token-abc",
+      method: "GET",
+    })
+    expect(result).toEqual([{ id: "sub-1", role: "subkey" }])
+  })
+})
+
+describe("keysApi.revoke", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/revoke with revokeKey operationId", async () => {
+    const body = { reason: "key_retired" as const, passphrase: "secret-pass" }
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-1", status: "revoked" })
+
+    const result = await keysApi.revoke({ accessToken: "token-abc", keyId: "key-1", body })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1/revoke", {
+      operationId: "revokeKey",
+      accessToken: "token-abc",
+      method: "POST",
+      body,
+    })
+    expect(result).toEqual({ id: "key-1", status: "revoked" })
+  })
+})
+
+describe("keysApi.extendExpiry", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/extend-expiry with extendKeyExpiry operationId", async () => {
+    const body = { expiresAt: "2031-06-01T00:00:00Z", passphrase: "secret-pass" }
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-1", expiresAt: body.expiresAt })
+
+    const result = await keysApi.extendExpiry({ accessToken: "token-abc", keyId: "key-1", body })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1/extend-expiry", {
+      operationId: "extendKeyExpiry",
+      accessToken: "token-abc",
+      method: "POST",
+      body,
+    })
+    expect(result).toEqual({ id: "key-1", expiresAt: body.expiresAt })
+  })
+})
+
+describe("keysApi.rotate", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/rotate with rotateKey operationId", async () => {
+    const body = {
+      capabilities: ["encrypt" as const],
+      algorithm: { algorithm: "cv25519" as const },
+      passphrase: "secret-pass",
+      revokePrevious: true,
+    }
+    vi.mocked(requestJson).mockResolvedValue({
+      newKey: { id: "sub-new" },
+      previousKey: { id: "sub-old", status: "revoked" },
+    })
+
+    const result = await keysApi.rotate({ accessToken: "token-abc", keyId: "sub-old", body })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/sub-old/rotate", {
+      operationId: "rotateKey",
+      accessToken: "token-abc",
+      method: "POST",
+      body,
+    })
+    expect(result).toEqual({
+      newKey: { id: "sub-new" },
+      previousKey: { id: "sub-old", status: "revoked" },
+    })
+  })
+})
+
+describe("keysApi.exportPublic", () => {
+  beforeEach(() => {
+    vi.mocked(requestText).mockReset()
+  })
+
+  it("calls GET /api/keys/{keyId}/export-public with exportPublicKey operationId", async () => {
+    const armored = "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQENBGexample\n-----END PGP PUBLIC KEY BLOCK-----"
+    vi.mocked(requestText).mockResolvedValue(armored)
+
+    const result = await keysApi.exportPublic({ accessToken: "token-abc", keyId: "key-1" })
+
+    expect(requestText).toHaveBeenCalledWith("/api/keys/key-1/export-public", {
+      operationId: "exportPublicKey",
+      accessToken: "token-abc",
+      method: "GET",
+    })
+    expect(result).toBe(armored)
   })
 })

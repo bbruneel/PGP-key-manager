@@ -4,7 +4,7 @@ import { logApiEvent } from "@/lib/logger"
 
 const REQUEST_ID_HEADER = "X-Request-Id"
 
-export type RequestJsonOptions = {
+export type RequestOptions = {
   operationId: string
   accessToken?: string | null
   method?: string
@@ -12,11 +12,13 @@ export type RequestJsonOptions = {
   requestId?: string
 }
 
+export type RequestJsonOptions = RequestOptions
+
 function responseRequestId(response: Response, fallback?: string): string | undefined {
   return response.headers.get(REQUEST_ID_HEADER) ?? fallback
 }
 
-export async function requestJson<T>(path: string, options: RequestJsonOptions): Promise<T> {
+async function executeRequest(path: string, options: RequestOptions): Promise<Response> {
   const requestId = options.requestId ?? newRequestId()
   const method = options.method ?? (options.body !== undefined ? "POST" : "GET")
   const headers: Record<string, string> = {}
@@ -50,27 +52,47 @@ export async function requestJson<T>(path: string, options: RequestJsonOptions):
     throw apiError
   }
 
-  const contentType = response.headers.get("content-type") ?? ""
-  if (response.status === 204 || !contentType.includes("json")) {
-    logApiEvent("info", {
-      operationId: options.operationId,
-      requestId: correlatedRequestId,
-      path,
-      status: response.status,
-      message: "Request completed successfully",
-    })
-    return undefined as T
-  }
+  return response
+}
 
-  const data = (await response.json()) as T
+function logRequestSuccess(
+  options: RequestOptions,
+  path: string,
+  response: Response,
+  requestId: string,
+): void {
   logApiEvent("info", {
     operationId: options.operationId,
-    requestId: correlatedRequestId,
+    requestId,
     path,
     status: response.status,
     message: "Request completed successfully",
   })
+}
+
+export async function requestJson<T>(path: string, options: RequestJsonOptions): Promise<T> {
+  const requestId = options.requestId ?? newRequestId()
+  const response = await executeRequest(path, { ...options, requestId })
+  const correlatedRequestId = responseRequestId(response, requestId) ?? requestId
+
+  const contentType = response.headers.get("content-type") ?? ""
+  if (response.status === 204 || !contentType.includes("json")) {
+    logRequestSuccess(options, path, response, correlatedRequestId)
+    return undefined as T
+  }
+
+  const data = (await response.json()) as T
+  logRequestSuccess(options, path, response, correlatedRequestId)
   return data
+}
+
+export async function requestText(path: string, options: RequestOptions): Promise<string> {
+  const requestId = options.requestId ?? newRequestId()
+  const response = await executeRequest(path, { ...options, requestId })
+  const correlatedRequestId = responseRequestId(response, requestId) ?? requestId
+  const text = await response.text()
+  logRequestSuccess(options, path, response, correlatedRequestId)
+  return text
 }
 
 export { API_ACCEPT_HEADER }

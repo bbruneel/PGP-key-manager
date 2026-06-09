@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "@/lib/api-error"
-import { requestJson } from "@/lib/api-client"
+import { requestJson, requestText } from "@/lib/api-client"
 import { logApiEvent } from "@/lib/logger"
 
 vi.mock("@/lib/logger", () => ({
@@ -122,6 +122,91 @@ describe("requestJson", () => {
 
     await expect(requestJson("/api/hello", { operationId: "getHello" })).rejects.toThrow(
       "VITE_API_BASE_URL is not set",
+    )
+  })
+})
+
+describe("requestText", () => {
+  const originalBaseUrl = import.meta.env.VITE_API_BASE_URL
+
+  beforeEach(() => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:8080")
+    vi.mocked(logApiEvent).mockClear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+    if (originalBaseUrl !== undefined) {
+      vi.stubEnv("VITE_API_BASE_URL", originalBaseUrl)
+    }
+  })
+
+  it("returns response body text and logs success with operationId and requestId", async () => {
+    const armored = "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQENBGexample\n-----END PGP PUBLIC KEY BLOCK-----"
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        "content-type": "application/pgp-keys",
+        "x-request-id": "server-rid-export",
+      }),
+      text: async () => armored,
+    } as Response)
+    vi.stubGlobal("fetch", fetchMock)
+
+    const data = await requestText("/api/keys/key-1/export-public", {
+      operationId: "exportPublicKey",
+      accessToken: "token-abc",
+      requestId: "client-rid-export",
+    })
+
+    expect(data).toBe(armored)
+    expect(logApiEvent).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({
+        operationId: "exportPublicKey",
+        requestId: "server-rid-export",
+        status: 200,
+      }),
+    )
+  })
+
+  it("throws ApiError on failure", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: new Headers({
+        "content-type": "application/problem+json",
+        "x-request-id": "server-rid-missing",
+      }),
+      json: async () => ({
+        title: "Not Found",
+        status: 404,
+        detail: "Key not found",
+      }),
+    } as Response)
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(
+      requestText("/api/keys/missing/export-public", {
+        operationId: "exportPublicKey",
+        accessToken: "token-abc",
+      }),
+    ).rejects.toMatchObject({
+      name: "ApiError",
+      status: 404,
+      detail: "Key not found",
+      requestId: "server-rid-missing",
+    } satisfies Partial<ApiError>)
+
+    expect(logApiEvent).toHaveBeenCalledWith(
+      "warn",
+      expect.objectContaining({
+        operationId: "exportPublicKey",
+        requestId: "server-rid-missing",
+        status: 404,
+      }),
     )
   })
 })
