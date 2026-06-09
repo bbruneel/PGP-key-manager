@@ -62,12 +62,11 @@ export function validateRotateKeyForm(values: RotateKeyFormValues): RotateKeyVal
     fieldErrors.expiresAt = "Expiry date must be in the future"
   }
 
-  if (values.revokePrevious) {
-    if (values.passphrase.length < PASSPHRASE_MIN_LENGTH) {
-      fieldErrors.passphrase = `Passphrase must be at least ${PASSPHRASE_MIN_LENGTH} characters`
-    } else if (values.passphrase.length > PASSPHRASE_MAX_LENGTH) {
-      fieldErrors.passphrase = `Passphrase must be at most ${PASSPHRASE_MAX_LENGTH} characters`
-    }
+  // Passphrase unlocks the primary keyring for both optional revoke and new subkey creation.
+  if (values.passphrase.length < PASSPHRASE_MIN_LENGTH) {
+    fieldErrors.passphrase = `Passphrase must be at least ${PASSPHRASE_MIN_LENGTH} characters`
+  } else if (values.passphrase.length > PASSPHRASE_MAX_LENGTH) {
+    fieldErrors.passphrase = `Passphrase must be at most ${PASSPHRASE_MAX_LENGTH} characters`
   }
 
   return {

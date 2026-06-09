@@ -57,8 +57,8 @@ export function RotateKeyForm({
       <div>
         <h3 className="text-sm font-semibold text-foreground">Rotate subkey</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create a replacement subkey. When revoke previous is enabled, the current subkey is revoked in the
-          keyring.
+          Create a replacement subkey on the primary keyring. Your passphrase is required to add the new subkey;
+          when revoke previous is enabled, the current subkey is also revoked in the keyring.
         </p>
       </div>
 
@@ -131,21 +131,19 @@ export function RotateKeyForm({
           Revoke previous subkey in keyring
         </label>
 
-        {values.revokePrevious ? (
-          <div className="space-y-2">
-            <Label htmlFor="rotate-passphrase">Passphrase</Label>
-            <Input
-              id="rotate-passphrase"
-              type="password"
-              value={values.passphrase}
-              onChange={(event) => updateField("passphrase", event.target.value)}
-              autoComplete="current-password"
-              aria-invalid={Boolean(fieldErrors.passphrase)}
-              disabled={submitting || disabled}
-            />
-            <FieldError message={fieldErrors.passphrase} />
-          </div>
-        ) : null}
+        <div className="space-y-2">
+          <Label htmlFor="rotate-passphrase">Passphrase</Label>
+          <Input
+            id="rotate-passphrase"
+            type="password"
+            value={values.passphrase}
+            onChange={(event) => updateField("passphrase", event.target.value)}
+            autoComplete="current-password"
+            aria-invalid={Boolean(fieldErrors.passphrase)}
+            disabled={submitting || disabled}
+          />
+          <FieldError message={fieldErrors.passphrase} />
+        </div>
 
         {apiError ? (
           <div className="text-sm text-destructive">

@@ -32,6 +32,23 @@ describe("RotateKeyForm", () => {
     expect(onSubmit).toHaveBeenCalledOnce()
   })
 
+  it("shows passphrase when revoke previous is unchecked", () => {
+    render(
+      <RotateKeyForm
+        values={{ ...defaultRotateKeyFormValues(), revokePrevious: false }}
+        fieldErrors={{}}
+        apiError={null}
+        requestId={null}
+        submitting={false}
+        disabled={false}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText(/^passphrase$/i)).toBeInTheDocument()
+  })
+
   it("disables submit when not available", () => {
     render(
       <RotateKeyForm

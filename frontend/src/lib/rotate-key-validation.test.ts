@@ -14,17 +14,11 @@ describe("validateRotateKeyForm", () => {
     expect(result.fieldErrors.capabilities).toBeDefined()
   })
 
-  it("requires passphrase when revokePrevious is true", () => {
-    const values = { ...defaultRotateKeyFormValues(), passphrase: "" }
+  it("requires passphrase even when revokePrevious is false", () => {
+    const values = { ...defaultRotateKeyFormValues(), revokePrevious: false, passphrase: "" }
     const result = validateRotateKeyForm(values)
     expect(result.valid).toBe(false)
     expect(result.fieldErrors.passphrase).toBeDefined()
-  })
-
-  it("does not require passphrase when revokePrevious is false", () => {
-    const values = { ...defaultRotateKeyFormValues(), revokePrevious: false, passphrase: "" }
-    const result = validateRotateKeyForm(values)
-    expect(result.valid).toBe(true)
   })
 
   it("accepts valid form with passphrase", () => {
