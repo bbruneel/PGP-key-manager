@@ -1,10 +1,10 @@
 package org.bruneel.pgpkeymanager.config;
 
 import com.zaxxer.hikari.HikariDataSource;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * Disables JDBC server-side prepared statements when the app datasource targets a
@@ -26,11 +26,11 @@ import org.springframework.context.annotation.Configuration;
 public class PgBouncerTransactionPoolDataSourceConfiguration {
 
     @Bean
-    static BeanPostProcessor postgresPoolerPrepareThresholdConfigurer(
-            @Value("${spring.datasource.url:}") String jdbcUrl) {
+    static BeanPostProcessor postgresPoolerPrepareThresholdConfigurer(Environment environment) {
+        String jdbcUrl = environment.getProperty("spring.datasource.url", "");
         return new BeanPostProcessor() {
             @Override
-            public Object postProcessAfterInitialization(Object bean, String beanName) {
+            public Object postProcessBeforeInitialization(Object bean, String beanName) {
                 if (bean instanceof HikariDataSource hikari && usesPgBouncerTransactionPooler(jdbcUrl)) {
                     hikari.addDataSourceProperty("prepareThreshold", "0");
                 }
