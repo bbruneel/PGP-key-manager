@@ -125,7 +125,7 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/keys` | List keys for the signed-in user | Current |
 | `/keys/new` | Create primary key (label, user IDs, expiry, passphrase, Ed25519, OpenPGP v4/v6) | Phase 1 (implemented) |
 | `/keys/import` | Import/register existing key (public or private armored blocks + fingerprint) | Phase 2 (implemented) |
-| `/keys/:id` | Key detail, subkeys list, lifecycle actions (revoke, extend, rotate, export) | Phase 3 (implemented) |
+| `/keys/:id` | Key detail, subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, export) | Phase 3 + 4 (implemented) |
 
 **Recorded decision:** create primary key at **`/keys/new`** and import at **`/keys/import`**, not modals on `/keys`.
 
@@ -139,7 +139,7 @@ Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `ap
 - **`X-Request-Id`** — client-generated UUID; echoed by the backend `RequestIdFilter` for correlation in logs and error UI.
 - **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
 
-Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`. Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text.
+Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`; Phase 4 adds `keysApi.createSubkey()`. Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text.
 
 ## Create primary key flow (Phase 1)
 
@@ -167,10 +167,19 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
    - `keyDetail.export.submit` / `keyDetail.export.success` / `keyDetail.export.error`
    - `keyDetail.revoke.*`, `keyDetail.extendExpiry.*`, `keyDetail.rotate.*`
 4. `keysApi.exportPublic()` uses `requestText` + `copyTextToClipboard` or download as `.asc`.
-5. Revoke and extend require passphrase when the primary keyring stores private material; rotate is subkey-only and requires passphrase when `revokePrevious` is true (default).
+5. Revoke and extend require passphrase when the primary keyring stores private material; rotate is subkey-only and always requires passphrase (unlocks the primary keyring for new subkey creation; optional `revokePrevious` also revokes the current subkey in the keyring).
 6. On success: sonner toast, refetch key/subkeys; rotate navigates to the new subkey. Passphrase fields are cleared after submit.
 
-**Future (not implemented):** import subkey rows from multi-key armored exports; create subkey UI (`POST /subkeys`).
+## Add subkey (Phase 4)
+
+1. On primary key detail (`/keys/:id`), when the primary has private material and is not revoked, the **Add subkey** form appears below the subkeys list (inline — no separate route).
+2. Client validates input (`create-subkey-validation.ts`); subkey capabilities exclude `certify` (shared `subkey-capabilities.ts` with rotate form).
+3. `keysApi.createSubkey()` sends `POST /api/keys/{primaryKeyId}/subkeys` with `operationId: createSubkey`.
+4. `[pgp-ui]` events: `keyDetail.createSubkey.submit`, `keyDetail.createSubkey.validationFailed`, `keyDetail.createSubkey.apiSuccess`, `keyDetail.createSubkey.apiError`.
+5. On success: sonner toast with fingerprint, subkeys list refresh, navigate to `/keys/{newSubkeyId}`. Passphrase cleared after submit.
+6. Metadata-only primaries show a hint to import private material instead of the form.
+
+**Future (not implemented):** import subkey rows from multi-key armored exports.
 
 ## Repository layout
 

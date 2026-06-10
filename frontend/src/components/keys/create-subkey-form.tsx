@@ -10,16 +10,16 @@ import {
 } from "@/components/ui/select"
 import { SUBKEY_CAPABILITY_OPTIONS } from "@/lib/subkey-capabilities"
 import type { PgpCapability } from "@/types/api"
-import type { RotateKeyFieldErrors, RotateKeyFormValues } from "@/lib/rotate-key-validation"
+import type { CreateSubkeyFieldErrors, CreateSubkeyFormValues } from "@/lib/create-subkey-validation"
 
-type RotateKeyFormProps = {
-  values: RotateKeyFormValues
-  fieldErrors: RotateKeyFieldErrors
+type CreateSubkeyFormProps = {
+  values: CreateSubkeyFormValues
+  fieldErrors: CreateSubkeyFieldErrors
   apiError: string | null
   requestId: string | null
   submitting: boolean
   disabled: boolean
-  onChange: (values: RotateKeyFormValues) => void
+  onChange: (values: CreateSubkeyFormValues) => void
   onSubmit: () => void
 }
 
@@ -30,7 +30,7 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-1 text-xs text-destructive">{message}</p>
 }
 
-export function RotateKeyForm({
+export function CreateSubkeyForm({
   values,
   fieldErrors,
   apiError,
@@ -39,8 +39,11 @@ export function RotateKeyForm({
   disabled,
   onChange,
   onSubmit,
-}: RotateKeyFormProps) {
-  function updateField<K extends keyof RotateKeyFormValues>(key: K, value: RotateKeyFormValues[K]) {
+}: CreateSubkeyFormProps) {
+  function updateField<K extends keyof CreateSubkeyFormValues>(
+    key: K,
+    value: CreateSubkeyFormValues[K],
+  ) {
     onChange({ ...values, [key]: value })
   }
 
@@ -52,12 +55,11 @@ export function RotateKeyForm({
   }
 
   return (
-    <section aria-label="Rotate subkey" className="space-y-4">
+    <section aria-label="Add subkey" className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Rotate subkey</h3>
+        <h3 className="text-sm font-semibold text-foreground">Add subkey</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create a replacement subkey on the primary keyring. Your passphrase is required to add the new subkey;
-          when revoke previous is enabled, the current subkey is also revoked in the keyring.
+          Create a new subkey on the primary keyring. Your passphrase unlocks the primary private key.
         </p>
       </div>
 
@@ -89,13 +91,19 @@ export function RotateKeyForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="rotate-algorithm">Algorithm</Label>
+          <Label htmlFor="create-subkey-algorithm">Algorithm</Label>
           <Select
             value={values.algorithm}
-            onValueChange={(value) => updateField("algorithm", value as RotateKeyFormValues["algorithm"])}
+            onValueChange={(value) =>
+              updateField("algorithm", value as CreateSubkeyFormValues["algorithm"])
+            }
             disabled={submitting || disabled}
           >
-            <SelectTrigger id="rotate-algorithm" className="w-full" aria-invalid={Boolean(fieldErrors.algorithm)}>
+            <SelectTrigger
+              id="create-subkey-algorithm"
+              className="w-full"
+              aria-invalid={Boolean(fieldErrors.algorithm)}
+            >
               <SelectValue placeholder="Select algorithm" />
             </SelectTrigger>
             <SelectContent>
@@ -107,9 +115,9 @@ export function RotateKeyForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="rotate-expires-at">Expiry date</Label>
+          <Label htmlFor="create-subkey-expires-at">Expiry date</Label>
           <Input
-            id="rotate-expires-at"
+            id="create-subkey-expires-at"
             type="date"
             value={values.expiresAt}
             onChange={(event) => updateField("expiresAt", event.target.value)}
@@ -119,21 +127,10 @@ export function RotateKeyForm({
           <FieldError message={fieldErrors.expiresAt} />
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={values.revokePrevious}
-            onChange={(event) => updateField("revokePrevious", event.target.checked)}
-            disabled={submitting || disabled}
-            className="size-4 accent-primary"
-          />
-          Revoke previous subkey in keyring
-        </label>
-
         <div className="space-y-2">
-          <Label htmlFor="rotate-passphrase">Passphrase</Label>
+          <Label htmlFor="create-subkey-passphrase">Passphrase</Label>
           <Input
-            id="rotate-passphrase"
+            id="create-subkey-passphrase"
             type="password"
             value={values.passphrase}
             onChange={(event) => updateField("passphrase", event.target.value)}
@@ -151,8 +148,8 @@ export function RotateKeyForm({
           </div>
         ) : null}
 
-        <Button type="submit" variant="outline" disabled={submitting || disabled}>
-          {submitting ? "Rotating…" : "Rotate subkey"}
+        <Button type="submit" variant="default" disabled={submitting || disabled}>
+          {submitting ? "Adding…" : "Add subkey"}
         </Button>
       </form>
     </section>

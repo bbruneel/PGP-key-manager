@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Smoke test: primary create → subkey → export → extend → revoke subkey.
+# Smoke test: primary create → subkey (POST /subkeys) → export → extend → revoke subkey.
+# Phase 4 UI mirrors the create-subkey payload below (encrypt + cv25519 + passphrase).
 #
 # Usage:
 #   ACCESS_TOKEN='eyJ...' ./scripts/smoke-lifecycle-key.sh

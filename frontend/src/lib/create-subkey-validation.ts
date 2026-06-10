@@ -1,21 +1,20 @@
 import { isValidSubkeyCapabilitySet } from "@/lib/subkey-capabilities"
-import type { PgpCapability, RotateKeyRequest } from "@/types/api"
+import type { CreateSubkeyRequest, PgpCapability } from "@/types/api"
 
-export type RotateAlgorithm = "ed25519" | "cv25519"
+export type CreateSubkeyAlgorithm = "ed25519" | "cv25519"
 
-export type RotateKeyFormValues = {
+export type CreateSubkeyFormValues = {
   capabilities: PgpCapability[]
-  algorithm: RotateAlgorithm
+  algorithm: CreateSubkeyAlgorithm
   expiresAt: string
-  revokePrevious: boolean
   passphrase: string
 }
 
-export type RotateKeyFieldErrors = Partial<Record<keyof RotateKeyFormValues, string>>
+export type CreateSubkeyFieldErrors = Partial<Record<keyof CreateSubkeyFormValues, string>>
 
-export type RotateKeyValidationResult = {
+export type CreateSubkeyValidationResult = {
   valid: boolean
-  fieldErrors: RotateKeyFieldErrors
+  fieldErrors: CreateSubkeyFieldErrors
 }
 
 const PASSPHRASE_MIN_LENGTH = 8
@@ -27,12 +26,11 @@ function defaultExpiryDate(): string {
   return date.toISOString().slice(0, 10)
 }
 
-export function defaultRotateKeyFormValues(): RotateKeyFormValues {
+export function defaultCreateSubkeyFormValues(): CreateSubkeyFormValues {
   return {
     capabilities: ["encrypt"],
     algorithm: "cv25519",
     expiresAt: defaultExpiryDate(),
-    revokePrevious: true,
     passphrase: "",
   }
 }
@@ -45,8 +43,8 @@ function parseExpiryInstant(expiresAt: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-export function validateRotateKeyForm(values: RotateKeyFormValues): RotateKeyValidationResult {
-  const fieldErrors: RotateKeyFieldErrors = {}
+export function validateCreateSubkeyForm(values: CreateSubkeyFormValues): CreateSubkeyValidationResult {
+  const fieldErrors: CreateSubkeyFieldErrors = {}
 
   if (!isValidSubkeyCapabilitySet(values.capabilities)) {
     fieldErrors.capabilities = values.capabilities.includes("certify")
@@ -65,7 +63,6 @@ export function validateRotateKeyForm(values: RotateKeyFormValues): RotateKeyVal
     fieldErrors.expiresAt = "Expiry date must be in the future"
   }
 
-  // Passphrase unlocks the primary keyring for both optional revoke and new subkey creation.
   if (values.passphrase.length < PASSPHRASE_MIN_LENGTH) {
     fieldErrors.passphrase = `Passphrase must be at least ${PASSPHRASE_MIN_LENGTH} characters`
   } else if (values.passphrase.length > PASSPHRASE_MAX_LENGTH) {
@@ -78,18 +75,12 @@ export function validateRotateKeyForm(values: RotateKeyFormValues): RotateKeyVal
   }
 }
 
-export function buildRotateKeyRequest(values: RotateKeyFormValues): RotateKeyRequest {
+export function buildCreateSubkeyRequest(values: CreateSubkeyFormValues): CreateSubkeyRequest {
   const expiry = parseExpiryInstant(values.expiresAt)!
-  const request: RotateKeyRequest = {
+  return {
     capabilities: values.capabilities,
     algorithm: { algorithm: values.algorithm },
     validity: { expiresAt: expiry.toISOString() },
-    revokePrevious: values.revokePrevious,
+    passphrase: values.passphrase,
   }
-
-  if (values.passphrase) {
-    request.passphrase = values.passphrase
-  }
-
-  return request
 }

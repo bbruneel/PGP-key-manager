@@ -59,6 +59,7 @@ describe("KeyDetailSubkeys", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/no subkeys yet/i)).toBeInTheDocument()
+      expect(screen.getByText(/add subkey form below/i)).toBeInTheDocument()
     })
   })
 })

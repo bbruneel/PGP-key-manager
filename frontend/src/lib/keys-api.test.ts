@@ -218,6 +218,36 @@ describe("keysApi.rotate", () => {
   })
 })
 
+describe("keysApi.createSubkey", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/{primaryKeyId}/subkeys with createSubkey operationId", async () => {
+    const body = {
+      capabilities: ["encrypt" as const],
+      algorithm: { algorithm: "cv25519" as const },
+      validity: { expiresAt: "2031-06-01T00:00:00.000Z" },
+      passphrase: "valid-passphrase",
+    }
+    vi.mocked(requestJson).mockResolvedValue({ id: "sub-new", fingerprint: "NEWFP" })
+
+    const result = await keysApi.createSubkey({
+      accessToken: "token-abc",
+      primaryKeyId: "primary-1",
+      body,
+    })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/primary-1/subkeys", {
+      operationId: "createSubkey",
+      accessToken: "token-abc",
+      method: "POST",
+      body,
+    })
+    expect(result).toEqual({ id: "sub-new", fingerprint: "NEWFP" })
+  })
+})
+
 describe("keysApi.exportPublic", () => {
   beforeEach(() => {
     vi.mocked(requestText).mockReset()
