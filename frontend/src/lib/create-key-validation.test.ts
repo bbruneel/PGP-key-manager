@@ -75,6 +75,19 @@ describe("validateCreateKeyForm", () => {
     expect(result.valid).toBe(false)
     expect(result.fieldErrors.expiresAt).toBeDefined()
   })
+
+  it("accepts rsa 4096 primary in advanced options", () => {
+    const result = validateCreateKeyForm(
+      validValues({ algorithm: "rsa", keySize: 4096 }),
+    )
+    expect(result.valid).toBe(true)
+  })
+
+  it("rejects rsa primary without keySize", () => {
+    const result = validateCreateKeyForm(validValues({ algorithm: "rsa" }))
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.algorithm).toMatch(/key size/i)
+  })
 })
 
 describe("buildCreateKeyRequest", () => {
@@ -98,6 +111,13 @@ describe("buildCreateKeyRequest", () => {
       passphrase: "test-passphrase-1",
       openpgpVersion: 6,
     })
+  })
+
+  it("maps rsa primary algorithm spec", () => {
+    const request = buildCreateKeyRequest(
+      validValues({ algorithm: "rsa", keySize: 4096 }),
+    )
+    expect(request.algorithmSpec).toEqual({ algorithm: "rsa", keySize: 4096 })
   })
 
   it("omits label when blank", () => {

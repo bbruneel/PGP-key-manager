@@ -79,7 +79,7 @@ export type ExportPublicKeyOptions = {
 /**
  * Key API client. Phase 1 adds create; Phase 2 adds register (import);
  * Phase 3 adds detail, subkeys, and lifecycle actions; Phase 4 adds createSubkey;
- * Phase 5 adds importSubkeysFromKeyring.
+ * Phase 5 adds importSubkeysFromKeyring; Phase 6 extends algorithm UI (see algorithm-spec.ts).
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeySummary[]> {

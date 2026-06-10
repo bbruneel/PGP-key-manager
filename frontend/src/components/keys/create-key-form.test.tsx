@@ -96,4 +96,25 @@ describe("CreateKeyForm", () => {
     await user.click(getSubmitButton())
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
+
+  it("shows algorithm select in advanced options", async () => {
+    const user = userEvent.setup()
+
+    render(
+      <CreateKeyForm
+        values={defaultCreateKeyFormValues()}
+        fieldErrors={{}}
+        apiError={null}
+        requestId={null}
+        submitting={false}
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: /advanced options/i }))
+    expect(screen.getByLabelText(/^algorithm$/i)).toBeInTheDocument()
+    expect(screen.getByText(/Ed25519 is recommended/i)).toBeInTheDocument()
+  })
 })

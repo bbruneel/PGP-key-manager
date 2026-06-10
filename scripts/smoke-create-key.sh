@@ -8,6 +8,7 @@
 # Optional env:
 #   API_BASE_URL   default http://localhost:8080
 #   SMOKE_CLEANUP  set to 1 to DELETE the created key after verification
+#   SMOKE_RSA_PRIMARY  set to 1 to create RSA 4096 primary instead of Ed25519 (Phase 6 legacy)
 
 set -euo pipefail
 
@@ -23,6 +24,14 @@ fi
 REQUEST_ID="$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)"
 PASSPHRASE="smoke-test-passphrase-1"
 
+if [[ "${SMOKE_RSA_PRIMARY:-}" == "1" ]]; then
+  ALGORITHM_JSON='{ "algorithm": "rsa", "keySize": 4096 }'
+  LABEL="smoke-test-rsa-primary"
+else
+  ALGORITHM_JSON='{ "algorithm": "ed25519" }'
+  LABEL="smoke-test-primary"
+fi
+
 echo "→ POST ${API_BASE_URL}/api/keys"
 CREATE_RESPONSE="$(
   curl -sS -w '\n%{http_code}' -X POST "${API_BASE_URL}/api/keys" \
@@ -31,10 +40,10 @@ CREATE_RESPONSE="$(
     -H "Authorization: Bearer ${TOKEN}" \
     -H "X-Request-Id: ${REQUEST_ID}" \
     -d "{
-      \"label\": \"smoke-test-primary\",
+      \"label\": \"${LABEL}\",
       \"keyType\": \"private\",
       \"capabilities\": [\"certify\", \"sign\"],
-      \"algorithmSpec\": { \"algorithm\": \"ed25519\" },
+      \"algorithmSpec\": ${ALGORITHM_JSON},
       \"validity\": { \"expiresAt\": \"2030-06-01T00:00:00Z\" },
       \"userIds\": [{ \"name\": \"Smoke Test\", \"email\": \"smoke@example.com\" }],
       \"passphrase\": \"${PASSPHRASE}\"
@@ -71,7 +80,7 @@ if [[ "${LIST_STATUS}" != "200" ]]; then
   exit 1
 fi
 
-echo "${LIST_BODY}" | python3 -c "import json,sys; keys=json.load(sys.stdin); assert any(k.get('label')=='smoke-test-primary' for k in keys), 'smoke-test-primary not found in list'; print('✓ key appears in list')"
+echo "${LIST_BODY}" | python3 -c "import json,sys; keys=json.load(sys.stdin); assert any(k.get('label')=='${LABEL}' for k in keys), '${LABEL} not found in list'; print('✓ key appears in list')"
 
 if [[ "${SMOKE_CLEANUP:-}" == "1" ]]; then
   echo "→ DELETE ${API_BASE_URL}/api/keys/${KEY_ID}"

@@ -20,6 +20,7 @@ describe("CreateSubkeyForm", () => {
         requestId={null}
         submitting={false}
         disabled={false}
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,
@@ -44,6 +45,7 @@ describe("CreateSubkeyForm", () => {
         requestId={null}
         submitting={false}
         disabled={false}
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={onSubmit}
       />,
@@ -62,6 +64,7 @@ describe("CreateSubkeyForm", () => {
         requestId={null}
         submitting={false}
         disabled={false}
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,
@@ -79,6 +82,7 @@ describe("CreateSubkeyForm", () => {
         requestId={null}
         submitting={false}
         disabled
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,

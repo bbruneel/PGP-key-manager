@@ -77,4 +77,61 @@ class PgpKeyValidatorTest {
                                         PgpKeyValidator.parseCapabilities(List.of("sign"))))
                 .isInstanceOf(BadRequestException.class);
     }
+
+    @Test
+    void primaryRejectsEncryptionOnlyAlgorithm() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validatePrimaryAlgorithm(
+                                        new AlgorithmSpecDto("cv25519", null, null), 4))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void primaryRejectsRsaWithoutKeySize() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validatePrimaryAlgorithm(
+                                        new AlgorithmSpecDto("rsa", null, null), 4))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void primaryRejectsEcdsaWithoutCurve() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validatePrimaryAlgorithm(
+                                        new AlgorithmSpecDto("ecdsa", null, null), 4))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void primaryAcceptsEd25519Rsa4096AndEcdsaP256() {
+        PgpKeyValidator.validatePrimaryAlgorithm(new AlgorithmSpecDto("ed25519", null, null), 4);
+        PgpKeyValidator.validatePrimaryAlgorithm(new AlgorithmSpecDto("rsa", 4096, null), 4);
+        PgpKeyValidator.validatePrimaryAlgorithm(new AlgorithmSpecDto("ecdsa", null, "P-256"), 4);
+    }
+
+    @Test
+    void primaryRejectsEd448OnV4() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validatePrimaryAlgorithm(
+                                        new AlgorithmSpecDto("ed448", null, null), 4))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void subkeyRejectsX448OnV4() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validateSubkeyRequest(
+                                        new CreateSubkeyRequest(
+                                                List.of("encrypt"),
+                                                new AlgorithmSpecDto("x448", null, null),
+                                                new ValiditySpecDto(null, java.time.Instant.parse("2030-01-01T00:00:00Z")),
+                                                "passphrase-12345678"),
+                                        4))
+                .isInstanceOf(BadRequestException.class);
+    }
 }

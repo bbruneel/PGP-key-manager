@@ -11,6 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  filterPrimaryAlgorithms,
+  type PrimaryAlgorithmId,
+} from "@/lib/algorithm-spec"
 import type { CreateKeyFieldErrors, CreateKeyFormValues } from "@/lib/create-key-validation"
 import { cn } from "@/lib/utils"
 
@@ -21,6 +25,7 @@ type CreateKeyFormProps = {
   requestId: string | null
   submitting: boolean
   onChange: (values: CreateKeyFormValues) => void
+  onAlgorithmChanged?: (values: CreateKeyFormValues) => void
   onSubmit: () => void
   onCancel: () => void
 }
@@ -39,13 +44,26 @@ export function CreateKeyForm({
   requestId,
   submitting,
   onChange,
+  onAlgorithmChanged,
   onSubmit,
   onCancel,
 }: CreateKeyFormProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const primaryAlgorithms = filterPrimaryAlgorithms(values.openpgpVersion)
 
   function updateField<K extends keyof CreateKeyFormValues>(key: K, value: CreateKeyFormValues[K]) {
     onChange({ ...values, [key]: value })
+  }
+
+  function handleAlgorithmChange(algorithm: PrimaryAlgorithmId) {
+    const next =
+      algorithm === "rsa"
+        ? { ...values, algorithm, keySize: 4096 as const, curve: undefined }
+        : algorithm === "ecdsa"
+          ? { ...values, algorithm, curve: "P-256" as const, keySize: undefined }
+          : { ...values, algorithm, keySize: undefined, curve: undefined }
+    onChange(next)
+    onAlgorithmChanged?.(next)
   }
 
   return (
@@ -186,17 +204,48 @@ export function CreateKeyForm({
           <div className="space-y-4 rounded-md border border-input bg-background p-4">
             <div className="space-y-2">
               <Label htmlFor="create-key-algorithm">Algorithm</Label>
-              <Input id="create-key-algorithm" value="Ed25519" disabled readOnly />
+              <Select
+                value={values.algorithm}
+                onValueChange={(value) => handleAlgorithmChange(value as PrimaryAlgorithmId)}
+                disabled={submitting}
+              >
+                <SelectTrigger
+                  id="create-key-algorithm"
+                  className="w-full"
+                  aria-invalid={Boolean(fieldErrors.algorithm)}
+                >
+                  <SelectValue placeholder="Select algorithm" />
+                </SelectTrigger>
+                <SelectContent>
+                  {primaryAlgorithms.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
-                Phase 1 supports Ed25519 primary keys. More algorithms will follow in later releases.
+                Ed25519 is recommended for new keys. RSA and ECDSA are for legacy interoperability.
               </p>
+              <FieldError message={fieldErrors.algorithm} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="create-key-openpgp-version">OpenPGP version</Label>
               <Select
                 value={String(values.openpgpVersion)}
-                onValueChange={(value) => updateField("openpgpVersion", Number(value) as 4 | 6)}
+                onValueChange={(value) => {
+                  const openpgpVersion = Number(value) as 4 | 6
+                  const allowed = filterPrimaryAlgorithms(openpgpVersion)
+                  const algorithmStillAllowed = allowed.some((option) => option.id === values.algorithm)
+                  const next = algorithmStillAllowed
+                    ? { ...values, openpgpVersion }
+                    : { ...values, openpgpVersion, algorithm: "ed25519" as const, keySize: undefined, curve: undefined }
+                  onChange(next)
+                  if (!algorithmStillAllowed) {
+                    onAlgorithmChanged?.(next)
+                  }
+                }}
                 disabled={submitting}
               >
                 <SelectTrigger id="create-key-openpgp-version" className="w-full">

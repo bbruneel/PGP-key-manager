@@ -138,6 +138,7 @@ export function KeyDetailPage() {
     })
   }, [loadKey])
 
+  const primaryOpenpgpVersion = (primaryKey?.openpgpVersion ?? 4) as 4 | 6
   const requiresPassphrase = primaryKey ? hasPrivateMaterial(primaryKey) : false
   const isRevoked = keyData?.status === "revoked"
   const isSubkey = keyData?.role === "subkey"
@@ -162,7 +163,7 @@ export function KeyDetailPage() {
     setCreateSubkeyApiError(null)
     setCreateSubkeyRequestId(null)
 
-    const validation = validateCreateSubkeyForm(createSubkeyValues)
+    const validation = validateCreateSubkeyForm(createSubkeyValues, primaryOpenpgpVersion)
     if (!validation.valid) {
       setCreateSubkeyFieldErrors(validation.fieldErrors)
       logUiEvent("warn", {
@@ -223,7 +224,7 @@ export function KeyDetailPage() {
       setCreateSubkeySubmitting(false)
       setCreateSubkeyValues((current) => clearPassphrase(current))
     }
-  }, [createSubkeyValues, getAccessToken, id, keyData, loadKey, navigate])
+  }, [createSubkeyValues, getAccessToken, id, keyData, loadKey, navigate, primaryOpenpgpVersion])
 
   const handleImportSubkeysSubmit = useCallback(async () => {
     if (!id || !keyData || keyData.role !== "primary" || !keyData.id) {
@@ -458,7 +459,7 @@ export function KeyDetailPage() {
     setRotateApiError(null)
     setRotateRequestId(null)
 
-    const validation = validateRotateKeyForm(rotateValues)
+    const validation = validateRotateKeyForm(rotateValues, primaryOpenpgpVersion)
     if (!validation.valid) {
       setRotateFieldErrors(validation.fieldErrors)
       logUiEvent("warn", {
@@ -521,7 +522,7 @@ export function KeyDetailPage() {
       setRotateSubmitting(false)
       setRotateValues((current) => clearPassphrase(current))
     }
-  }, [getAccessToken, id, keyData, loadKey, navigate, rotateValues])
+  }, [getAccessToken, id, keyData, loadKey, navigate, primaryOpenpgpVersion, rotateValues])
 
   if (!isConfigured) {
     return (
@@ -624,9 +625,21 @@ export function KeyDetailPage() {
               requestId={createSubkeyRequestId}
               submitting={createSubkeySubmitting}
               disabled={false}
+              primaryOpenpgpVersion={primaryOpenpgpVersion}
               onChange={(nextValues) => {
                 setCreateSubkeyValues(nextValues)
                 setCreateSubkeyFieldErrors({})
+              }}
+              onAlgorithmAdjusted={(nextValues, previousValues) => {
+                logUiEvent("debug", {
+                  eventId: "keyDetail.createSubkey.algorithmAdjusted",
+                  message: "Create subkey algorithm adjusted for capabilities",
+                  keyId: id,
+                  algorithm: nextValues.algorithm,
+                  previousAlgorithm: previousValues.algorithm,
+                  capabilities: nextValues.capabilities,
+                  openpgpVersion: primaryOpenpgpVersion,
+                })
               }}
               onSubmit={() => void handleCreateSubkeySubmit()}
             />
@@ -672,9 +685,21 @@ export function KeyDetailPage() {
               requestId={rotateRequestId}
               submitting={rotateSubmitting}
               disabled={!canRotate}
+              primaryOpenpgpVersion={primaryOpenpgpVersion}
               onChange={(nextValues) => {
                 setRotateValues(nextValues)
                 setRotateFieldErrors({})
+              }}
+              onAlgorithmAdjusted={(nextValues, previousValues) => {
+                logUiEvent("debug", {
+                  eventId: "keyDetail.rotate.algorithmAdjusted",
+                  message: "Rotate subkey algorithm adjusted for capabilities",
+                  keyId: id,
+                  algorithm: nextValues.algorithm,
+                  previousAlgorithm: previousValues.algorithm,
+                  capabilities: nextValues.capabilities,
+                  openpgpVersion: primaryOpenpgpVersion,
+                })
               }}
               onSubmit={() => void handleRotateSubmit()}
             />

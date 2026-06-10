@@ -135,8 +135,7 @@ export function CreateKeyPage() {
       <header className="mb-6">
         <h2 className="text-xl font-semibold tracking-tight text-foreground">Create primary key</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Generate a new Ed25519 primary key. The private key is encrypted with your passphrase before
-          storage.
+          Generate a new primary key. Ed25519 is recommended; advanced options support legacy algorithms.
         </p>
       </header>
 
@@ -149,6 +148,14 @@ export function CreateKeyPage() {
         onChange={(nextValues) => {
           setValues(nextValues)
           setFieldErrors({})
+        }}
+        onAlgorithmChanged={(nextValues) => {
+          logUiEvent("debug", {
+            eventId: "createKey.algorithmChanged",
+            message: "Create key algorithm changed",
+            algorithm: nextValues.algorithm,
+            openpgpVersion: nextValues.openpgpVersion,
+          })
         }}
         onSubmit={() => void handleSubmit()}
         onCancel={() => navigate("/keys")}

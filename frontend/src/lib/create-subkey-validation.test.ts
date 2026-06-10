@@ -24,6 +24,51 @@ describe("validateCreateSubkeyForm", () => {
     expect(result.valid).toBe(true)
   })
 
+  it("accepts rsa encrypt subkey with keySize", () => {
+    const values = {
+      ...defaultCreateSubkeyFormValues(),
+      algorithm: "rsa" as const,
+      keySize: 4096 as const,
+      passphrase: "valid-passphrase",
+    }
+    const result = validateCreateSubkeyForm(values)
+    expect(result.valid).toBe(true)
+  })
+
+  it("accepts ecdsa sign subkey with curve", () => {
+    const values = {
+      ...defaultCreateSubkeyFormValues(),
+      capabilities: ["sign" as const],
+      algorithm: "ecdsa" as const,
+      curve: "P-256" as const,
+      passphrase: "valid-passphrase",
+    }
+    const result = validateCreateSubkeyForm(values)
+    expect(result.valid).toBe(true)
+  })
+
+  it("rejects encrypt with ed25519", () => {
+    const values = {
+      ...defaultCreateSubkeyFormValues(),
+      algorithm: "ed25519" as const,
+      passphrase: "valid-passphrase",
+    }
+    const result = validateCreateSubkeyForm(values)
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.algorithm).toMatch(/encrypt/i)
+  })
+
+  it("rejects rsa encrypt without keySize", () => {
+    const values = {
+      ...defaultCreateSubkeyFormValues(),
+      algorithm: "rsa" as const,
+      passphrase: "valid-passphrase",
+    }
+    const result = validateCreateSubkeyForm(values)
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.algorithm).toMatch(/key size/i)
+  })
+
   it("rejects certify capability", () => {
     const values = {
       ...defaultCreateSubkeyFormValues(),
@@ -76,5 +121,29 @@ describe("buildCreateSubkeyRequest", () => {
       validity: { expiresAt: "2031-06-01T00:00:00.000Z" },
       passphrase: "valid-passphrase",
     })
+  })
+
+  it("builds rsa encrypt subkey request with keySize", () => {
+    const request = buildCreateSubkeyRequest({
+      capabilities: ["encrypt"],
+      algorithm: "rsa",
+      keySize: 4096,
+      expiresAt: "2031-06-01",
+      passphrase: "valid-passphrase",
+    })
+
+    expect(request.algorithm).toEqual({ algorithm: "rsa", keySize: 4096 })
+  })
+
+  it("builds ecdsa sign subkey request with curve", () => {
+    const request = buildCreateSubkeyRequest({
+      capabilities: ["sign"],
+      algorithm: "ecdsa",
+      curve: "P-256",
+      expiresAt: "2031-06-01",
+      passphrase: "valid-passphrase",
+    })
+
+    expect(request.algorithm).toEqual({ algorithm: "ecdsa", curve: "P-256" })
   })
 })

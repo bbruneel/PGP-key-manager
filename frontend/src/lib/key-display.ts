@@ -73,3 +73,5 @@ export function hasArmoredKeyring(key: {
 }): boolean {
   return Boolean(key.armoredPublic?.trim() || key.encryptedPrivateArmored?.trim())
 }
+
+export { algorithmFieldLabel } from "@/lib/algorithm-spec"

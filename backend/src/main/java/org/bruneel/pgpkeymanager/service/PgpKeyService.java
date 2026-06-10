@@ -158,9 +158,9 @@ public class PgpKeyService {
 
     public PgpKey createSubkey(AppUser user, UUID primaryKeyId, CreateSubkeyRequest request) {
         long start = System.currentTimeMillis();
-        PgpKeyValidator.validateSubkeyRequest(request);
         PgpKey primary = requirePrimaryWithPrivate(user, primaryKeyId);
         int openpgpVersion = primary.openpgpVersion();
+        PgpKeyValidator.validateSubkeyRequest(request, openpgpVersion);
         operationLogger.started("create_subkey", user.id(), primaryKeyId, null, openpgpVersion);
         try {
             List<PgpCapability> capabilities = PgpKeyValidator.parseCapabilities(request.capabilities());
@@ -377,6 +377,13 @@ public class PgpKeyService {
         PgpKeyValidator.validatePrimaryCapabilities(capabilities);
         Instant expiresAt = request.validity() != null ? request.validity().expiresAt() : request.expiresAt();
         int openpgpVersion = PgpKeyValidator.normalizeOpenpgpVersion(request.openpgpVersion());
+        PgpKeyValidator.validatePrimaryAlgorithm(request.algorithmSpec(), openpgpVersion);
+        log.info(
+                "create_key_algorithm algorithm={} keySize={} curve={} openpgpVersion={}",
+                request.algorithmSpec().algorithm(),
+                request.algorithmSpec().keySize(),
+                request.algorithmSpec().curve(),
+                openpgpVersion);
 
         char[] passphrase = PassphraseUtil.require(request.passphrase());
         GeneratedKeyMaterial material;

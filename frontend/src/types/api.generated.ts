@@ -228,8 +228,11 @@ export interface components {
         /** @enum {string} */
         MaterialKind: "public" | "private";
         AlgorithmSpec: {
-            /** @enum {string} */
-            algorithm: "rsa" | "ed25519" | "cv25519" | "ecdsa" | "ecdh";
+            /**
+             * @description ed448 and x448 require openpgpVersion 6 when generating keys.
+             * @enum {string}
+             */
+            algorithm: "rsa" | "ed25519" | "cv25519" | "ecdsa" | "ecdh" | "ed448" | "x448";
             /** @enum {integer} */
             keySize?: 2048 | 3072 | 4096;
             /** @description Required for ecdh; required for ecdsa signing subkeys. Examples P-256, P-384, nistp256. */

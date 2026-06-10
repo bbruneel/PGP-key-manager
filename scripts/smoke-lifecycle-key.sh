@@ -132,6 +132,57 @@ if [[ "${REVOKE_STATUS}" != "200" ]]; then
 fi
 echo "✓ revoke subkey succeeded"
 
+echo "→ POST ${API_BASE_URL}/api/keys/${PRIMARY_ID}/subkeys (RSA 4096 encrypt — Phase 6 legacy)"
+RSA_SUBKEY_RESPONSE="$(
+  curl -sS -w '\n%{http_code}' -X POST "${API_BASE_URL}/api/keys/${PRIMARY_ID}/subkeys" \
+    -H 'Accept: application/json; version=1' \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -d "{
+      \"capabilities\": [\"encrypt\"],
+      \"algorithm\": { \"algorithm\": \"rsa\", \"keySize\": 4096 },
+      \"validity\": { \"expiresAt\": \"2029-06-01T00:00:00Z\" },
+      \"passphrase\": \"${PASSPHRASE}\"
+    }"
+)"
+
+RSA_SUBKEY_BODY="$(echo "${RSA_SUBKEY_RESPONSE}" | sed '$d')"
+RSA_SUBKEY_STATUS="$(echo "${RSA_SUBKEY_RESPONSE}" | tail -n 1)"
+
+if [[ "${RSA_SUBKEY_STATUS}" != "201" ]]; then
+  echo "error: expected HTTP 201 on RSA subkey create, got ${RSA_SUBKEY_STATUS}" >&2
+  echo "${RSA_SUBKEY_BODY}" >&2
+  exit 1
+fi
+
+RSA_SUBKEY_ID="$(echo "${RSA_SUBKEY_BODY}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")"
+echo "✓ created RSA encrypt subkey id=${RSA_SUBKEY_ID}"
+
+echo "→ POST ${API_BASE_URL}/api/keys/${RSA_SUBKEY_ID}/rotate (ECDH P-256 — Phase 6 legacy)"
+ROTATE_RESPONSE="$(
+  curl -sS -w '\n%{http_code}' -X POST "${API_BASE_URL}/api/keys/${RSA_SUBKEY_ID}/rotate" \
+    -H 'Accept: application/json; version=1' \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -d "{
+      \"capabilities\": [\"encrypt\"],
+      \"algorithm\": { \"algorithm\": \"ecdh\", \"curve\": \"P-256\" },
+      \"validity\": { \"expiresAt\": \"2029-06-01T00:00:00Z\" },
+      \"revokePrevious\": true,
+      \"passphrase\": \"${PASSPHRASE}\"
+    }"
+)"
+
+ROTATE_BODY="$(echo "${ROTATE_RESPONSE}" | sed '$d')"
+ROTATE_STATUS="$(echo "${ROTATE_RESPONSE}" | tail -n 1)"
+
+if [[ "${ROTATE_STATUS}" != "200" ]]; then
+  echo "error: expected HTTP 200 on rotate with ECDH, got ${ROTATE_STATUS}" >&2
+  echo "${ROTATE_BODY}" >&2
+  exit 1
+fi
+echo "✓ rotate with ECDH P-256 succeeded"
+
 if [[ "${SMOKE_CLEANUP:-}" == "1" ]]; then
   echo "→ DELETE ${API_BASE_URL}/api/keys/${PRIMARY_ID}"
   DELETE_STATUS="$(
