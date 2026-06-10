@@ -7,8 +7,7 @@ import type {
   KeyStatus,
   PgpCapability,
   PgpKey,
-  PgpKeyDetail,
-  PgpKeyListItem,
+  PgpKeySummary,
   RegisterPgpKeyRequest,
   RevokeKeyRequest,
   RotateKeyRequest,
@@ -76,7 +75,7 @@ export type ExportPublicKeyOptions = {
  * Phase 3 adds detail, subkeys, and lifecycle actions; Phase 4 adds createSubkey.
  */
 export const keysApi = {
-  list(options: ListKeysOptions): Promise<PgpKeyListItem[]> {
+  list(options: ListKeysOptions): Promise<PgpKeySummary[]> {
     const params = new URLSearchParams()
     if (options.role) {
       params.set("role", options.role)
@@ -90,7 +89,7 @@ export const keysApi = {
     const query = params.toString()
     const path = query ? `/api/keys?${query}` : "/api/keys"
 
-    return requestJson<PgpKeyListItem[]>(path, {
+    return requestJson<PgpKeySummary[]>(path, {
       operationId: "listKeys",
       accessToken: options.accessToken,
       method: "GET",
@@ -119,16 +118,16 @@ export const keysApi = {
     })
   },
 
-  get(options: GetKeyOptions): Promise<PgpKeyDetail> {
-    return requestJson<PgpKeyDetail>(`/api/keys/${options.keyId}`, {
+  get(options: GetKeyOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>(`/api/keys/${options.keyId}`, {
       operationId: "getKey",
       accessToken: options.accessToken,
       method: "GET",
     })
   },
 
-  listSubkeys(options: ListSubkeysOptions): Promise<PgpKeyListItem[]> {
-    return requestJson<PgpKeyListItem[]>(`/api/keys/${options.primaryKeyId}/subkeys`, {
+  listSubkeys(options: ListSubkeysOptions): Promise<PgpKeySummary[]> {
+    return requestJson<PgpKeySummary[]>(`/api/keys/${options.primaryKeyId}/subkeys`, {
       operationId: "listSubkeys",
       accessToken: options.accessToken,
       method: "GET",

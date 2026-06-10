@@ -5,7 +5,7 @@ import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import { formatCapabilities, formatKeyExpiry, formatKeyStatus } from "@/lib/key-display"
 import { keysApi } from "@/lib/keys-api"
 import { logUiEvent } from "@/lib/ui-logger"
-import type { PgpKeyListItem } from "@/types/api"
+import type { PgpKeySummary } from "@/types/api"
 
 type KeyDetailSubkeysProps = {
   primaryKeyId: string
@@ -14,7 +14,7 @@ type KeyDetailSubkeysProps = {
 }
 
 export function KeyDetailSubkeys({ primaryKeyId, getAccessToken, refreshToken = 0 }: KeyDetailSubkeysProps) {
-  const [subkeys, setSubkeys] = useState<PgpKeyListItem[]>([])
+  const [subkeys, setSubkeys] = useState<PgpKeySummary[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)

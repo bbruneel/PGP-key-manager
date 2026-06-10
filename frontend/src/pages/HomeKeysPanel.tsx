@@ -6,11 +6,11 @@ import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import { formatCapabilities, formatKeyExpiry } from "@/lib/key-display"
 import { keysApi } from "@/lib/keys-api"
-import type { PgpKeyListItem } from "@/types/api"
+import type { PgpKeySummary } from "@/types/api"
 
 export function HomeKeysPanel() {
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
-  const [keys, setKeys] = useState<PgpKeyListItem[]>([])
+  const [keys, setKeys] = useState<PgpKeySummary[]>([])
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)

@@ -52,9 +52,9 @@ vi.mock("@/lib/keys-api", () => ({
 import { toast } from "sonner"
 
 import { KeyDetailPage } from "@/pages/KeyDetailPage"
-import type { PgpKeyDetail } from "@/types/api"
+import type { PgpKey } from "@/types/api"
 
-const primaryKey: PgpKeyDetail = {
+const primaryKey: PgpKey = {
   id: "primary-1",
   label: "Work key",
   fingerprint: "PRIMARYFINGERPRINT",
@@ -69,13 +69,13 @@ const primaryKey: PgpKeyDetail = {
   openpgpVersion: 4,
 }
 
-const metadataOnlyPrimary: PgpKeyDetail = {
+const metadataOnlyPrimary: PgpKey = {
   ...primaryKey,
   keyType: "public",
   encryptedPrivateArmored: undefined,
 }
 
-const subkey: PgpKeyDetail = {
+const subkey: PgpKey = {
   id: "sub-1",
   label: "Work key",
   fingerprint: "SUBKEYFINGERPRINT",

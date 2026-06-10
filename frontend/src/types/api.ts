@@ -21,17 +21,3 @@ export type ExtendExpiryRequest = components["schemas"]["ExtendExpiryRequest"]
 export type CreateSubkeyRequest = components["schemas"]["CreateSubkeyRequest"]
 export type RotateKeyRequest = components["schemas"]["RotateKeyRequest"]
 export type RotateKeyResponse = components["schemas"]["RotateKeyResponse"]
-
-/** List item fields the API returns; OpenAPI PgpKeySummary is incomplete for label/keyId/algorithm. */
-export type PgpKeyListItem = PgpKeySummary & {
-  label?: string | null
-  keyId?: string | null
-  algorithm?: string | null
-}
-
-/** Detail fields the API returns; OpenAPI PgpKey is incomplete for label/keyId/algorithm. */
-export type PgpKeyDetail = PgpKey & {
-  label?: string | null
-  keyId?: string | null
-  algorithm?: string | null
-}

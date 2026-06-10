@@ -42,7 +42,7 @@ import {
   type RotateKeyFormValues,
 } from "@/lib/rotate-key-validation"
 import { logUiEvent } from "@/lib/ui-logger"
-import type { PgpKeyDetail } from "@/types/api"
+import type { PgpKey } from "@/types/api"
 
 function clearPassphrase<T extends { passphrase: string }>(values: T): T {
   return { ...values, passphrase: "" }
@@ -53,8 +53,8 @@ export function KeyDetailPage() {
   const navigate = useNavigate()
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
 
-  const [keyData, setKeyData] = useState<PgpKeyDetail | null>(null)
-  const [primaryKey, setPrimaryKey] = useState<PgpKeyDetail | null>(null)
+  const [keyData, setKeyData] = useState<PgpKey | null>(null)
+  const [primaryKey, setPrimaryKey] = useState<PgpKey | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadRequestId, setLoadRequestId] = useState<string | null>(null)
