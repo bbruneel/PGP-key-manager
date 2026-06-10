@@ -66,6 +66,24 @@ export function ImportKeyPage() {
       const body = buildImportKeyRequest(values)
       const imported = await keysApi.register({ accessToken: token, body })
 
+      let subkeyCount = 0
+      if (imported.id && imported.role === "primary") {
+        const subkeys = await keysApi.listSubkeys({
+          accessToken: token,
+          primaryKeyId: imported.id,
+        })
+        subkeyCount = subkeys.length
+        if (subkeyCount > 0) {
+          logUiEvent("info", {
+            eventId: "importKey.subkeysRegistered",
+            message: "Subkey rows registered during import",
+            operationId: "listSubkeys",
+            keyId: imported.id,
+            count: subkeyCount,
+          })
+        }
+      }
+
       logUiEvent("info", {
         eventId: "importKey.apiSuccess",
         message: "Key imported",
@@ -74,14 +92,22 @@ export function ImportKeyPage() {
         fingerprint: imported.fingerprint ?? undefined,
       })
 
+      const descriptionParts = [
+        imported.fingerprint ? `Fingerprint: ${imported.fingerprint}` : null,
+        subkeyCount > 0
+          ? `${subkeyCount} subkey${subkeyCount === 1 ? "" : "s"} registered from keyring`
+          : null,
+      ].filter(Boolean)
+
       toast.success("Key imported", {
-        description: imported.fingerprint
-          ? `Fingerprint: ${imported.fingerprint}`
-          : "Your key is now stored in your account.",
+        description:
+          descriptionParts.length > 0
+            ? descriptionParts.join(" · ")
+            : "Your key is now stored in your account.",
       })
 
       setValues(clearArmoredFields(values))
-      navigate("/keys")
+      navigate(imported.id ? `/keys/${imported.id}` : "/keys")
     } catch (error) {
       const message = getApiErrorMessage(error)
       setApiError(message)

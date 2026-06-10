@@ -1,7 +1,10 @@
 package org.bruneel.pgpkeymanager.service;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -10,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
 import org.bruneel.pgpkeymanager.crypto.ImportedKeyMetadata;
+import org.bruneel.pgpkeymanager.crypto.ImportedKeyringMetadata;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoSupport;
 import org.bruneel.pgpkeymanager.crypto.PgpKeyMetadataParser;
@@ -31,9 +35,14 @@ import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 @Transactional
 public class PgpKeyService {
+
+    private static final Logger log = LoggerFactory.getLogger(PgpKeyService.class);
 
     private final PgpKeyRepository pgpKeyRepository;
     private final PgpCryptoService pgpCryptoService;
@@ -114,6 +123,37 @@ public class PgpKeyService {
         return pgpKeyRepository
                 .findSubkeyByIdAndParentId(subkeyId, primaryKeyId, user.id())
                 .orElseThrow(() -> new KeyNotFoundException(subkeyId));
+    }
+
+    public ImportSubkeysResult importSubkeysFromKeyring(AppUser user, UUID primaryKeyId) {
+        long start = System.currentTimeMillis();
+        PgpKey primary = requirePrimary(user, primaryKeyId);
+        int openpgpVersion = primary.openpgpVersion();
+        operationLogger.started("import_subkeys_from_keyring", user.id(), primaryKeyId, null, openpgpVersion);
+        try {
+            String armoredPublic = primary.armoredPublic();
+            String armoredPrivate = primary.encryptedPrivateArmored();
+            if ((armoredPublic == null || armoredPublic.isBlank())
+                    && (armoredPrivate == null || armoredPrivate.isBlank())) {
+                throw new BadRequestException("Primary key has no armored keyring material to import subkeys from");
+            }
+
+            ImportedKeyringMetadata keyring = metadataParser.parseKeyring(armoredPublic, armoredPrivate);
+            ImportSubkeysResult result =
+                    registerImportedSubkeys(user, primary, keyring.subkeys(), primary.keyType());
+            log.info(
+                    "import_subkeys_from_keyring_completed parentKeyId={} registeredCount={} skippedCount={} fingerprints={}",
+                    primaryKeyId,
+                    result.registered().size(),
+                    result.skippedCount(),
+                    result.registered().stream().map(PgpKey::fingerprint).toList());
+            completeSuccess(
+                    "import_subkeys_from_keyring", user.id(), primaryKeyId, openpgpVersion, start);
+            return result;
+        } catch (RuntimeException ex) {
+            completeFailure("import_subkeys_from_keyring", user.id(), primaryKeyId, openpgpVersion, start, ex);
+            throw ex;
+        }
     }
 
     public PgpKey createSubkey(AppUser user, UUID primaryKeyId, CreateSubkeyRequest request) {
@@ -384,34 +424,92 @@ public class PgpKeyService {
     }
 
     private PgpKey registerPrimaryKey(AppUser user, CreatePgpKeyRequest request, KeyType keyType) {
-        ImportedKeyMetadata metadata =
-                metadataParser.parse(request.armoredPublic(), request.encryptedPrivateArmored());
+        ImportedKeyringMetadata keyring =
+                metadataParser.parseKeyring(request.armoredPublic(), request.encryptedPrivateArmored());
+        ImportedKeyMetadata metadata = keyring.primary();
         metadataParser.validateFingerprintMatch(metadata, request.fingerprint());
 
+        PgpKey primary;
         try {
-            return pgpKeyRepository.insert(
-                    new PgpKeyInsert(
-                            user.id(),
-                            request.label(),
-                            metadata.fingerprint(),
-                            metadata.keyId(),
-                            keyType,
-                            KeyRole.PRIMARY,
-                            null,
-                            metadata.capabilities(),
-                            metadata.algorithm(),
-                            metadata.algorithmSpecJson(),
-                            metadata.expiresAt(),
-                            null,
-                            null,
-                            request.armoredPublic(),
-                            request.encryptedPrivateArmored(),
-                            request.storageProvider(),
-                            request.storageRef(),
-                            metadata.openpgpVersion()));
+            primary =
+                    pgpKeyRepository.insert(
+                            new PgpKeyInsert(
+                                    user.id(),
+                                    request.label(),
+                                    metadata.fingerprint(),
+                                    metadata.keyId(),
+                                    keyType,
+                                    KeyRole.PRIMARY,
+                                    null,
+                                    metadata.capabilities(),
+                                    metadata.algorithm(),
+                                    metadata.algorithmSpecJson(),
+                                    metadata.expiresAt(),
+                                    null,
+                                    null,
+                                    request.armoredPublic(),
+                                    request.encryptedPrivateArmored(),
+                                    request.storageProvider(),
+                                    request.storageRef(),
+                                    metadata.openpgpVersion()));
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("A key with this fingerprint already exists for your account");
         }
+
+        if (!keyring.subkeys().isEmpty()) {
+            registerImportedSubkeys(user, primary, keyring.subkeys(), keyType);
+        }
+        return primary;
+    }
+
+    private ImportSubkeysResult registerImportedSubkeys(
+            AppUser user, PgpKey primary, List<ImportedKeyMetadata> subkeys, KeyType keyType) {
+        Set<String> existingFingerprints = new HashSet<>();
+        for (PgpKey existing : pgpKeyRepository.findSubkeysByParentId(primary.id(), user.id())) {
+            existingFingerprints.add(existing.fingerprint().toUpperCase());
+        }
+
+        List<PgpKey> registered = new ArrayList<>();
+        int skippedCount = 0;
+        for (ImportedKeyMetadata subkey : subkeys) {
+            if (existingFingerprints.contains(subkey.fingerprint().toUpperCase())) {
+                skippedCount++;
+                continue;
+            }
+            PgpKey inserted = insertImportedSubkeyRow(user, primary, subkey, keyType);
+            registered.add(inserted);
+            existingFingerprints.add(subkey.fingerprint().toUpperCase());
+        }
+
+        log.info(
+                "register_imported_subkeys_completed parentKeyId={} registeredCount={} skippedCount={} fingerprints={}",
+                primary.id(),
+                registered.size(),
+                skippedCount,
+                registered.stream().map(PgpKey::fingerprint).toList());
+
+        return new ImportSubkeysResult(List.copyOf(registered), skippedCount);
+    }
+
+    private PgpKey insertImportedSubkeyRow(
+            AppUser user, PgpKey primary, ImportedKeyMetadata metadata, KeyType keyType) {
+        return insertKey(
+                user,
+                primary.label(),
+                metadata.fingerprint(),
+                metadata.keyId(),
+                metadata.algorithm(),
+                metadata.algorithmSpecJson(),
+                metadata.capabilities(),
+                metadata.expiresAt(),
+                null,
+                null,
+                keyType,
+                KeyRole.SUBKEY,
+                primary.id(),
+                primary.openpgpVersion(),
+                primary.storageProvider(),
+                primary.storageRef());
     }
 
     private PgpKey registerSubkey(

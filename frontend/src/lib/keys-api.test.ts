@@ -248,6 +248,34 @@ describe("keysApi.createSubkey", () => {
   })
 })
 
+describe("keysApi.importSubkeysFromKeyring", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring with importSubkeysFromKeyring operationId", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      registered: [{ id: "sub-1", fingerprint: "SUBFP" }],
+      skippedCount: 1,
+    })
+
+    const result = await keysApi.importSubkeysFromKeyring({
+      accessToken: "token-abc",
+      primaryKeyId: "primary-1",
+    })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/primary-1/subkeys/import-from-keyring", {
+      operationId: "importSubkeysFromKeyring",
+      accessToken: "token-abc",
+      method: "POST",
+    })
+    expect(result).toEqual({
+      registered: [{ id: "sub-1", fingerprint: "SUBFP" }],
+      skippedCount: 1,
+    })
+  })
+})
+
 describe("keysApi.exportPublic", () => {
   beforeEach(() => {
     vi.mocked(requestText).mockReset()

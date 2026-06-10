@@ -174,6 +174,120 @@ class PgpKeyMetadataParserTest {
     }
 
     @Test
+    void parseKeyringWithOneSubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Keyring Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "keyring-test-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "keyring-test-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        ImportedKeyringMetadata keyring =
+                parser.parseKeyring(sub.updatedArmoredPublic(), sub.updatedArmoredPrivate());
+
+        assertThat(keyring.primary().fingerprint()).isEqualTo(primary.fingerprint());
+        assertThat(keyring.subkeys()).hasSize(1);
+        assertThat(keyring.subkeys().get(0).fingerprint()).isEqualTo(sub.fingerprint());
+        assertThat(keyring.subkeys().get(0).keyId()).isEqualTo(sub.keyId());
+        assertThat(keyring.subkeys().get(0).algorithm()).isEqualTo("cv25519");
+        assertThat(keyring.subkeys().get(0).capabilities()).containsExactly(PgpCapability.ENCRYPT);
+        assertThat(keyring.subkeys().get(0).expiresAt()).isEqualTo(Instant.parse("2029-05-21T00:00:00Z"));
+    }
+
+    @Test
+    void parseKeyringPrimaryOnlyHasEmptySubkeys() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Primary Only", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "primary-only-passphrase".toCharArray());
+
+        ImportedKeyringMetadata keyring = parser.parseKeyring(primary.armoredPublic(), null);
+
+        assertThat(keyring.primary().fingerprint()).isEqualTo(primary.fingerprint());
+        assertThat(keyring.subkeys()).isEmpty();
+    }
+
+    @Test
+    void parseKeyringWithMultipleSubkeys() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Multi Subkey", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "multi-subkey-passphrase".toCharArray());
+
+        SubkeyMaterial encryptSub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "multi-subkey-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        null);
+
+        SubkeyMaterial signSub =
+                crypto.addSubkey(
+                        4,
+                        encryptSub.updatedArmoredPrivate(),
+                        "multi-subkey-passphrase".toCharArray(),
+                        List.of(PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ecdsa", null, "P-256"),
+                        null);
+
+        ImportedKeyringMetadata keyring =
+                parser.parseKeyring(signSub.updatedArmoredPublic(), signSub.updatedArmoredPrivate());
+
+        assertThat(keyring.subkeys()).hasSize(2);
+        assertThat(keyring.subkeys())
+                .extracting(ImportedKeyMetadata::fingerprint)
+                .containsExactlyInAnyOrder(encryptSub.fingerprint(), signSub.fingerprint());
+    }
+
+    @Test
+    void parseKeyringFromPrivateOnlyArmored() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Private Keyring", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "private-keyring-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "private-keyring-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        null);
+
+        ImportedKeyringMetadata keyring = parser.parseKeyring(null, sub.updatedArmoredPrivate());
+
+        assertThat(keyring.primary().fingerprint()).isEqualTo(primary.fingerprint());
+        assertThat(keyring.subkeys()).hasSize(1);
+        assertThat(keyring.subkeys().get(0).fingerprint()).isEqualTo(sub.fingerprint());
+    }
+
+    @Test
     void validateFingerprintMismatchThrowsBadRequest() {
         GeneratedKeyMaterial material =
                 crypto.generatePrimary(

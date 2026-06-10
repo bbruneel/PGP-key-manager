@@ -141,6 +141,22 @@ class PgpKeyControllerTest {
     }
 
     @Test
+    void importSubkeysFromKeyringReturns201() throws Exception {
+        UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        PgpKey subkey = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.importSubkeysFromKeyring(USER, primaryId))
+                .thenReturn(new org.bruneel.pgpkeymanager.service.ImportSubkeysResult(List.of(subkey), 1));
+
+        mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys/import-from-keyring", primaryId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registered", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.skippedCount").value(1));
+
+        verify(pgpKeyService).importSubkeysFromKeyring(USER, primaryId);
+    }
+
+    @Test
     void createSubkeyReturns201() throws Exception {
         UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
         PgpKey subkey = TestPgpKeys.samplePublic(USER.id());

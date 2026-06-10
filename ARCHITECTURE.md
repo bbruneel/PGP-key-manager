@@ -179,7 +179,14 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 5. On success: sonner toast with fingerprint, subkeys list refresh, navigate to `/keys/{newSubkeyId}`. Passphrase cleared after submit.
 6. Metadata-only primaries show a hint to import private material instead of the form.
 
-**Future (not implemented):** import subkey rows from multi-key armored exports.
+## Import subkeys from keyring (Phase 5)
+
+1. **On primary import (`/keys/import`):** when armored material contains subkeys, `PgpKeyMetadataParser.parseKeyring()` enumerates non-master keys; `registerPrimaryKey` inserts metadata-only subkey rows after the primary row. Logs `register_subkey_metadata_parsed` and `register_keyring_metadata_parsed`.
+2. **Import page UX:** after successful register, `keysApi.listSubkeys()` loads the count; toast mentions registered subkeys; redirect goes to `/keys/{id}` instead of `/keys`. `[pgp-ui]` `importKey.subkeysRegistered` when count &gt; 0.
+3. **On primary detail (`/keys/:id`):** when the primary has stored armored keyring material and is not revoked, the **Import subkeys from keyring** form appears (inline — no separate route). Works for public-only and private primaries.
+4. `keysApi.importSubkeysFromKeyring()` sends `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring` with `operationId: importSubkeysFromKeyring`. Idempotent — skips subkeys already registered under the primary.
+5. `[pgp-ui]` events: `keyDetail.importSubkeys.submit`, `keyDetail.importSubkeys.apiSuccess`, `keyDetail.importSubkeys.apiError`.
+6. On success: sonner toast with registered/skipped counts, subkeys list refresh.
 
 ## Repository layout
 

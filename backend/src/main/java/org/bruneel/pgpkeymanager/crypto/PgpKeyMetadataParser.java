@@ -15,6 +15,7 @@ import org.bouncycastle.openpgp.PGPPublicKeyRing;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.PGPSignature;
 import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
+import org.bouncycastle.openpgp.PGPSecretKey;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
@@ -37,9 +38,32 @@ public class PgpKeyMetadataParser {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public ImportedKeyMetadata parse(String armoredPublic, String encryptedPrivateArmored) {
+        return parseKeyring(armoredPublic, encryptedPrivateArmored).primary();
+    }
+
+    public ImportedKeyringMetadata parseKeyring(String armoredPublic, String encryptedPrivateArmored) {
         try {
-            PGPPublicKey master = loadMasterPublicKey(armoredPublic, encryptedPrivateArmored);
-            return buildMetadata(master, armoredPublic, encryptedPrivateArmored);
+            PGPPublicKeyRing ring = loadPublicKeyRing(armoredPublic, encryptedPrivateArmored);
+            PGPPublicKey master = ring.getPublicKey();
+            ImportedKeyMetadata primary = buildMetadata(master, armoredPublic, encryptedPrivateArmored);
+
+            List<ImportedKeyMetadata> subkeys = new ArrayList<>();
+            Iterator<PGPPublicKey> keys = ring.getPublicKeys();
+            while (keys.hasNext()) {
+                PGPPublicKey key = keys.next();
+                if (key.isMasterKey()) {
+                    continue;
+                }
+                ImportedKeyMetadata subkeyMetadata = buildSubkeyMetadata(key, primary.openpgpVersion());
+                subkeys.add(subkeyMetadata);
+            }
+
+            log.info(
+                    "register_keyring_metadata_parsed masterFingerprint={} subkeyCount={}",
+                    primary.fingerprint(),
+                    subkeys.size());
+
+            return new ImportedKeyringMetadata(primary, List.copyOf(subkeys));
         } catch (BadRequestException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -90,7 +114,33 @@ public class PgpKeyMetadataParser {
                 openpgpVersion);
     }
 
-    private PGPPublicKey loadMasterPublicKey(String armoredPublic, String encryptedPrivateArmored)
+    private ImportedKeyMetadata buildSubkeyMetadata(PGPPublicKey subkey, int openpgpVersion) {
+        String fingerprint = PgpCryptoSupport.fingerprintHex(subkey);
+        String keyId = PgpCryptoSupport.keyIdHex(subkey);
+        AlgorithmSpecDto algorithmSpec = resolveAlgorithmSpec(subkey);
+        List<PgpCapability> capabilities = resolveCapabilities(subkey);
+        Instant expiresAt = resolveExpiresAt(subkey);
+
+        log.info(
+                "register_subkey_metadata_parsed fingerprint={} keyId={} algorithm={} capabilities={} expiresAt={} openpgpVersion={}",
+                fingerprint,
+                keyId,
+                algorithmSpec.algorithm(),
+                capabilities.stream().map(PgpCapability::toApi).toList(),
+                expiresAt,
+                openpgpVersion);
+
+        return new ImportedKeyMetadata(
+                fingerprint,
+                keyId,
+                algorithmSpec.algorithm(),
+                writeAlgorithmSpecJson(algorithmSpec),
+                capabilities,
+                expiresAt,
+                openpgpVersion);
+    }
+
+    private PGPPublicKeyRing loadPublicKeyRing(String armoredPublic, String encryptedPrivateArmored)
             throws IOException, PGPException {
         boolean hasPublic = armoredPublic != null && !armoredPublic.isBlank();
         boolean hasPrivate = encryptedPrivateArmored != null && !encryptedPrivateArmored.isBlank();
@@ -98,22 +148,22 @@ public class PgpKeyMetadataParser {
             throw new BadRequestException("armoredPublic or encryptedPrivateArmored is required when registering a key");
         }
         if (hasPublic && hasPrivate) {
-            PGPPublicKey fromPublic = PgpCryptoSupport.loadPublicKeyRing(armoredPublic).getPublicKey();
-            PGPPublicKey fromPrivate = loadMasterPublicKeyFromPrivate(encryptedPrivateArmored);
-            String publicFingerprint = PgpCryptoSupport.fingerprintHex(fromPublic);
-            String privateFingerprint = PgpCryptoSupport.fingerprintHex(fromPrivate);
+            PGPPublicKeyRing fromPublic = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            PGPPublicKeyRing fromPrivate = loadPublicKeyRingFromPrivate(encryptedPrivateArmored);
+            String publicFingerprint = PgpCryptoSupport.fingerprintHex(fromPublic.getPublicKey());
+            String privateFingerprint = PgpCryptoSupport.fingerprintHex(fromPrivate.getPublicKey());
             if (!publicFingerprint.equalsIgnoreCase(privateFingerprint)) {
                 throw new BadRequestException("armored public and private key blocks do not match");
             }
             return fromPublic;
         }
         if (hasPublic) {
-            return PgpCryptoSupport.loadPublicKeyRing(armoredPublic).getPublicKey();
+            return PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
         }
-        return loadMasterPublicKeyFromPrivate(encryptedPrivateArmored);
+        return loadPublicKeyRingFromPrivate(encryptedPrivateArmored);
     }
 
-    private PGPPublicKey loadMasterPublicKeyFromPrivate(String encryptedPrivateArmored)
+    private PGPPublicKeyRing loadPublicKeyRingFromPrivate(String encryptedPrivateArmored)
             throws IOException, PGPException {
         try (InputStream in = PgpCryptoSupport.decoderStream(encryptedPrivateArmored)) {
             PGPSecretKeyRingCollection collection =
@@ -122,7 +172,13 @@ public class PgpKeyMetadataParser {
             if (!rings.hasNext()) {
                 throw new BadRequestException("No secret key ring found in armored private key");
             }
-            return rings.next().getPublicKey();
+            PGPSecretKeyRing secretRing = rings.next();
+            List<PGPPublicKey> publicKeys = new ArrayList<>();
+            Iterator<PGPSecretKey> secretKeys = secretRing.getSecretKeys();
+            while (secretKeys.hasNext()) {
+                publicKeys.add(secretKeys.next().getPublicKey());
+            }
+            return new PGPPublicKeyRing(publicKeys);
         }
     }
 
