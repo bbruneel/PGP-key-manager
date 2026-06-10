@@ -214,7 +214,11 @@ export function CreateKeyForm({
                   handleAlgorithmChange(nextAlgorithm)
                   return
                 }
-                onChange({ ...values, ...algorithmValues })
+                onChange({
+                  ...values,
+                  keySize: algorithmValues.keySize,
+                  curve: algorithmValues.curve,
+                })
               }}
             />
 
