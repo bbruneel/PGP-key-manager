@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { CreateSubkeyForm } from "@/components/keys/create-subkey-form"
+import { ImportSubkeysForm } from "@/components/keys/import-subkeys-form"
 import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
 import { KeyDetailSubkeys } from "@/components/keys/key-detail-subkeys"
 import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
@@ -25,7 +26,8 @@ import {
   type ExtendExpiryFieldErrors,
   type ExtendExpiryFormValues,
 } from "@/lib/extend-key-validation"
-import { hasPrivateMaterial } from "@/lib/key-display"
+import { validateImportSubkeysForm } from "@/lib/import-subkeys-validation"
+import { hasArmoredKeyring, hasPrivateMaterial } from "@/lib/key-display"
 import { keysApi } from "@/lib/keys-api"
 import {
   buildRevokeKeyRequest,
@@ -86,6 +88,10 @@ export function KeyDetailPage() {
   const [createSubkeyRequestId, setCreateSubkeyRequestId] = useState<string | null>(null)
   const [createSubkeySubmitting, setCreateSubkeySubmitting] = useState(false)
 
+  const [importSubkeysApiError, setImportSubkeysApiError] = useState<string | null>(null)
+  const [importSubkeysRequestId, setImportSubkeysRequestId] = useState<string | null>(null)
+  const [importSubkeysSubmitting, setImportSubkeysSubmitting] = useState(false)
+
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
       return
@@ -139,6 +145,7 @@ export function KeyDetailPage() {
   const canRotate = Boolean(isSubkey && !isRevoked && requiresPassphrase)
   const isPrimary = keyData?.role === "primary"
   const canCreateSubkey = Boolean(isPrimary && !isRevoked && requiresPassphrase)
+  const canImportSubkeys = Boolean(isPrimary && !isRevoked && keyData && hasArmoredKeyring(keyData))
   const showMetadataOnlyHint = Boolean(isPrimary && !requiresPassphrase && !isRevoked)
 
   const handleCreateSubkeySubmit = useCallback(async () => {
@@ -217,6 +224,82 @@ export function KeyDetailPage() {
       setCreateSubkeyValues((current) => clearPassphrase(current))
     }
   }, [createSubkeyValues, getAccessToken, id, keyData, loadKey, navigate])
+
+  const handleImportSubkeysSubmit = useCallback(async () => {
+    if (!id || !keyData || keyData.role !== "primary" || !keyData.id) {
+      return
+    }
+
+    logUiEvent("info", {
+      eventId: "keyDetail.importSubkeys.submit",
+      message: "Import subkeys from keyring submitted",
+      keyId: id,
+    })
+
+    setImportSubkeysApiError(null)
+    setImportSubkeysRequestId(null)
+
+    const validation = validateImportSubkeysForm()
+    if (!validation.valid) {
+      logUiEvent("warn", {
+        eventId: "keyDetail.importSubkeys.validationFailed",
+        message: "Client-side import subkeys validation failed",
+        keyId: id,
+      })
+      return
+    }
+
+    setImportSubkeysSubmitting(true)
+
+    try {
+      const token = await getAccessToken()
+      const result = await keysApi.importSubkeysFromKeyring({
+        accessToken: token,
+        primaryKeyId: keyData.id,
+      })
+
+      logUiEvent("info", {
+        eventId: "keyDetail.importSubkeys.apiSuccess",
+        message: "Subkeys imported from keyring",
+        operationId: "importSubkeysFromKeyring",
+        keyId: id,
+        count: result.registered.length,
+      })
+
+      const registeredCount = result.registered.length
+      const skippedCount = result.skippedCount
+      const description =
+        registeredCount > 0
+          ? `${registeredCount} subkey${registeredCount === 1 ? "" : "s"} registered` +
+            (skippedCount > 0 ? ` · ${skippedCount} already registered` : "")
+          : skippedCount > 0
+            ? `${skippedCount} subkey${skippedCount === 1 ? "" : "s"} already registered`
+            : "No new subkeys found in the keyring"
+
+      toast.success("Subkeys imported", { description })
+
+      setSubkeysRefreshToken((value) => value + 1)
+      await loadKey()
+    } catch (error) {
+      const message = getApiErrorMessage(error)
+      setImportSubkeysApiError(message)
+      if (error instanceof ApiError) {
+        if (error.requestId) {
+          setImportSubkeysRequestId(error.requestId)
+        }
+        logUiEvent("error", {
+          eventId: "keyDetail.importSubkeys.apiError",
+          message: "Import subkeys from keyring API request failed",
+          operationId: error.operationId,
+          requestId: error.requestId,
+          status: error.status,
+          keyId: id,
+        })
+      }
+    } finally {
+      setImportSubkeysSubmitting(false)
+    }
+  }, [getAccessToken, id, keyData, loadKey])
 
   const handleRevokeSubmit = useCallback(async () => {
     if (!id || !keyData) {
@@ -521,6 +604,16 @@ export function KeyDetailPage() {
             <p className="text-sm text-muted-foreground">
               Import or register private key material to add subkeys.
             </p>
+          ) : null}
+
+          {canImportSubkeys ? (
+            <ImportSubkeysForm
+              apiError={importSubkeysApiError}
+              requestId={importSubkeysRequestId}
+              submitting={importSubkeysSubmitting}
+              disabled={false}
+              onSubmit={() => void handleImportSubkeysSubmit()}
+            />
           ) : null}
 
           {canCreateSubkey ? (

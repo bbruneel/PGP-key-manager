@@ -45,8 +45,12 @@ frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
 
+# Local gpg test exports (scripts/generate-test-gpg-keyring.sh)
+tmp/pgp-km-test-exports/
+
 # OS / IDE
 .DS_Store
 .idea/
 *.iml
 .vscode/
+.cursor/

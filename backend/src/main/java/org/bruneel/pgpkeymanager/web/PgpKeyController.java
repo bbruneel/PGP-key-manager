@@ -30,6 +30,7 @@ import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
+import org.bruneel.pgpkeymanager.web.dto.ImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PgpKeyResponse;
 import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
@@ -109,6 +110,18 @@ public class PgpKeyController {
             Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         return PgpKeyResponse.from(pgpKeyService.createSubkey(user, primaryKeyId, request), false);
+    }
+
+    @PostMapping("/{primaryKeyId}/subkeys/import-from-keyring")
+    public ResponseEntity<ImportSubkeysResponse> importSubkeysFromKeyring(
+            @PathVariable UUID primaryKeyId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        var result = pgpKeyService.importSubkeysFromKeyring(user, primaryKeyId);
+        ImportSubkeysResponse body = ImportSubkeysResponse.from(result);
+        if (result.registered().isEmpty()) {
+            return ResponseEntity.ok(body);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     @GetMapping("/{primaryKeyId}/subkeys/{subkeyId}")

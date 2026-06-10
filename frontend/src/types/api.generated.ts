@@ -76,6 +76,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/keys/{primaryKeyId}/subkeys/import-from-keyring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import subkey rows from stored keyring
+         * @description Parses non-master keys from the primary's stored armored keyring and registers metadata-only
+         *     subkey rows for any fingerprints not already registered under this primary. Idempotent —
+         *     existing subkey rows are skipped. Returns `201` when new rows are registered, `200` when
+         *     `registered` is empty (all skipped or no subkeys in the keyring).
+         */
+        post: operations["importSubkeysFromKeyring"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/keys/{primaryKeyId}/subkeys/{subkeyId}": {
         parameters: {
             query?: never;
@@ -227,6 +250,8 @@ export interface components {
          *     **Generate path:** include `algorithmSpec`, `passphrase`, and optional `userIds` / `validity`.
          *     **Register/import path:** include `armoredPublic` and/or `encryptedPrivateArmored`; the server parses
          *     metadata (fingerprint, key ID, algorithm, capabilities, expiry) from the armored material.
+         *     When the armored keyring contains subkeys, metadata-only subkey rows are registered automatically
+         *     under the new primary (same storage model as create-subkey — armored material stays on the primary row).
          *     `fingerprint` is optional on register — when omitted the server derives it; when provided it must match.
          *     When both armored blocks are sent they must refer to the same key or the request is rejected.
          *     Client-supplied `capabilities`, `algorithm`, `keyId`, and `expiresAt` are ignored on register;
@@ -299,6 +324,12 @@ export interface components {
         RotateKeyResponse: {
             newKey: components["schemas"]["PgpKey"];
             previousKey: components["schemas"]["PgpKey"];
+        };
+        ImportSubkeysResponse: {
+            /** @description Newly registered subkey rows from this import. */
+            registered: components["schemas"]["PgpKeySummary"][];
+            /** @description Subkeys already registered under this primary that were skipped. */
+            skippedCount: number;
         };
         PgpKeySummary: {
             /** Format: uuid */
@@ -549,6 +580,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PgpKey"];
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    importSubkeysFromKeyring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                primaryKeyId: components["parameters"]["PrimaryKeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Idempotent sync completed with no new subkey rows (`registered` is empty). All keyring
+             *     subkeys were already registered, or the keyring has no subkeys.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSubkeysResponse"];
+                };
+            };
+            /** @description One or more new subkey rows were registered from the keyring. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSubkeysResponse"];
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];

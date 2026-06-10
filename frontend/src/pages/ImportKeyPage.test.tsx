@@ -36,6 +36,7 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/keys-api", () => ({
   keysApi: {
     register: vi.fn(),
+    listSubkeys: vi.fn(),
   },
 }))
 
@@ -78,7 +79,9 @@ describe("ImportKeyPage", () => {
     getAccessToken.mockReset()
     navigate.mockReset()
     vi.mocked(keysApi.register).mockReset()
+    vi.mocked(keysApi.listSubkeys).mockReset()
     getAccessToken.mockResolvedValue("access-token")
+    vi.mocked(keysApi.listSubkeys).mockResolvedValue([])
   })
 
   it("shows validation errors without calling the API", async () => {
@@ -96,6 +99,7 @@ describe("ImportKeyPage", () => {
     vi.mocked(keysApi.register).mockResolvedValue({
       id: "key-imported-private",
       fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+      role: "primary",
     })
 
     renderImportKeyPage()
@@ -117,7 +121,7 @@ describe("ImportKeyPage", () => {
     const registerCall = vi.mocked(keysApi.register).mock.calls[0]![0]
     expect(registerCall.body).not.toHaveProperty("armoredPublic")
     expect(registerCall.body).not.toHaveProperty("fingerprint")
-    expect(navigate).toHaveBeenCalledWith("/keys")
+    expect(navigate).toHaveBeenCalledWith("/keys/key-imported-private")
   })
 
   it("shows private-mode validation errors without calling the API", async () => {
@@ -137,6 +141,7 @@ describe("ImportKeyPage", () => {
     vi.mocked(keysApi.register).mockResolvedValue({
       id: "key-imported",
       fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+      role: "primary",
     })
 
     renderImportKeyPage()
@@ -158,7 +163,40 @@ describe("ImportKeyPage", () => {
     expect(registerCall.body).not.toHaveProperty("fingerprint")
     expect(registerCall.body).not.toHaveProperty("passphrase")
     expect(registerCall.body).not.toHaveProperty("algorithmSpec")
-    expect(navigate).toHaveBeenCalledWith("/keys")
+    expect(navigate).toHaveBeenCalledWith("/keys/key-imported")
+  })
+
+  it("redirects to key detail and mentions subkeys when import registers subkey rows", async () => {
+    const user = userEvent.setup()
+    const { toast } = await import("sonner")
+
+    vi.mocked(keysApi.register).mockResolvedValue({
+      id: "key-with-subkeys",
+      fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+      role: "primary",
+    })
+    vi.mocked(keysApi.listSubkeys).mockResolvedValue([
+      { id: "sub-1", fingerprint: "SUBKEYFINGERPRINT", role: "subkey" },
+    ])
+
+    renderImportKeyPage()
+
+    await user.type(screen.getByLabelText(/armored public key/i), SAMPLE_PUBLIC_ARMOR)
+    await user.click(getSubmitButton())
+
+    await waitFor(() => {
+      expect(keysApi.listSubkeys).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        primaryKeyId: "key-with-subkeys",
+      })
+      expect(navigate).toHaveBeenCalledWith("/keys/key-with-subkeys")
+      expect(toast.success).toHaveBeenCalledWith(
+        "Key imported",
+        expect.objectContaining({
+          description: expect.stringContaining("1 subkey registered from keyring"),
+        }),
+      )
+    })
   })
 
   it("shows ApiError detail and request id on failure", async () => {

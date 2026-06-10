@@ -193,6 +193,37 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/{primaryKeyId}/subkeys/import-from-keyring:
+    post:
+      tags: [Subkeys]
+      summary: Import subkey rows from stored keyring
+      operationId: importSubkeysFromKeyring
+      x-implementation-status: implemented
+      description: |
+        Parses non-master keys from the primary's stored armored keyring and registers metadata-only
+        subkey rows for any fingerprints not already registered under this primary. Idempotent —
+        existing subkey rows are skipped. Returns `201` when new rows are registered, `200` when
+        `registered` is empty (all skipped or no subkeys in the keyring).
+      parameters:
+        - $ref: '#/components/parameters/PrimaryKeyId'
+      responses:
+        '200':
+          description: |
+            Idempotent sync completed with no new subkey rows (`registered` is empty). All keyring
+            subkeys were already registered, or the keyring has no subkeys.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSubkeysResponse'
+        '201':
+          description: One or more new subkey rows were registered from the keyring.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSubkeysResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/keys/{primaryKeyId}/subkeys/{subkeyId}:
     get:
       tags: [Subkeys]
@@ -430,6 +461,8 @@ components:
         **Generate path:** include `algorithmSpec`, `passphrase`, and optional `userIds` / `validity`.
         **Register/import path:** include `armoredPublic` and/or `encryptedPrivateArmored`; the server parses
         metadata (fingerprint, key ID, algorithm, capabilities, expiry) from the armored material.
+        When the armored keyring contains subkeys, metadata-only subkey rows are registered automatically
+        under the new primary (same storage model as create-subkey — armored material stays on the primary row).
         `fingerprint` is optional on register — when omitted the server derives it; when provided it must match.
         When both armored blocks are sent they must refer to the same key or the request is rejected.
         Client-supplied `capabilities`, `algorithm`, `keyId`, and `expiresAt` are ignored on register;
@@ -553,6 +586,18 @@ components:
           $ref: '#/components/schemas/PgpKey'
         previousKey:
           $ref: '#/components/schemas/PgpKey'
+    ImportSubkeysResponse:
+      type: object
+      required: [registered, skippedCount]
+      properties:
+        registered:
+          type: array
+          items:
+            $ref: '#/components/schemas/PgpKeySummary'
+          description: Newly registered subkey rows from this import.
+        skippedCount:
+          type: integer
+          description: Subkeys already registered under this primary that were skipped.
     PgpKeySummary:
       type: object
       properties:

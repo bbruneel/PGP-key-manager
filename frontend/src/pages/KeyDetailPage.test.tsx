@@ -42,6 +42,7 @@ vi.mock("@/lib/keys-api", () => ({
     get: vi.fn(),
     listSubkeys: vi.fn(),
     createSubkey: vi.fn(),
+    importSubkeysFromKeyring: vi.fn(),
     revoke: vi.fn(),
     extendExpiry: vi.fn(),
     rotate: vi.fn(),
@@ -72,6 +73,7 @@ const primaryKey: PgpKey = {
 const metadataOnlyPrimary: PgpKey = {
   ...primaryKey,
   keyType: "public",
+  armoredPublic: "-----BEGIN PGP PUBLIC KEY BLOCK-----",
   encryptedPrivateArmored: undefined,
 }
 
@@ -111,6 +113,7 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.get).mockReset()
     vi.mocked(keysApi.listSubkeys).mockReset()
     vi.mocked(keysApi.createSubkey).mockReset()
+    vi.mocked(keysApi.importSubkeysFromKeyring).mockReset()
     vi.mocked(keysApi.revoke).mockReset()
     vi.mocked(logUiEvent).mockReset()
     getAccessToken.mockResolvedValue("access-token")
@@ -217,6 +220,36 @@ describe("KeyDetailPage", () => {
     })
   })
 
+  it("submits import subkeys from keyring and refreshes subkeys list", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.importSubkeysFromKeyring).mockResolvedValue({
+      registered: [{ id: "sub-imported", fingerprint: "IMPORTEDFP", role: "subkey" }],
+      skippedCount: 0,
+    })
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const importSection = screen.getByRole("region", { name: "Import subkeys from keyring" })
+    await user.click(
+      within(importSection).getByRole("button", { name: /^import subkeys from keyring$/i }),
+    )
+
+    await waitFor(() => {
+      expect(keysApi.importSubkeysFromKeyring).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        primaryKeyId: "primary-1",
+      })
+    })
+
+    expect(toast.success).toHaveBeenCalledWith("Subkeys imported", expect.any(Object))
+    expect(logUiEvent).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({ eventId: "keyDetail.importSubkeys.apiSuccess" }),
+    )
+  })
+
   it("does not render create subkey form for metadata-only primary", async () => {
     vi.mocked(keysApi.get).mockResolvedValue(metadataOnlyPrimary)
 
@@ -225,6 +258,7 @@ describe("KeyDetailPage", () => {
     await screen.findByRole("heading", { name: "Work key" })
 
     expect(screen.queryByRole("region", { name: "Add subkey" })).not.toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Import subkeys from keyring" })).toBeInTheDocument()
     expect(screen.getByText(/import or register private key material/i)).toBeInTheDocument()
   })
 

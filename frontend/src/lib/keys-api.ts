@@ -7,6 +7,7 @@ import type {
   KeyStatus,
   PgpCapability,
   PgpKey,
+  ImportSubkeysResponse,
   PgpKeySummary,
   RegisterPgpKeyRequest,
   RevokeKeyRequest,
@@ -47,6 +48,11 @@ export type CreateSubkeyOptions = {
   body: CreateSubkeyRequest
 }
 
+export type ImportSubkeysFromKeyringOptions = {
+  accessToken: string
+  primaryKeyId: string
+}
+
 export type RevokeKeyOptions = {
   accessToken: string
   keyId: string
@@ -72,7 +78,8 @@ export type ExportPublicKeyOptions = {
 
 /**
  * Key API client. Phase 1 adds create; Phase 2 adds register (import);
- * Phase 3 adds detail, subkeys, and lifecycle actions; Phase 4 adds createSubkey.
+ * Phase 3 adds detail, subkeys, and lifecycle actions; Phase 4 adds createSubkey;
+ * Phase 5 adds importSubkeysFromKeyring.
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeySummary[]> {
@@ -141,6 +148,19 @@ export const keysApi = {
       method: "POST",
       body: options.body,
     })
+  },
+
+  importSubkeysFromKeyring(
+    options: ImportSubkeysFromKeyringOptions,
+  ): Promise<ImportSubkeysResponse> {
+    return requestJson<ImportSubkeysResponse>(
+      `/api/keys/${options.primaryKeyId}/subkeys/import-from-keyring`,
+      {
+        operationId: "importSubkeysFromKeyring",
+        accessToken: options.accessToken,
+        method: "POST",
+      },
+    )
   },
 
   revoke(options: RevokeKeyOptions): Promise<PgpKey> {

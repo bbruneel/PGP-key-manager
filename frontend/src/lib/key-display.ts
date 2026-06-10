@@ -66,3 +66,10 @@ export function hasPrivateMaterial(key: {
   }
   return key.keyType === "private"
 }
+
+export function hasArmoredKeyring(key: {
+  armoredPublic?: string | null
+  encryptedPrivateArmored?: string | null
+}): boolean {
+  return Boolean(key.armoredPublic?.trim() || key.encryptedPrivateArmored?.trim())
+}
