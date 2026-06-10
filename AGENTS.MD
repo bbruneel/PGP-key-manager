@@ -202,6 +202,7 @@ The Overview page health check (`GET /api/hello` → `ok`) and footer **API Conn
 - The Maven Enforcer plugin **hard-fails** if `JAVA_HOME` does not point at JDK 25+. Always verify with `java -version` before running `./mvnw`.
 - `npm ci` (not `npm install`) should be used to match CI lockfile behaviour.
 - Auth0 variables in `.env.local` can remain blank; the app loads without authentication.
+- Supabase transaction pooler (`:6543`) requires `prepareThreshold=0` on the JDBC URL (or the auto-config in `SupabasePoolerDataSourceConfiguration`). Without it, parallel API calls can fail with `prepared statement "S_1" already exists`.
 - Sidebar navigation items (Keys, Policies, Settings) are scaffold placeholders — they do not have implemented page content yet.
 
 ## Further reading
