@@ -81,25 +81,22 @@ function candidateAlgorithms(
     capabilities.includes("authenticate") ||
     (context === "primary" && capabilities.includes("certify"))
 
-  const candidates = new Set<AlgorithmId>()
+  let algorithms: AlgorithmId[] = []
 
-  if (needsEncrypt) {
-    for (const algorithm of ENCRYPT_ALGORITHMS) {
-      candidates.add(algorithm)
-    }
-  }
-
-  if (needsSign) {
-    for (const algorithm of SIGN_ALGORITHMS) {
-      candidates.add(algorithm)
-    }
+  if (needsEncrypt && needsSign) {
+    // Dual-capability subkeys must satisfy both encrypt and sign rules (RSA only).
+    algorithms = ENCRYPT_ALGORITHMS.filter((algorithm) => SIGN_ALGORITHMS.includes(algorithm))
+  } else if (needsEncrypt) {
+    algorithms = [...ENCRYPT_ALGORITHMS]
+  } else if (needsSign) {
+    algorithms = [...SIGN_ALGORITHMS]
   }
 
   if (context === "primary") {
-    return PRIMARY_ALGORITHMS.filter((algorithm) => candidates.has(algorithm))
+    return PRIMARY_ALGORITHMS.filter((algorithm) => algorithms.includes(algorithm))
   }
 
-  return [...candidates]
+  return algorithms
 }
 
 export function filterAlgorithmsForCapabilities(
@@ -132,7 +129,7 @@ export function defaultAlgorithmForCapabilities(
   }
 
   if (capabilities.includes("encrypt") && !capabilities.includes("sign") && !capabilities.includes("authenticate")) {
-    return openpgpVersion === 6 ? "cv25519" : "cv25519"
+    return "cv25519"
   }
 
   if (
@@ -222,25 +219,19 @@ export function validateAlgorithmSpec(
     }
   }
 
-  if (!isAlgorithmAllowedForCapabilities(values.algorithm, capabilities, openpgpVersion, context)) {
-    if (capabilities.includes("encrypt") && !ENCRYPT_ALGORITHMS.includes(values.algorithm)) {
-      return {
-        valid: false,
-        error: "Encryption requires Cv25519, ECDH, RSA, or X448",
-      }
-    }
-    if (
-      (capabilities.includes("sign") || capabilities.includes("authenticate")) &&
-      !SIGN_ALGORITHMS.includes(values.algorithm)
-    ) {
-      return {
-        valid: false,
-        error: "Signing requires Ed25519, ECDSA, RSA, or Ed448",
-      }
-    }
+  if (capabilities.includes("encrypt") && !ENCRYPT_ALGORITHMS.includes(values.algorithm)) {
     return {
       valid: false,
-      error: "Selected algorithm is not compatible with the chosen capabilities",
+      error: "Encryption requires Cv25519, ECDH, RSA, or X448",
+    }
+  }
+  if (
+    (capabilities.includes("sign") || capabilities.includes("authenticate")) &&
+    !SIGN_ALGORITHMS.includes(values.algorithm)
+  ) {
+    return {
+      valid: false,
+      error: "Signing requires Ed25519, ECDSA, RSA, or Ed448",
     }
   }
 

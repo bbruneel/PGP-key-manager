@@ -21,16 +21,14 @@ describe("filterAlgorithmsForCapabilities", () => {
     expect(options.map((item) => item.id)).toEqual(["ed25519", "ecdsa", "rsa"])
   })
 
-  it("hides ed448 and x448 when openpgpVersion is 4", () => {
+  it("offers only rsa for dual sign+encrypt capabilities", () => {
     const options = filterAlgorithmsForCapabilities(["sign", "encrypt"], 4)
-    expect(options.map((item) => item.id)).not.toContain("ed448")
-    expect(options.map((item) => item.id)).not.toContain("x448")
+    expect(options.map((item) => item.id)).toEqual(["rsa"])
   })
 
-  it("includes ed448 and x448 when openpgpVersion is 6", () => {
+  it("offers only rsa for dual sign+encrypt on v6", () => {
     const options = filterAlgorithmsForCapabilities(["sign", "encrypt"], 6)
-    expect(options.map((item) => item.id)).toContain("ed448")
-    expect(options.map((item) => item.id)).toContain("x448")
+    expect(options.map((item) => item.id)).toEqual(["rsa"])
   })
 
   it("offers primary algorithms excluding encryption-only options", () => {
@@ -138,6 +136,27 @@ describe("validateAlgorithmSpec", () => {
     )
     expect(result.valid).toBe(false)
     expect(result.error).toMatch(/primary/i)
+  })
+
+  it("rejects ed25519 for dual sign+encrypt subkey", () => {
+    const result = validateAlgorithmSpec(
+      ["sign", "encrypt"],
+      { algorithm: "ed25519" },
+      "subkey",
+      4,
+    )
+    expect(result.valid).toBe(false)
+    expect(result.error).toMatch(/encrypt/i)
+  })
+
+  it("accepts rsa for dual sign+encrypt subkey with keySize", () => {
+    const result = validateAlgorithmSpec(
+      ["sign", "encrypt"],
+      { algorithm: "rsa", keySize: 4096 },
+      "subkey",
+      4,
+    )
+    expect(result.valid).toBe(true)
   })
 })
 
