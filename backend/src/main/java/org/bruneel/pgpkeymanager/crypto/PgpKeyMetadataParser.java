@@ -250,8 +250,10 @@ public class PgpKeyMetadataParser {
                 }
                 yield new AlgorithmSpecDto("rsa", normalizeRsaKeySize(keySize), null);
             }
-            case PublicKeyAlgorithmTags.EDDSA -> new AlgorithmSpecDto("ed25519", null, null);
+            case PublicKeyAlgorithmTags.EDDSA,
+                    PublicKeyAlgorithmTags.Ed25519 -> new AlgorithmSpecDto("ed25519", null, null);
             case PublicKeyAlgorithmTags.Ed448 -> new AlgorithmSpecDto("ed448", null, null);
+            case PublicKeyAlgorithmTags.X25519 -> new AlgorithmSpecDto("cv25519", null, null);
             case PublicKeyAlgorithmTags.X448 -> new AlgorithmSpecDto("x448", null, null);
             case PublicKeyAlgorithmTags.ECDH -> resolveEcdhSpec(master);
             case PublicKeyAlgorithmTags.ECDSA -> resolveEcdsaSpec(master);

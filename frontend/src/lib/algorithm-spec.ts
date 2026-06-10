@@ -47,8 +47,8 @@ const ALGORITHM_LABELS: Record<AlgorithmId, string> = {
 
 const PRIMARY_ALGORITHM_LABELS: Record<PrimaryAlgorithmId, string> = {
   ed25519: "Ed25519 (recommended)",
-  rsa: "RSA 4096 (compatibility)",
-  ecdsa: "ECDSA P-256 (compatibility)",
+  rsa: "RSA (compatibility)",
+  ecdsa: "ECDSA (compatibility)",
   ed448: "Ed448 (OpenPGP v6, high security)",
 }
 

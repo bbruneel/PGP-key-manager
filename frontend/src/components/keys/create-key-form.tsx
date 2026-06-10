@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 
+import { SubkeyAlgorithmFields } from "@/components/keys/subkey-algorithm-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,11 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  filterPrimaryAlgorithms,
-  type PrimaryAlgorithmId,
-} from "@/lib/algorithm-spec"
+import type { PrimaryAlgorithmId } from "@/lib/algorithm-spec"
 import type { CreateKeyFieldErrors, CreateKeyFormValues } from "@/lib/create-key-validation"
+import {
+  applyOpenpgpVersionChange,
+  applyPrimaryAlgorithmChange,
+} from "@/lib/create-key-validation"
 import { cn } from "@/lib/utils"
 
 type CreateKeyFormProps = {
@@ -26,6 +28,7 @@ type CreateKeyFormProps = {
   submitting: boolean
   onChange: (values: CreateKeyFormValues) => void
   onAlgorithmChanged?: (values: CreateKeyFormValues) => void
+  onAlgorithmAdjusted?: (next: CreateKeyFormValues, previous: CreateKeyFormValues) => void
   onSubmit: () => void
   onCancel: () => void
 }
@@ -45,23 +48,18 @@ export function CreateKeyForm({
   submitting,
   onChange,
   onAlgorithmChanged,
+  onAlgorithmAdjusted,
   onSubmit,
   onCancel,
 }: CreateKeyFormProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const primaryAlgorithms = filterPrimaryAlgorithms(values.openpgpVersion)
 
   function updateField<K extends keyof CreateKeyFormValues>(key: K, value: CreateKeyFormValues[K]) {
     onChange({ ...values, [key]: value })
   }
 
   function handleAlgorithmChange(algorithm: PrimaryAlgorithmId) {
-    const next =
-      algorithm === "rsa"
-        ? { ...values, algorithm, keySize: 4096 as const, curve: undefined }
-        : algorithm === "ecdsa"
-          ? { ...values, algorithm, curve: "P-256" as const, keySize: undefined }
-          : { ...values, algorithm, keySize: undefined, curve: undefined }
+    const next = applyPrimaryAlgorithmChange(values, algorithm)
     onChange(next)
     onAlgorithmChanged?.(next)
   }
@@ -202,47 +200,34 @@ export function CreateKeyForm({
 
         {advancedOpen ? (
           <div className="space-y-4 rounded-md border border-input bg-background p-4">
-            <div className="space-y-2">
-              <Label htmlFor="create-key-algorithm">Algorithm</Label>
-              <Select
-                value={values.algorithm}
-                onValueChange={(value) => handleAlgorithmChange(value as PrimaryAlgorithmId)}
-                disabled={submitting}
-              >
-                <SelectTrigger
-                  id="create-key-algorithm"
-                  className="w-full"
-                  aria-invalid={Boolean(fieldErrors.algorithm)}
-                >
-                  <SelectValue placeholder="Select algorithm" />
-                </SelectTrigger>
-                <SelectContent>
-                  {primaryAlgorithms.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Ed25519 is recommended for new keys. RSA and ECDSA are for legacy interoperability.
-              </p>
-              <FieldError message={fieldErrors.algorithm} />
-            </div>
+            <SubkeyAlgorithmFields
+              idPrefix="create-key"
+              values={values}
+              capabilities={["certify", "sign"]}
+              openpgpVersion={values.openpgpVersion}
+              context="primary"
+              fieldError={fieldErrors.algorithm}
+              disabled={submitting}
+              onChange={(algorithmValues) => {
+                const nextAlgorithm = algorithmValues.algorithm as PrimaryAlgorithmId
+                if (nextAlgorithm !== values.algorithm) {
+                  handleAlgorithmChange(nextAlgorithm)
+                  return
+                }
+                onChange({ ...values, ...algorithmValues })
+              }}
+            />
 
             <div className="space-y-2">
               <Label htmlFor="create-key-openpgp-version">OpenPGP version</Label>
               <Select
                 value={String(values.openpgpVersion)}
                 onValueChange={(value) => {
-                  const openpgpVersion = Number(value) as 4 | 6
-                  const allowed = filterPrimaryAlgorithms(openpgpVersion)
-                  const algorithmStillAllowed = allowed.some((option) => option.id === values.algorithm)
-                  const next = algorithmStillAllowed
-                    ? { ...values, openpgpVersion }
-                    : { ...values, openpgpVersion, algorithm: "ed25519" as const, keySize: undefined, curve: undefined }
+                  const previous = values
+                  const next = applyOpenpgpVersionChange(values, Number(value) as 4 | 6)
                   onChange(next)
-                  if (!algorithmStillAllowed) {
+                  if (next.algorithm !== previous.algorithm) {
+                    onAlgorithmAdjusted?.(next, previous)
                     onAlgorithmChanged?.(next)
                   }
                 }}

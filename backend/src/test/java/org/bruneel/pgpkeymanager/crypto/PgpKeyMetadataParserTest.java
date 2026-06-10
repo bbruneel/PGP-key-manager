@@ -118,6 +118,55 @@ class PgpKeyMetadataParserTest {
     }
 
     @Test
+    void parseEd448PrimaryV6() {
+        GeneratedKeyMaterial material =
+                crypto.generatePrimary(
+                        6,
+                        List.of(new UserIdSpecDto("Ed448 Parser", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed448", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "ed448-parser-passphrase".toCharArray());
+
+        ImportedKeyMetadata metadata = parser.parse(material.armoredPublic(), null);
+
+        assertThat(metadata.algorithm()).isEqualTo("ed448");
+        assertThat(metadata.algorithmSpecJson()).contains("ed448");
+        assertThat(metadata.fingerprint()).isEqualTo(material.fingerprint());
+        assertThat(metadata.keyId()).isEqualTo(material.keyId());
+        assertThat(metadata.openpgpVersion()).isEqualTo(6);
+    }
+
+    @Test
+    void parseKeyringWithX448SubkeyV6() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        6,
+                        List.of(new UserIdSpecDto("X448 Keyring", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "x448-keyring-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        6,
+                        primary.armoredPrivate(),
+                        "x448-keyring-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("x448", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        ImportedKeyringMetadata keyring = parser.parseKeyring(null, sub.updatedArmoredPrivate());
+
+        assertThat(keyring.primary().fingerprint()).isEqualTo(primary.fingerprint());
+        assertThat(keyring.subkeys()).hasSize(1);
+        assertThat(keyring.subkeys().get(0).algorithm()).isEqualTo("x448");
+        assertThat(keyring.subkeys().get(0).fingerprint()).isEqualTo(sub.fingerprint());
+        assertThat(keyring.subkeys().get(0).openpgpVersion()).isEqualTo(6);
+    }
+
+    @Test
     void mismatchedPublicAndPrivateThrowsBadRequest() {
         GeneratedKeyMaterial first =
                 crypto.generatePrimary(

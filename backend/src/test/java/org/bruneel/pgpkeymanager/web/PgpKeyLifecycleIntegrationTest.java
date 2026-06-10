@@ -212,6 +212,93 @@ class PgpKeyLifecycleIntegrationTest {
     }
 
     @Test
+    void createPrimaryEd448OnV6() throws Exception {
+        mockMvc.perform(post("/api/keys")
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "label": "ed448-v6-primary",
+                                  "keyType": "private",
+                                  "capabilities": ["certify", "sign"],
+                                  "algorithmSpec": { "algorithm": "ed448" },
+                                  "openpgpVersion": 6,
+                                  "validity": { "expiresAt": "2030-06-01T00:00:00Z" },
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.openpgpVersion").value(6))
+                .andExpect(jsonPath("$.algorithm").value("ed448"));
+    }
+
+    @Test
+    void createPrimaryEd448OnV4Rejects() throws Exception {
+        mockMvc.perform(post("/api/keys")
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "label": "ed448-v4-primary",
+                                  "capabilities": ["certify", "sign"],
+                                  "algorithmSpec": { "algorithm": "ed448" },
+                                  "openpgpVersion": 4,
+                                  "validity": { "expiresAt": "2030-06-01T00:00:00Z" },
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createV6PrimaryWithX448EncryptSubkey() throws Exception {
+        MvcResult createPrimary =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "x448-subkey-primary",
+                                          "keyType": "private",
+                                          "capabilities": ["certify", "sign"],
+                                          "algorithmSpec": { "algorithm": "ed25519" },
+                                          "openpgpVersion": 6,
+                                          "validity": { "expiresAt": "2030-06-01T00:00:00Z" },
+                                          "passphrase": "%s"
+                                        }
+                                        """
+                                        .formatted(PASSPHRASE)))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.openpgpVersion").value(6))
+                        .andReturn();
+
+        String primaryId = readJsonField(createPrimary.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "capabilities": ["encrypt"],
+                                  "algorithm": { "algorithm": "x448" },
+                                  "validity": { "expiresAt": "2029-06-01T00:00:00Z" },
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("subkey"))
+                .andExpect(jsonPath("$.algorithm").value("x448"))
+                .andExpect(jsonPath("$.parentKeyId").value(primaryId));
+    }
+
+    @Test
     void invalidOpenpgpVersionReturnsBadRequest() throws Exception {
         mockMvc.perform(post("/api/keys")
                         .with(jwt())

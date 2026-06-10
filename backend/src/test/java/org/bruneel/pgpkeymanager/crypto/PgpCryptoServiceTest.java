@@ -223,6 +223,9 @@ class PgpCryptoServiceTest {
                         "integration-test-passphrase".toCharArray());
 
         assertThat(material.armoredPublic()).contains("BEGIN PGP PUBLIC KEY BLOCK");
+        assertThat(material.algorithm()).isEqualTo("ed448");
+        assertThat(material.fingerprint()).isNotBlank();
+        assertThat(material.keyId()).isNotBlank();
     }
 
     @Test
@@ -257,6 +260,23 @@ class PgpCryptoServiceTest {
                                         List.of(new UserIdSpecDto("Bad", null)),
                                         List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
                                         new AlgorithmSpecDto("ed448", null, null),
+                                        Instant.parse("2030-05-21T00:00:00Z"),
+                                        "integration-test-passphrase".toCharArray()))
+                .isInstanceOf(CryptoException.class)
+                .cause()
+                .isInstanceOf(CryptoException.class)
+                .hasMessageContaining("OpenPGP v6");
+    }
+
+    @Test
+    void rejectsX448OnV4() {
+        assertThatThrownBy(
+                        () ->
+                                crypto.generatePrimary(
+                                        4,
+                                        List.of(new UserIdSpecDto("Bad", null)),
+                                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                                        new AlgorithmSpecDto("x448", null, null),
                                         Instant.parse("2030-05-21T00:00:00Z"),
                                         "integration-test-passphrase".toCharArray()))
                 .isInstanceOf(CryptoException.class)

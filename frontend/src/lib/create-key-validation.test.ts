@@ -83,6 +83,13 @@ describe("validateCreateKeyForm", () => {
     expect(result.valid).toBe(true)
   })
 
+  it("accepts ecdsa primary with curve", () => {
+    const result = validateCreateKeyForm(
+      validValues({ algorithm: "ecdsa", curve: "P-384" }),
+    )
+    expect(result.valid).toBe(true)
+  })
+
   it("rejects rsa primary without keySize", () => {
     const result = validateCreateKeyForm(validValues({ algorithm: "rsa" }))
     expect(result.valid).toBe(false)

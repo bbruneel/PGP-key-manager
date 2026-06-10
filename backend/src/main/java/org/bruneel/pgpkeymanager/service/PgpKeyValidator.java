@@ -66,11 +66,7 @@ public final class PgpKeyValidator {
             throw new BadRequestException("Subkey capabilities must not include certify");
         }
         validateAlgorithmForOpenpgpVersion(request.algorithm(), openpgpVersion);
-        validateAlgorithmForCapabilities(request.algorithm(), caps);
-    }
-
-    public static void validateSubkeyRequest(CreateSubkeyRequest request) {
-        validateSubkeyRequest(request, OPENPGP_V4);
+        validateAlgorithmForCapabilities(request.algorithm(), caps, false);
     }
 
     public static void validatePrimaryAlgorithm(AlgorithmSpecDto algorithm, int openpgpVersion) {
@@ -80,7 +76,7 @@ public final class PgpKeyValidator {
             throw new BadRequestException("Primary keys cannot use encryption-only algorithms");
         }
         validateAlgorithmForCapabilities(
-                algorithm, List.of(PgpCapability.CERTIFY, PgpCapability.SIGN));
+                algorithm, List.of(PgpCapability.CERTIFY, PgpCapability.SIGN), true);
     }
 
     public static void validateAlgorithmForOpenpgpVersion(AlgorithmSpecDto algorithm, int openpgpVersion) {
@@ -91,10 +87,18 @@ public final class PgpKeyValidator {
     }
 
     public static void validateAlgorithmForCapabilities(AlgorithmSpecDto algorithm, List<PgpCapability> capabilities) {
+        validateAlgorithmForCapabilities(algorithm, capabilities, false);
+    }
+
+    private static void validateAlgorithmForCapabilities(
+            AlgorithmSpecDto algorithm, List<PgpCapability> capabilities, boolean primaryContext) {
         String alg = algorithm.algorithm().toLowerCase();
+        String encryptionScope = primaryContext ? "Encryption keys" : "Encryption subkeys";
+        String signingScope = primaryContext ? "Signing keys" : "Signing subkeys";
         if (capabilities.contains(PgpCapability.ENCRYPT)) {
             if (!List.of("cv25519", "ecdh", "rsa", "x448").contains(alg)) {
-                throw new BadRequestException("Encryption subkeys require cv25519, ecdh, rsa, or x448");
+                throw new BadRequestException(
+                        encryptionScope + " require cv25519, ecdh, rsa, or x448");
             }
             if ("ecdh".equals(alg) && algorithm.curve() == null) {
                 throw new BadRequestException("ecdh requires curve");
@@ -105,7 +109,8 @@ public final class PgpKeyValidator {
         }
         if (capabilities.contains(PgpCapability.SIGN) || capabilities.contains(PgpCapability.AUTHENTICATE)) {
             if (!List.of("ed25519", "ecdsa", "rsa", "ed448").contains(alg)) {
-                throw new BadRequestException("Signing subkeys require ed25519, ecdsa, rsa, or ed448");
+                throw new BadRequestException(
+                        signingScope + " require ed25519, ecdsa, rsa, or ed448");
             }
             if ("ecdsa".equals(alg) && algorithm.curve() == null) {
                 throw new BadRequestException("ecdsa requires curve");

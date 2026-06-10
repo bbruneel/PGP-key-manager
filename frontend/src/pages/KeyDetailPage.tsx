@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
+import { notifyAlgorithmAdjusted } from "@/lib/algorithm-adjustment-toast"
+
 import { CreateSubkeyForm } from "@/components/keys/create-subkey-form"
 import { ImportSubkeysForm } from "@/components/keys/import-subkeys-form"
 import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
@@ -631,6 +633,7 @@ export function KeyDetailPage() {
                 setCreateSubkeyFieldErrors({})
               }}
               onAlgorithmAdjusted={(nextValues, previousValues) => {
+                notifyAlgorithmAdjusted(previousValues, nextValues)
                 logUiEvent("debug", {
                   eventId: "keyDetail.createSubkey.algorithmAdjusted",
                   message: "Create subkey algorithm adjusted for capabilities",
@@ -691,6 +694,7 @@ export function KeyDetailPage() {
                 setRotateFieldErrors({})
               }}
               onAlgorithmAdjusted={(nextValues, previousValues) => {
+                notifyAlgorithmAdjusted(previousValues, nextValues)
                 logUiEvent("debug", {
                   eventId: "keyDetail.rotate.algorithmAdjusted",
                   message: "Rotate subkey algorithm adjusted for capabilities",

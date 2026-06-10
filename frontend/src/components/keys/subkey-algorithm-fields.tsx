@@ -11,6 +11,7 @@ import {
   filterAlgorithmsForCapabilities,
   UI_NIST_CURVES,
   UI_RSA_KEY_SIZES,
+  type AlgorithmContext,
   type AlgorithmFormValues,
   type NistCurve,
   type OpenpgpVersion,
@@ -23,6 +24,7 @@ type SubkeyAlgorithmFieldsProps = {
   values: AlgorithmFormValues
   capabilities: PgpCapability[]
   openpgpVersion: OpenpgpVersion
+  context?: AlgorithmContext
   fieldError?: string
   disabled: boolean
   onChange: (values: AlgorithmFormValues) => void
@@ -40,11 +42,12 @@ export function SubkeyAlgorithmFields({
   values,
   capabilities,
   openpgpVersion,
+  context = "subkey",
   fieldError,
   disabled,
   onChange,
 }: SubkeyAlgorithmFieldsProps) {
-  const algorithmOptions = filterAlgorithmsForCapabilities(capabilities, openpgpVersion)
+  const algorithmOptions = filterAlgorithmsForCapabilities(capabilities, openpgpVersion, context)
 
   function updateAlgorithm(next: AlgorithmFormValues) {
     onChange(next)
@@ -87,7 +90,9 @@ export function SubkeyAlgorithmFields({
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Ed25519/Cv25519 recommended; RSA/ECDSA/ECDH for legacy compatibility.
+          {context === "primary"
+            ? "Ed25519 is recommended. RSA and ECDSA support legacy interoperability; Ed448 requires OpenPGP v6."
+            : "Ed25519/Cv25519 recommended; RSA/ECDSA/ECDH for legacy compatibility; Ed448/X448 on OpenPGP v6."}
         </p>
         <FieldError message={fieldError} />
       </div>

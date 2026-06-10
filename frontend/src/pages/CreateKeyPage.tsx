@@ -12,6 +12,7 @@ import {
   type CreateKeyFieldErrors,
   type CreateKeyFormValues,
 } from "@/lib/create-key-validation"
+import { notifyAlgorithmAdjusted } from "@/lib/algorithm-adjustment-toast"
 import { keysApi } from "@/lib/keys-api"
 import { logUiEvent } from "@/lib/ui-logger"
 
@@ -154,6 +155,16 @@ export function CreateKeyPage() {
             eventId: "createKey.algorithmChanged",
             message: "Create key algorithm changed",
             algorithm: nextValues.algorithm,
+            openpgpVersion: nextValues.openpgpVersion,
+          })
+        }}
+        onAlgorithmAdjusted={(nextValues, previousValues) => {
+          notifyAlgorithmAdjusted(previousValues, nextValues)
+          logUiEvent("debug", {
+            eventId: "createKey.algorithmChanged",
+            message: "Create key algorithm adjusted for OpenPGP version",
+            algorithm: nextValues.algorithm,
+            previousAlgorithm: previousValues.algorithm,
             openpgpVersion: nextValues.openpgpVersion,
           })
         }}
