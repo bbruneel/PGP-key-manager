@@ -2,9 +2,9 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
-import type { PgpKeyDetail } from "@/types/api"
+import type { PgpKey } from "@/types/api"
 
-const sampleKey: PgpKeyDetail = {
+const sampleKey: PgpKey = {
   id: "key-1",
   label: "Work key",
   fingerprint: "ABCD1234EF567890",

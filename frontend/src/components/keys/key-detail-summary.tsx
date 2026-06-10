@@ -5,10 +5,10 @@ import {
   formatRevokedAt,
   hasPrivateMaterial,
 } from "@/lib/key-display"
-import type { PgpKeyDetail } from "@/types/api"
+import type { PgpKey } from "@/types/api"
 
 type KeyDetailSummaryProps = {
-  keyData: PgpKeyDetail
+  keyData: PgpKey
 }
 
 export function KeyDetailSummary({ keyData }: KeyDetailSummaryProps) {

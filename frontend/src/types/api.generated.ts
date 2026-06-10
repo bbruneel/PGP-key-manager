@@ -144,8 +144,11 @@ export interface paths {
         put?: never;
         /**
          * Rotate subkey
-         * @description Creates a replacement subkey on the parent primary. When `revokePrevious` is true (default),
-         *     the previous subkey is revoked in the OpenPGP keyring and `passphrase` is required.
+         * @description Creates a replacement subkey on the parent primary. `passphrase` is required (unlocks the
+         *     primary keyring for new subkey creation; rotate is only supported when the primary stores
+         *     private material). When `revokePrevious` is true (default), the previous subkey is also
+         *     revoked in the OpenPGP keyring; when false, the previous subkey row is left unchanged in
+         *     the keyring.
          */
         post: operations["rotateKey"];
         delete?: never;
@@ -225,6 +228,9 @@ export interface components {
          *     **Register/import path:** include `armoredPublic` and/or `encryptedPrivateArmored`; the server parses
          *     metadata (fingerprint, key ID, algorithm, capabilities, expiry) from the armored material.
          *     `fingerprint` is optional on register — when omitted the server derives it; when provided it must match.
+         *     When both armored blocks are sent they must refer to the same key or the request is rejected.
+         *     Client-supplied `capabilities`, `algorithm`, `keyId`, and `expiresAt` are ignored on register;
+         *     parsed values from the armored material are always stored.
          */
         CreatePgpKeyRequest: {
             label?: string;
@@ -279,8 +285,15 @@ export interface components {
             capabilities: components["schemas"]["PgpCapability"][];
             algorithm: components["schemas"]["AlgorithmSpec"];
             validity?: components["schemas"]["ValiditySpec"];
+            /**
+             * @description Required for rotate. Unlocks the primary keyring for new subkey creation (and for
+             *     revoking the previous subkey when `revokePrevious` is true).
+             */
             passphrase?: string;
-            /** @description When true, requires passphrase to revoke the previous subkey in the keyring. */
+            /**
+             * @description When true (default), revokes the previous subkey in the OpenPGP keyring before creating
+             *     the replacement. Does not affect whether `passphrase` is required.
+             */
             revokePrevious?: boolean;
         };
         RotateKeyResponse: {
@@ -290,7 +303,16 @@ export interface components {
         PgpKeySummary: {
             /** Format: uuid */
             id?: string;
+            /** @description User-facing key name. `null` when unset. */
+            label?: string | null;
             fingerprint?: string;
+            /** @description OpenPGP key ID (16 uppercase hex characters). */
+            keyId?: string;
+            /**
+             * @description Stored algorithm identifier (e.g. `ed25519`, `cv25519`). Parsed from armored material on
+             *     register or set on generation.
+             */
+            algorithm?: string;
             keyType?: components["schemas"]["MaterialKind"];
             role?: components["schemas"]["KeyRole"];
             /** Format: uuid */
