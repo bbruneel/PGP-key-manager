@@ -103,7 +103,7 @@ class PgpKeySubkeyImportIntegrationTest {
         mockMvc.perform(
                         post("/api/keys/{primaryKeyId}/subkeys/import-from-keyring", primaryId)
                                 .with(jwt()))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.registered", hasSize(0)))
                 .andExpect(jsonPath("$.skippedCount").value(1));
 

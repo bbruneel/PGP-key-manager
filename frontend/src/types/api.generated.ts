@@ -89,7 +89,8 @@ export interface paths {
          * Import subkey rows from stored keyring
          * @description Parses non-master keys from the primary's stored armored keyring and registers metadata-only
          *     subkey rows for any fingerprints not already registered under this primary. Idempotent —
-         *     existing subkey rows are skipped.
+         *     existing subkey rows are skipped. Returns `201` when new rows are registered, `200` when
+         *     `registered` is empty (all skipped or no subkeys in the keyring).
          */
         post: operations["importSubkeysFromKeyring"];
         delete?: never;
@@ -595,7 +596,19 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Subkeys imported from keyring */
+            /**
+             * @description Idempotent sync completed with no new subkey rows (`registered` is empty). All keyring
+             *     subkeys were already registered, or the keyring has no subkeys.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSubkeysResponse"];
+                };
+            };
+            /** @description One or more new subkey rows were registered from the keyring. */
             201: {
                 headers: {
                     [name: string]: unknown;

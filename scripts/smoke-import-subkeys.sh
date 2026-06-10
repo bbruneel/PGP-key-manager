@@ -65,11 +65,17 @@ if [[ "${SUBKEY_COUNT}" -lt 1 ]]; then
 fi
 
 echo "==> Idempotent import-from-keyring"
-IMPORT_RESPONSE="$(
-  curl -sS -X POST "${API_BASE_URL}/api/keys/${PRIMARY_ID}/subkeys/import-from-keyring" \
+IMPORT_STATUS="$(
+  curl -sS -o /tmp/pgp-smoke-import-subkeys.json -w "%{http_code}" -X POST \
+    "${API_BASE_URL}/api/keys/${PRIMARY_ID}/subkeys/import-from-keyring" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Accept: application/json; version=1"
 )"
+IMPORT_RESPONSE="$(cat /tmp/pgp-smoke-import-subkeys.json)"
+if [[ "${IMPORT_STATUS}" != "200" ]]; then
+  echo "error: expected HTTP 200 on idempotent import-from-keyring, got ${IMPORT_STATUS}" >&2
+  exit 1
+fi
 
 SKIPPED="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["skippedCount"])' <<<"${IMPORT_RESPONSE}")"
 echo "    skipped count: ${SKIPPED}"

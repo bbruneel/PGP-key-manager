@@ -113,11 +113,15 @@ public class PgpKeyController {
     }
 
     @PostMapping("/{primaryKeyId}/subkeys/import-from-keyring")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ImportSubkeysResponse importSubkeysFromKeyring(
+    public ResponseEntity<ImportSubkeysResponse> importSubkeysFromKeyring(
             @PathVariable UUID primaryKeyId, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return ImportSubkeysResponse.from(pgpKeyService.importSubkeysFromKeyring(user, primaryKeyId));
+        var result = pgpKeyService.importSubkeysFromKeyring(user, primaryKeyId);
+        ImportSubkeysResponse body = ImportSubkeysResponse.from(result);
+        if (result.registered().isEmpty()) {
+            return ResponseEntity.ok(body);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     @GetMapping("/{primaryKeyId}/subkeys/{subkeyId}")
