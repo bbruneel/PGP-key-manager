@@ -10,6 +10,7 @@ export type RequestOptions = {
   method?: string
   body?: unknown
   requestId?: string
+  headers?: Record<string, string>
 }
 
 export type RequestJsonOptions = RequestOptions
@@ -21,7 +22,7 @@ function responseRequestId(response: Response, fallback?: string): string | unde
 async function executeRequest(path: string, options: RequestOptions): Promise<Response> {
   const requestId = options.requestId ?? newRequestId()
   const method = options.method ?? (options.body !== undefined ? "POST" : "GET")
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...options.headers }
 
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json"

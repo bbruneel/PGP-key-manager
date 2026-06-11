@@ -30,6 +30,7 @@ vi.mock("react-router-dom", async () => {
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
+    info: vi.fn(),
   },
 }))
 

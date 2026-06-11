@@ -123,9 +123,9 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 |-------|---------|-------|
 | `/` | Overview (health, auth status) | Current |
 | `/keys` | List keys for the signed-in user | Current |
-| `/keys/new` | Create primary key (label, user IDs, expiry, passphrase, Ed25519, OpenPGP v4/v6) | Phase 1 (implemented) |
+| `/keys/new` | Create primary key (Ed25519 default; advanced RSA/ECDSA/Ed448, OpenPGP v4/v6) | Phase 1 + 6 (implemented) |
 | `/keys/import` | Import/register existing key (public or private armored blocks + fingerprint) | Phase 2 (implemented) |
-| `/keys/:id` | Key detail, subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, export) | Phase 3 + 4 (implemented) |
+| `/keys/:id` | Key detail, subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, export) | Phase 3 + 4 + 6 (implemented) |
 
 **Recorded decision:** create primary key at **`/keys/new`** and import at **`/keys/import`**, not modals on `/keys`.
 
@@ -187,6 +187,19 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 4. `keysApi.importSubkeysFromKeyring()` sends `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring` with `operationId: importSubkeysFromKeyring`. Idempotent — skips subkeys already registered under the primary.
 5. `[pgp-ui]` events: `keyDetail.importSubkeys.submit`, `keyDetail.importSubkeys.apiSuccess`, `keyDetail.importSubkeys.apiError`.
 6. On success: sonner toast with registered/skipped counts, subkeys list refresh.
+
+## Extended algorithm support (Phase 6)
+
+Shared frontend rules live in `algorithm-spec.ts` (capability ↔ algorithm filtering, mirroring `PgpKeyValidator`).
+
+| Context | Default | Advanced / legacy |
+|---------|---------|-------------------|
+| Primary create | Ed25519 | RSA 4096, ECDSA P-256; Ed448 when OpenPGP v6 |
+| Subkey create / rotate | Ed25519 (sign), Cv25519 (encrypt) | RSA, ECDSA, ECDH; Ed448/X448 when primary is v6 |
+
+- **6A:** Subkey create/rotate forms filter algorithms by capability and primary `openpgpVersion`; RSA key size and NIST curve pickers when needed. `[pgp-ui]` `keyDetail.createSubkey.algorithmAdjusted`, `keyDetail.rotate.algorithmAdjusted`.
+- **6B:** Primary create advanced algorithm select; backend `validatePrimaryAlgorithm` on generate; log `create_key_algorithm`. `[pgp-ui]` `createKey.algorithmChanged`.
+- **6C:** Backend + OpenAPI add `ed448` / `x448` (OpenPGP v6 only); `PgpCryptoService` v6 generators; parser maps Ed448/X448 tags.
 
 ## Repository layout
 

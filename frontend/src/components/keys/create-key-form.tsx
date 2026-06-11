@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 
+import { SubkeyAlgorithmFields } from "@/components/keys/subkey-algorithm-fields"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,7 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { PrimaryAlgorithmId } from "@/lib/algorithm-spec"
 import type { CreateKeyFieldErrors, CreateKeyFormValues } from "@/lib/create-key-validation"
+import {
+  applyOpenpgpVersionChange,
+  applyPrimaryAlgorithmChange,
+} from "@/lib/create-key-validation"
 import { cn } from "@/lib/utils"
 
 type CreateKeyFormProps = {
@@ -21,6 +27,8 @@ type CreateKeyFormProps = {
   requestId: string | null
   submitting: boolean
   onChange: (values: CreateKeyFormValues) => void
+  onAlgorithmChanged?: (values: CreateKeyFormValues) => void
+  onAlgorithmAdjusted?: (next: CreateKeyFormValues, previous: CreateKeyFormValues) => void
   onSubmit: () => void
   onCancel: () => void
 }
@@ -39,6 +47,8 @@ export function CreateKeyForm({
   requestId,
   submitting,
   onChange,
+  onAlgorithmChanged,
+  onAlgorithmAdjusted,
   onSubmit,
   onCancel,
 }: CreateKeyFormProps) {
@@ -46,6 +56,12 @@ export function CreateKeyForm({
 
   function updateField<K extends keyof CreateKeyFormValues>(key: K, value: CreateKeyFormValues[K]) {
     onChange({ ...values, [key]: value })
+  }
+
+  function handleAlgorithmChange(algorithm: PrimaryAlgorithmId) {
+    const next = applyPrimaryAlgorithmChange(values, algorithm)
+    onChange(next)
+    onAlgorithmChanged?.(next)
   }
 
   return (
@@ -184,19 +200,41 @@ export function CreateKeyForm({
 
         {advancedOpen ? (
           <div className="space-y-4 rounded-md border border-input bg-background p-4">
-            <div className="space-y-2">
-              <Label htmlFor="create-key-algorithm">Algorithm</Label>
-              <Input id="create-key-algorithm" value="Ed25519" disabled readOnly />
-              <p className="text-xs text-muted-foreground">
-                Phase 1 supports Ed25519 primary keys. More algorithms will follow in later releases.
-              </p>
-            </div>
+            <SubkeyAlgorithmFields
+              idPrefix="create-key"
+              values={values}
+              capabilities={["certify", "sign"]}
+              openpgpVersion={values.openpgpVersion}
+              context="primary"
+              fieldError={fieldErrors.algorithm}
+              disabled={submitting}
+              onChange={(algorithmValues) => {
+                const nextAlgorithm = algorithmValues.algorithm as PrimaryAlgorithmId
+                if (nextAlgorithm !== values.algorithm) {
+                  handleAlgorithmChange(nextAlgorithm)
+                  return
+                }
+                onChange({
+                  ...values,
+                  keySize: algorithmValues.keySize,
+                  curve: algorithmValues.curve,
+                })
+              }}
+            />
 
             <div className="space-y-2">
               <Label htmlFor="create-key-openpgp-version">OpenPGP version</Label>
               <Select
                 value={String(values.openpgpVersion)}
-                onValueChange={(value) => updateField("openpgpVersion", Number(value) as 4 | 6)}
+                onValueChange={(value) => {
+                  const previous = values
+                  const next = applyOpenpgpVersionChange(values, Number(value) as 4 | 6)
+                  onChange(next)
+                  if (next.algorithm !== previous.algorithm) {
+                    onAlgorithmAdjusted?.(next, previous)
+                    onAlgorithmChanged?.(next)
+                  }
+                }}
                 disabled={submitting}
               >
                 <SelectTrigger id="create-key-openpgp-version" className="w-full">

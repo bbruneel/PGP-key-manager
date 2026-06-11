@@ -2,12 +2,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  SubkeyAlgorithmFields,
+} from "@/components/keys/subkey-algorithm-fields"
+import { applyCapabilityChangeToAlgorithmValues, type OpenpgpVersion } from "@/lib/algorithm-spec"
 import { SUBKEY_CAPABILITY_OPTIONS } from "@/lib/subkey-capabilities"
 import type { PgpCapability } from "@/types/api"
 import type { RotateKeyFieldErrors, RotateKeyFormValues } from "@/lib/rotate-key-validation"
@@ -19,7 +16,9 @@ type RotateKeyFormProps = {
   requestId: string | null
   submitting: boolean
   disabled: boolean
+  primaryOpenpgpVersion: OpenpgpVersion
   onChange: (values: RotateKeyFormValues) => void
+  onAlgorithmAdjusted?: (next: RotateKeyFormValues, previous: RotateKeyFormValues) => void
   onSubmit: () => void
 }
 
@@ -37,7 +36,9 @@ export function RotateKeyForm({
   requestId,
   submitting,
   disabled,
+  primaryOpenpgpVersion,
   onChange,
+  onAlgorithmAdjusted,
   onSubmit,
 }: RotateKeyFormProps) {
   function updateField<K extends keyof RotateKeyFormValues>(key: K, value: RotateKeyFormValues[K]) {
@@ -45,10 +46,20 @@ export function RotateKeyForm({
   }
 
   function toggleCapability(capability: PgpCapability) {
-    const next = values.capabilities.includes(capability)
+    const nextCapabilities = values.capabilities.includes(capability)
       ? values.capabilities.filter((item) => item !== capability)
       : [...values.capabilities, capability]
-    updateField("capabilities", next)
+    const { next, adjusted } = applyCapabilityChangeToAlgorithmValues(
+      values,
+      nextCapabilities,
+      primaryOpenpgpVersion,
+    )
+    const previous = values
+    const updated = { ...values, capabilities: nextCapabilities, ...next }
+    onChange(updated)
+    if (adjusted) {
+      onAlgorithmAdjusted?.(updated, previous)
+    }
   }
 
   return (
@@ -88,23 +99,15 @@ export function RotateKeyForm({
           <FieldError message={fieldErrors.capabilities} />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="rotate-algorithm">Algorithm</Label>
-          <Select
-            value={values.algorithm}
-            onValueChange={(value) => updateField("algorithm", value as RotateKeyFormValues["algorithm"])}
-            disabled={submitting || disabled}
-          >
-            <SelectTrigger id="rotate-algorithm" className="w-full" aria-invalid={Boolean(fieldErrors.algorithm)}>
-              <SelectValue placeholder="Select algorithm" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cv25519">Cv25519 (encrypt)</SelectItem>
-              <SelectItem value="ed25519">Ed25519 (sign)</SelectItem>
-            </SelectContent>
-          </Select>
-          <FieldError message={fieldErrors.algorithm} />
-        </div>
+        <SubkeyAlgorithmFields
+          idPrefix="rotate"
+          values={values}
+          capabilities={values.capabilities}
+          openpgpVersion={primaryOpenpgpVersion}
+          fieldError={fieldErrors.algorithm}
+          disabled={submitting || disabled}
+          onChange={(algorithmValues) => onChange({ ...values, ...algorithmValues })}
+        />
 
         <div className="space-y-2">
           <Label htmlFor="rotate-expires-at">Expiry date</Label>

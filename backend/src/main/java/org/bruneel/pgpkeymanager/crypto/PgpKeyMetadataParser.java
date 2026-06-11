@@ -250,7 +250,11 @@ public class PgpKeyMetadataParser {
                 }
                 yield new AlgorithmSpecDto("rsa", normalizeRsaKeySize(keySize), null);
             }
-            case PublicKeyAlgorithmTags.EDDSA -> new AlgorithmSpecDto("ed25519", null, null);
+            case PublicKeyAlgorithmTags.EDDSA,
+                    PublicKeyAlgorithmTags.Ed25519 -> new AlgorithmSpecDto("ed25519", null, null);
+            case PublicKeyAlgorithmTags.Ed448 -> new AlgorithmSpecDto("ed448", null, null);
+            case PublicKeyAlgorithmTags.X25519 -> new AlgorithmSpecDto("cv25519", null, null);
+            case PublicKeyAlgorithmTags.X448 -> new AlgorithmSpecDto("x448", null, null);
             case PublicKeyAlgorithmTags.ECDH -> resolveEcdhSpec(master);
             case PublicKeyAlgorithmTags.ECDSA -> resolveEcdsaSpec(master);
             default -> throw new CryptoException("Unsupported OpenPGP algorithm tag: " + master.getAlgorithm());
@@ -261,6 +265,9 @@ public class PgpKeyMetadataParser {
         int bitStrength = master.getBitStrength();
         if (bitStrength == 255 || bitStrength == 256) {
             return new AlgorithmSpecDto("cv25519", null, null);
+        }
+        if (bitStrength == 448) {
+            return new AlgorithmSpecDto("x448", null, null);
         }
         return new AlgorithmSpecDto("ecdh", null, curveFromBitStrength(bitStrength));
     }

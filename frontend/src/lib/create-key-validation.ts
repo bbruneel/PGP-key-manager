@@ -1,3 +1,13 @@
+import {
+  buildAlgorithmSpec,
+  defaultPrimaryAlgorithmValues,
+  filterPrimaryAlgorithms,
+  validateAlgorithmSpec,
+  type OpenpgpVersion,
+  type PrimaryAlgorithmId,
+  type RsaKeySize,
+  type NistCurve,
+} from "@/lib/algorithm-spec"
 import type { CreatePgpKeyRequest } from "@/types/api"
 
 export type CreateKeyFormValues = {
@@ -7,8 +17,10 @@ export type CreateKeyFormValues = {
   passphrase: string
   confirmPassphrase: string
   expiresAt: string
-  algorithm: "ed25519"
-  openpgpVersion: 4 | 6
+  algorithm: PrimaryAlgorithmId
+  keySize?: RsaKeySize
+  curve?: NistCurve
+  openpgpVersion: OpenpgpVersion
 }
 
 export type CreateKeyFieldErrors = Partial<Record<keyof CreateKeyFormValues, string>>
@@ -91,6 +103,16 @@ export function validateCreateKeyForm(values: CreateKeyFormValues): CreateKeyVal
     fieldErrors.expiresAt = "Expiry date must be in the future"
   }
 
+  const algorithmValidation = validateAlgorithmSpec(
+    ["certify", "sign"],
+    values,
+    "primary",
+    values.openpgpVersion,
+  )
+  if (!algorithmValidation.valid) {
+    fieldErrors.algorithm = algorithmValidation.error
+  }
+
   return {
     valid: Object.keys(fieldErrors).length === 0,
     fieldErrors,
@@ -100,7 +122,7 @@ export function validateCreateKeyForm(values: CreateKeyFormValues): CreateKeyVal
 export function buildCreateKeyRequest(values: CreateKeyFormValues): CreatePgpKeyRequest {
   const expiry = parseExpiryInstant(values.expiresAt)
   const request: CreatePgpKeyRequest = {
-    algorithmSpec: { algorithm: values.algorithm },
+    algorithmSpec: buildAlgorithmSpec(values),
     userIds: [
       {
         name: values.userName.trim(),
@@ -118,4 +140,27 @@ export function buildCreateKeyRequest(values: CreateKeyFormValues): CreatePgpKey
   }
 
   return request
+}
+
+export function applyPrimaryAlgorithmChange(
+  values: CreateKeyFormValues,
+  algorithm: PrimaryAlgorithmId,
+): CreateKeyFormValues {
+  const allowed = filterPrimaryAlgorithms(values.openpgpVersion)
+  if (!allowed.some((option) => option.id === algorithm)) {
+    return { ...values, ...defaultPrimaryAlgorithmValues("ed25519") }
+  }
+  return { ...values, ...defaultPrimaryAlgorithmValues(algorithm) }
+}
+
+export function applyOpenpgpVersionChange(
+  values: CreateKeyFormValues,
+  openpgpVersion: OpenpgpVersion,
+): CreateKeyFormValues {
+  const next = { ...values, openpgpVersion }
+  const allowed = filterPrimaryAlgorithms(openpgpVersion)
+  if (!allowed.some((option) => option.id === next.algorithm)) {
+    return { ...next, ...defaultPrimaryAlgorithmValues("ed25519") }
+  }
+  return next
 }

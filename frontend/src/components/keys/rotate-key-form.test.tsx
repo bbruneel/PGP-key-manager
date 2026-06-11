@@ -23,6 +23,7 @@ describe("RotateKeyForm", () => {
         requestId={null}
         submitting={false}
         disabled={false}
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={onSubmit}
       />,
@@ -41,6 +42,7 @@ describe("RotateKeyForm", () => {
         requestId={null}
         submitting={false}
         disabled={false}
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,
@@ -58,6 +60,7 @@ describe("RotateKeyForm", () => {
         requestId={null}
         submitting={false}
         disabled={false}
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,
@@ -76,6 +79,7 @@ describe("RotateKeyForm", () => {
         requestId={null}
         submitting={false}
         disabled
+        primaryOpenpgpVersion={4}
         onChange={vi.fn()}
         onSubmit={vi.fn()}
       />,

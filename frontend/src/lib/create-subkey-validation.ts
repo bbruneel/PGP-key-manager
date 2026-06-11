@@ -1,11 +1,15 @@
 import { isValidSubkeyCapabilitySet } from "@/lib/subkey-capabilities"
+import {
+  buildAlgorithmSpec,
+  defaultAlgorithmForCapabilities,
+  validateAlgorithmSpec,
+  type AlgorithmFormValues,
+  type OpenpgpVersion,
+} from "@/lib/algorithm-spec"
 import type { CreateSubkeyRequest, PgpCapability } from "@/types/api"
 
-export type CreateSubkeyAlgorithm = "ed25519" | "cv25519"
-
-export type CreateSubkeyFormValues = {
+export type CreateSubkeyFormValues = AlgorithmFormValues & {
   capabilities: PgpCapability[]
-  algorithm: CreateSubkeyAlgorithm
   expiresAt: string
   passphrase: string
 }
@@ -26,10 +30,10 @@ function defaultExpiryDate(): string {
   return date.toISOString().slice(0, 10)
 }
 
-export function defaultCreateSubkeyFormValues(): CreateSubkeyFormValues {
+export function defaultCreateSubkeyFormValues(openpgpVersion: OpenpgpVersion = 4): CreateSubkeyFormValues {
   return {
     capabilities: ["encrypt"],
-    algorithm: "cv25519",
+    algorithm: defaultAlgorithmForCapabilities(["encrypt"], openpgpVersion),
     expiresAt: defaultExpiryDate(),
     passphrase: "",
   }
@@ -43,7 +47,10 @@ function parseExpiryInstant(expiresAt: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-export function validateCreateSubkeyForm(values: CreateSubkeyFormValues): CreateSubkeyValidationResult {
+export function validateCreateSubkeyForm(
+  values: CreateSubkeyFormValues,
+  openpgpVersion: OpenpgpVersion = 4,
+): CreateSubkeyValidationResult {
   const fieldErrors: CreateSubkeyFieldErrors = {}
 
   if (!isValidSubkeyCapabilitySet(values.capabilities)) {
@@ -52,8 +59,14 @@ export function validateCreateSubkeyForm(values: CreateSubkeyFormValues): Create
       : "Select at least one capability"
   }
 
-  if (values.algorithm !== "ed25519" && values.algorithm !== "cv25519") {
-    fieldErrors.algorithm = "Select a supported algorithm"
+  const algorithmValidation = validateAlgorithmSpec(
+    values.capabilities,
+    values,
+    "subkey",
+    openpgpVersion,
+  )
+  if (!algorithmValidation.valid) {
+    fieldErrors.algorithm = algorithmValidation.error
   }
 
   const expiry = parseExpiryInstant(values.expiresAt)
@@ -79,7 +92,7 @@ export function buildCreateSubkeyRequest(values: CreateSubkeyFormValues): Create
   const expiry = parseExpiryInstant(values.expiresAt)!
   return {
     capabilities: values.capabilities,
-    algorithm: { algorithm: values.algorithm },
+    algorithm: buildAlgorithmSpec(values),
     validity: { expiresAt: expiry.toISOString() },
     passphrase: values.passphrase,
   }

@@ -430,7 +430,8 @@ components:
       properties:
         algorithm:
           type: string
-          enum: [rsa, ed25519, cv25519, ecdsa, ecdh]
+          enum: [rsa, ed25519, cv25519, ecdsa, ecdh, ed448, x448]
+          description: ed448 and x448 require openpgpVersion 6 when generating keys.
         keySize:
           type: integer
           enum: [2048, 3072, 4096]

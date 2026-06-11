@@ -9,6 +9,7 @@ import { logUiEvent } from "@/lib/ui-logger"
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
+    info: vi.fn(),
   },
 }))
 

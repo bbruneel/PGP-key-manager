@@ -305,6 +305,8 @@ public class PgpCryptoService {
                     PublicKeyAlgorithmTags.ECDH,
                     ecKeyPair(resolveCurveName(spec.curve(), null), "ECDH"),
                     creationTime);
+            case "ed448", "x448" ->
+                    throw new CryptoException("ed448 and x448 require OpenPGP v6");
             default -> throw new CryptoException("Unsupported algorithm: " + spec.algorithm());
         };
     }
@@ -318,6 +320,8 @@ public class PgpCryptoService {
             case "rsa" -> generator.generateRsaKeyPair(spec.keySize() != null ? spec.keySize() : 4096);
             case "ecdsa" -> generateNistEcdsaV6(generator, spec.curve());
             case "ecdh" -> generateNistEcdhV6(generator, spec.curve());
+            case "ed448" -> generator.generateEd448KeyPair();
+            case "x448" -> generator.generateX448KeyPair();
             default -> throw new CryptoException("Unsupported algorithm: " + spec.algorithm());
         };
     }

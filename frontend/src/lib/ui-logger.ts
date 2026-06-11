@@ -9,6 +9,10 @@ export type UiLogContext = {
   keyId?: string
   fingerprint?: string
   count?: number
+  algorithm?: string
+  previousAlgorithm?: string
+  capabilities?: string[]
+  openpgpVersion?: number
 }
 
 const LOG_PREFIX = "[pgp-ui]"
@@ -52,6 +56,10 @@ export function logUiEvent(
     keyId: context.keyId,
     fingerprint: context.fingerprint,
     count: context.count,
+    algorithm: context.algorithm,
+    previousAlgorithm: context.previousAlgorithm,
+    capabilities: context.capabilities,
+    openpgpVersion: context.openpgpVersion,
   }
 
   switch (level) {

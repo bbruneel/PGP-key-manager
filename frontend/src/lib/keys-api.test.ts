@@ -291,6 +291,7 @@ describe("keysApi.exportPublic", () => {
       operationId: "exportPublicKey",
       accessToken: "token-abc",
       method: "GET",
+      headers: { Accept: "application/pgp-keys" },
     })
     expect(result).toBe(armored)
   })
