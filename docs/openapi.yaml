@@ -101,6 +101,31 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/preview:
+    post:
+      tags: [Keys]
+      summary: Preview keyring import
+      operationId: previewKeyring
+      x-implementation-status: implemented
+      description: |
+        Parse armored key material without persisting. Returns primary and subkey metadata,
+        revocation state read from the keyring, and warnings when public/private blocks differ.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePgpKeyRequest'
+      responses:
+        '200':
+          description: Parsed keyring preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewKeyringResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/keys/{keyId}:
     get:
       tags: [Keys]
@@ -190,6 +215,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview:
+    post:
+      tags: [Subkeys]
+      summary: Preview import subkeys from stored keyring
+      operationId: previewImportSubkeysFromKeyring
+      x-implementation-status: implemented
+      description: |
+        Parse the primary's stored armored keyring and show which subkey rows would be
+        registered, updated (revocation sync), or skipped without writing to the database.
+      parameters:
+        - $ref: '#/components/parameters/PrimaryKeyId'
+      responses:
+        '200':
+          description: Import preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewImportSubkeysResponse'
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
@@ -589,7 +635,7 @@ components:
           $ref: '#/components/schemas/PgpKey'
     ImportSubkeysResponse:
       type: object
-      required: [registered, skippedCount]
+      required: [registered, skippedCount, updated, updatedCount]
       properties:
         registered:
           type: array
@@ -599,6 +645,82 @@ components:
         skippedCount:
           type: integer
           description: Subkeys already registered under this primary that were skipped.
+        updated:
+          type: array
+          items:
+            $ref: '#/components/schemas/PgpKeySummary'
+          description: Existing subkey rows synced to revoked status from the keyring.
+        updatedCount:
+          type: integer
+          description: Number of existing subkey rows updated (revocation sync).
+    PreviewKeyEntry:
+      type: object
+      required: [role, fingerprint, keyId, algorithm, capabilities, status, openpgpVersion]
+      properties:
+        role:
+          $ref: '#/components/schemas/KeyRole'
+        fingerprint:
+          type: string
+        keyId:
+          type: string
+        algorithm:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PgpCapability'
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+        status:
+          $ref: '#/components/schemas/KeyStatus'
+        revokedAt:
+          type: [string, 'null']
+          format: date-time
+        revocationReason:
+          type: [string, 'null']
+        openpgpVersion:
+          type: integer
+          enum: [4, 6]
+    PreviewKeyringResponse:
+      type: object
+      required: [primary, subkeys, warnings, source]
+      properties:
+        primary:
+          $ref: '#/components/schemas/PreviewKeyEntry'
+        subkeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewKeyEntry'
+        warnings:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          enum: [public, private, both]
+          description: Which armored block(s) were used; when both are pasted, private is authoritative.
+    PreviewImportSubkeysResponse:
+      type: object
+      required: [wouldRegister, wouldUpdate, wouldSkipCount, warnings, source]
+      properties:
+        wouldRegister:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewKeyEntry'
+        wouldUpdate:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewKeyEntry'
+        wouldSkipCount:
+          type: integer
+        warnings:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          enum: [public, private, both]
     PgpKeySummary:
       type: object
       properties:
@@ -659,3 +781,8 @@ components:
             encryptedPrivateArmored:
               type: string
               description: Present on primary detail when generated or imported with private material.
+            registeredSubkeyCount:
+              type: integer
+              description: |
+                Present on primary register responses when subkey rows were auto-imported from a
+                multi-key armored export. Omitted on generate and on other responses.

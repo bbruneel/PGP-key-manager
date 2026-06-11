@@ -27,9 +27,14 @@ public record PgpKeyResponse(
         String storageRef,
         Integer openpgpVersion,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        Integer registeredSubkeyCount) {
 
     public static PgpKeyResponse from(PgpKey key, boolean includePrivateCiphertext) {
+        return from(key, includePrivateCiphertext, null);
+    }
+
+    public static PgpKeyResponse from(PgpKey key, boolean includePrivateCiphertext, Integer registeredSubkeyCount) {
         AlgorithmSpecDto spec = null;
         if (key.algorithmSpecJson() != null && !key.algorithmSpecJson().isBlank()) {
             try {
@@ -59,6 +64,7 @@ public record PgpKeyResponse(
                 key.storageRef(),
                 key.openpgpVersion(),
                 key.createdAt(),
-                key.updatedAt());
+                key.updatedAt(),
+                registeredSubkeyCount);
     }
 }

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
+import org.bruneel.pgpkeymanager.domain.RevocationReason;
 import org.bruneel.pgpkeymanager.service.BadRequestException;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.UserIdSpecDto;
@@ -334,6 +335,150 @@ class PgpKeyMetadataParserTest {
         assertThat(keyring.primary().fingerprint()).isEqualTo(primary.fingerprint());
         assertThat(keyring.subkeys()).hasSize(1);
         assertThat(keyring.subkeys().get(0).fingerprint()).isEqualTo(sub.fingerprint());
+    }
+
+    @Test
+    void parseKeyringDetectsRevokedSubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Revoked Subkey", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "revoked-subkey-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "revoked-subkey-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        sub.updatedArmoredPrivate(),
+                        "revoked-subkey-passphrase".toCharArray(),
+                        subKeyId,
+                        3);
+
+        ImportedKeyringMetadata keyring =
+                parser.parseKeyring(revoked.armoredPublic(), revoked.armoredPrivate());
+
+        assertThat(keyring.subkeys()).hasSize(1);
+        ImportedKeyMetadata subkeyMetadata = keyring.subkeys().get(0);
+        assertThat(subkeyMetadata.fingerprint()).isEqualTo(sub.fingerprint());
+        assertThat(subkeyMetadata.revokedAt()).isNotNull();
+        assertThat(subkeyMetadata.revocationReason()).isEqualTo(RevocationReason.KEY_RETIRED);
+        assertThat(keyring.primary().revokedAt()).isNull();
+    }
+
+    @Test
+    void parseKeyringDetectsRevokedPrimary() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Revoked Primary", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "revoked-primary-passphrase".toCharArray());
+
+        long primaryKeyId = PgpCryptoSupport.parseKeyIdHex(primary.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        primary.armoredPrivate(),
+                        "revoked-primary-passphrase".toCharArray(),
+                        primaryKeyId,
+                        2);
+
+        ImportedKeyringMetadata keyring =
+                parser.parseKeyring(revoked.armoredPublic(), revoked.armoredPrivate());
+
+        assertThat(keyring.primary().revokedAt()).isNotNull();
+        assertThat(keyring.primary().revocationReason()).isEqualTo(RevocationReason.KEY_COMPROMISED);
+    }
+
+    @Test
+    void parseKeyringPrefersPrivateRingWhenBothProvided() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Private Preferred", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "private-preferred-passphrase".toCharArray());
+
+        SubkeyMaterial firstSub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "private-preferred-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        null);
+
+        String stalePublic = firstSub.updatedArmoredPublic();
+
+        SubkeyMaterial secondSub =
+                crypto.addSubkey(
+                        4,
+                        firstSub.updatedArmoredPrivate(),
+                        "private-preferred-passphrase".toCharArray(),
+                        List.of(PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ecdsa", null, "P-256"),
+                        null);
+
+        ImportedKeyringMetadata keyring =
+                parser.parseKeyring(stalePublic, secondSub.updatedArmoredPrivate());
+
+        assertThat(keyring.source()).isEqualTo("both");
+        assertThat(keyring.subkeys()).hasSize(2);
+        assertThat(keyring.subkeys())
+                .extracting(ImportedKeyMetadata::fingerprint)
+                .containsExactlyInAnyOrder(firstSub.fingerprint(), secondSub.fingerprint());
+        assertThat(keyring.warnings()).isNotEmpty();
+    }
+
+    @Test
+    void parseKeyringMarksSubkeyRevokedWhenPrivateRingIsAuthoritative() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Stale Public", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        null,
+                        "stale-public-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "stale-public-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        null);
+
+        String stalePublic = sub.updatedArmoredPublic();
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        sub.updatedArmoredPrivate(),
+                        "stale-public-passphrase".toCharArray(),
+                        subKeyId,
+                        3);
+
+        ImportedKeyringMetadata keyring =
+                parser.parseKeyring(stalePublic, revoked.armoredPrivate());
+
+        assertThat(keyring.subkeys()).hasSize(1);
+        assertThat(keyring.subkeys().get(0).revokedAt()).isNotNull();
+        assertThat(keyring.subkeys().get(0).revocationReason()).isEqualTo(RevocationReason.KEY_RETIRED);
     }
 
     @Test

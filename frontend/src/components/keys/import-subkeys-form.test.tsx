@@ -19,6 +19,7 @@ describe("ImportSubkeysForm", () => {
         requestId={null}
         submitting={false}
         disabled={false}
+        preview={null}
         onSubmit={onSubmit}
       />,
     )
@@ -35,6 +36,7 @@ describe("ImportSubkeysForm", () => {
         requestId="req-import-subkeys"
         submitting={false}
         disabled={false}
+        preview={null}
         onSubmit={() => {}}
       />,
     )

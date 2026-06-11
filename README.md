@@ -97,7 +97,7 @@ npm run docs:preview   # live Redoc at http://127.0.0.1:8081 (runs from docs/ so
 
 **Keyring storage:** armored public/private keyrings are stored on the primary key row only. Subkey rows hold fingerprints, key IDs, capabilities, and expiry metadata.
 
-**Register/import metadata:** when registering via `POST /api/keys`, the server parses the master public key from armored material and populates fingerprint, key ID, algorithm, capabilities, and expiry. Multi-key armored exports also register metadata-only subkey rows automatically. Optional client fingerprint is validated when provided. Backend logs `register_key` / `register_key_metadata_parsed` / `register_subkey_metadata_parsed`. Backfill via `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring` (`import_subkeys_from_keyring`).
+**Register/import metadata:** when registering via `POST /api/keys`, the server parses the master public key from armored material and populates fingerprint, key ID, algorithm, capabilities, expiry, and revocation state read from the keyring. Preview parsed metadata via `POST /api/keys/preview` before registering. Multi-key armored exports also register metadata-only subkey rows automatically (`registeredSubkeyCount` on the response). When both public and private blocks are pasted, the private-derived keyring is preferred. Optional client fingerprint is validated when provided. Backend logs `register_key` / `register_key_metadata_parsed` / `register_subkey_metadata_parsed`. Backfill or sync revocation via `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring` (`import_subkeys_from_keyring`).
 
 **Revocation:** cryptographic revocation requires primary private material and a passphrase. Public-only registrations receive metadata revocation only.
 

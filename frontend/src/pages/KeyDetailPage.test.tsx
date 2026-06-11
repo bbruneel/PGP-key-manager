@@ -48,6 +48,7 @@ vi.mock("@/lib/keys-api", () => ({
     listSubkeys: vi.fn(),
     createSubkey: vi.fn(),
     importSubkeysFromKeyring: vi.fn(),
+    previewImportSubkeysFromKeyring: vi.fn(),
     revoke: vi.fn(),
     extendExpiry: vi.fn(),
     rotate: vi.fn(),
@@ -122,6 +123,7 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.listSubkeys).mockReset()
     vi.mocked(keysApi.createSubkey).mockReset()
     vi.mocked(keysApi.importSubkeysFromKeyring).mockReset()
+    vi.mocked(keysApi.previewImportSubkeysFromKeyring).mockReset()
     vi.mocked(keysApi.revoke).mockReset()
     vi.mocked(keysApi.extendExpiry).mockReset()
     vi.mocked(keysApi.rotate).mockReset()
@@ -239,6 +241,8 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.importSubkeysFromKeyring).mockResolvedValue({
       registered: [{ id: "sub-imported", fingerprint: "IMPORTEDFP", role: "subkey" }],
       skippedCount: 0,
+      updated: [],
+      updatedCount: 0,
     })
 
     renderDetail()

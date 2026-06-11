@@ -102,6 +102,9 @@ export function KeyDetailPage() {
   const [importSubkeysApiError, setImportSubkeysApiError] = useState<string | null>(null)
   const [importSubkeysRequestId, setImportSubkeysRequestId] = useState<string | null>(null)
   const [importSubkeysSubmitting, setImportSubkeysSubmitting] = useState(false)
+  const [importSubkeysPreviewing, setImportSubkeysPreviewing] = useState(false)
+  const [importSubkeysPreview, setImportSubkeysPreview] =
+    useState<import("@/types/api").PreviewImportSubkeysResponse | null>(null)
 
   const [updateLabelValues, setUpdateLabelValues] = useState<UpdateKeyLabelFormValues>({ label: "" })
   const [updateLabelFieldErrors, setUpdateLabelFieldErrors] = useState<UpdateKeyLabelFieldErrors>({})
@@ -367,6 +370,57 @@ export function KeyDetailPage() {
     }
   }, [createSubkeyValues, getAccessToken, id, keyData, loadKey, navigate, primaryOpenpgpVersion])
 
+  const handleImportSubkeysPreview = useCallback(async () => {
+    if (!id || !keyData || keyData.role !== "primary" || !keyData.id) {
+      return
+    }
+
+    logUiEvent("info", {
+      eventId: "keyDetail.importSubkeys.preview.submit",
+      message: "Import subkeys preview requested",
+      keyId: id,
+    })
+
+    setImportSubkeysApiError(null)
+    setImportSubkeysRequestId(null)
+    setImportSubkeysPreviewing(true)
+
+    try {
+      const token = await getAccessToken()
+      const preview = await keysApi.previewImportSubkeysFromKeyring({
+        accessToken: token,
+        primaryKeyId: keyData.id,
+      })
+      setImportSubkeysPreview(preview)
+      logUiEvent("info", {
+        eventId: "keyDetail.importSubkeys.preview.success",
+        message: "Import subkeys preview loaded",
+        operationId: "previewImportSubkeysFromKeyring",
+        keyId: id,
+        count: preview.wouldRegister.length + preview.wouldUpdate.length,
+      })
+    } catch (error) {
+      setImportSubkeysPreview(null)
+      const message = getApiErrorMessage(error)
+      setImportSubkeysApiError(message)
+      if (error instanceof ApiError) {
+        if (error.requestId) {
+          setImportSubkeysRequestId(error.requestId)
+        }
+        logUiEvent("error", {
+          eventId: "keyDetail.importSubkeys.preview.error",
+          message: "Import subkeys preview failed",
+          operationId: error.operationId,
+          requestId: error.requestId,
+          status: error.status,
+          keyId: id,
+        })
+      }
+    } finally {
+      setImportSubkeysPreviewing(false)
+    }
+  }, [getAccessToken, id, keyData])
+
   const handleImportSubkeysSubmit = useCallback(async () => {
     if (!id || !keyData || keyData.role !== "primary" || !keyData.id) {
       return
@@ -410,16 +464,24 @@ export function KeyDetailPage() {
 
       const registeredCount = result.registered.length
       const skippedCount = result.skippedCount
-      const description =
+      const updatedCount = result.updatedCount ?? result.updated?.length ?? 0
+      const descriptionParts = [
         registeredCount > 0
-          ? `${registeredCount} subkey${registeredCount === 1 ? "" : "s"} registered` +
-            (skippedCount > 0 ? ` · ${skippedCount} already registered` : "")
-          : skippedCount > 0
-            ? `${skippedCount} subkey${skippedCount === 1 ? "" : "s"} already registered`
-            : "No new subkeys found in the keyring"
+          ? `${registeredCount} subkey${registeredCount === 1 ? "" : "s"} registered`
+          : null,
+        updatedCount > 0
+          ? `${updatedCount} revocation sync${updatedCount === 1 ? "" : "s"}`
+          : null,
+        skippedCount > 0
+          ? `${skippedCount} already up to date`
+          : null,
+      ].filter(Boolean)
+      const description =
+        descriptionParts.length > 0 ? descriptionParts.join(" · ") : "No changes from keyring"
 
       toast.success("Subkeys imported", { description })
 
+      setImportSubkeysPreview(null)
       setSubkeysRefreshToken((value) => value + 1)
       await loadKey()
     } catch (error) {
@@ -773,7 +835,10 @@ export function KeyDetailPage() {
               apiError={importSubkeysApiError}
               requestId={importSubkeysRequestId}
               submitting={importSubkeysSubmitting}
+              previewing={importSubkeysPreviewing}
+              preview={importSubkeysPreview}
               disabled={false}
+              onPreview={() => void handleImportSubkeysPreview()}
               onSubmit={() => void handleImportSubkeysSubmit()}
             />
           ) : null}

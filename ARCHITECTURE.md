@@ -182,7 +182,7 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 ## Import subkeys from keyring (Phase 5)
 
 1. **On primary import (`/keys/import`):** when armored material contains subkeys, `PgpKeyMetadataParser.parseKeyring()` enumerates non-master keys; `registerPrimaryKey` inserts metadata-only subkey rows after the primary row. Logs `register_subkey_metadata_parsed` and `register_keyring_metadata_parsed`.
-2. **Import page UX:** after successful register, `keysApi.listSubkeys()` loads the count; toast mentions registered subkeys; redirect goes to `/keys/{id}` instead of `/keys`. `[pgp-ui]` `importKey.subkeysRegistered` when count &gt; 0.
+2. **Import page UX:** after successful register, `registeredSubkeyCount` on the register response drives the toast; redirect goes to `/keys/{id}`. `[pgp-ui]` `importKey.subkeysRegistered` when count &gt; 0. Phase 8 adds **Preview import** before register (see below).
 3. **On primary detail (`/keys/:id`):** when the primary has stored armored keyring material and is not revoked, the **Import subkeys from keyring** form appears (inline — no separate route). Works for public-only and private primaries.
 4. `keysApi.importSubkeysFromKeyring()` sends `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring` with `operationId: importSubkeysFromKeyring`. Idempotent — skips subkeys already registered under the primary.
 5. `[pgp-ui]` events: `keyDetail.importSubkeys.submit`, `keyDetail.importSubkeys.apiSuccess`, `keyDetail.importSubkeys.apiError`.
@@ -200,6 +200,14 @@ Shared frontend rules live in `algorithm-spec.ts` (capability ↔ algorithm filt
 - **6A:** Subkey create/rotate forms filter algorithms by capability and primary `openpgpVersion`; RSA key size and NIST curve pickers when needed. `[pgp-ui]` `keyDetail.createSubkey.algorithmAdjusted`, `keyDetail.rotate.algorithmAdjusted`.
 - **6B:** Primary create advanced algorithm select; backend `validatePrimaryAlgorithm` on generate; log `create_key_algorithm`. `[pgp-ui]` `createKey.algorithmChanged`.
 - **6C:** Backend + OpenAPI add `ed448` / `x448` (OpenPGP v6 only); `PgpCryptoService` v6 generators; parser maps Ed448/X448 tags.
+
+## Import fidelity (Phase 8)
+
+1. **Preview before register:** `POST /api/keys/preview` (`previewKeyring`) parses armor without DB writes. `/keys/import` shows primary + subkey table, warnings, and status badges (`import-key-preview.tsx`). `[pgp-ui]` `importKey.preview.*`.
+2. **Revocation detection:** `PgpKeyMetadataParser` reads revocation certifications from armored keyrings; register and import-from-keyring set `revokedAt` / `revocationReason` on new rows. Logs `register_key_revocation_detected`, `register_subkey_revocation_detected`.
+3. **Private-preferred ring:** when both public and private blocks are pasted, the private-derived keyring is authoritative; mismatched subkey sets produce warnings (`register_keyring_public_private_subkey_mismatch`).
+4. **Register response:** `registeredSubkeyCount` on `POST /api/keys` register responses removes the extra `listSubkeys` round-trip after import.
+5. **Import-from-keyring sync:** existing subkey rows can be updated to revoked when the stored keyring shows revocation (`ImportSubkeysResponse.updated`). Detail preview via `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview`. `[pgp-ui]` `keyDetail.importSubkeys.preview.*`.
 
 ## Repository layout
 

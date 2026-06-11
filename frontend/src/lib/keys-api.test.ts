@@ -257,6 +257,8 @@ describe("keysApi.importSubkeysFromKeyring", () => {
     vi.mocked(requestJson).mockResolvedValue({
       registered: [{ id: "sub-1", fingerprint: "SUBFP" }],
       skippedCount: 1,
+      updated: [],
+      updatedCount: 0,
     })
 
     const result = await keysApi.importSubkeysFromKeyring({
@@ -272,7 +274,68 @@ describe("keysApi.importSubkeysFromKeyring", () => {
     expect(result).toEqual({
       registered: [{ id: "sub-1", fingerprint: "SUBFP" }],
       skippedCount: 1,
+      updated: [],
+      updatedCount: 0,
     })
+  })
+})
+
+describe("keysApi.previewKeyring", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/preview with previewKeyring operationId", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      primary: { fingerprint: "PRIMARY", role: "primary", status: "active" },
+      subkeys: [],
+      warnings: [],
+      source: "public",
+    })
+
+    const result = await keysApi.previewKeyring({
+      accessToken: "token-abc",
+      body: { keyType: "public", armoredPublic: "-----BEGIN PGP PUBLIC KEY BLOCK-----" },
+    })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/preview", {
+      operationId: "previewKeyring",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { keyType: "public", armoredPublic: "-----BEGIN PGP PUBLIC KEY BLOCK-----" },
+    })
+    expect(result.source).toBe("public")
+  })
+})
+
+describe("keysApi.previewImportSubkeysFromKeyring", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST preview endpoint with previewImportSubkeysFromKeyring operationId", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      wouldRegister: [],
+      wouldUpdate: [],
+      wouldSkipCount: 2,
+      warnings: [],
+      source: "private",
+    })
+
+    const result = await keysApi.previewImportSubkeysFromKeyring({
+      accessToken: "token-abc",
+      primaryKeyId: "primary-1",
+    })
+
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/keys/primary-1/subkeys/import-from-keyring/preview",
+      {
+        operationId: "previewImportSubkeysFromKeyring",
+        accessToken: "token-abc",
+        method: "POST",
+      },
+    )
+    expect(result.wouldSkipCount).toBe(2)
   })
 })
 
