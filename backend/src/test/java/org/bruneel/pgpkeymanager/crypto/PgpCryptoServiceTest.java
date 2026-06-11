@@ -414,7 +414,39 @@ class PgpCryptoServiceTest {
     }
 
     @Test
-    void exportSshPublicKey_rejectsEncryptOnlySubkey() {
+    void exportSshPublicKey_rejectsSignOnlySubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("SSH Sign Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "ssh-export-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "ssh-export-passphrase".toCharArray(),
+                        List.of(PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+
+        assertThatThrownBy(
+                        () ->
+                                crypto.exportSshPublicKey(
+                                        sub.updatedArmoredPublic(),
+                                        subKeyId,
+                                        "openpgp:0x" + sub.keyId().toLowerCase()))
+                .isInstanceOf(CryptoException.class)
+                .hasMessageContaining("authenticate");
+    }
+
+    @Test
+    void exportSshPublicKey_rejectsCv25519Subkey() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
                         4,

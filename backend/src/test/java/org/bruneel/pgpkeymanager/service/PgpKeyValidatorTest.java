@@ -204,6 +204,15 @@ class PgpKeyValidatorTest {
     }
 
     @Test
+    void validateSshExportableRejectsSignOnlyRsa() {
+        PgpKey signOnlyRsa = authenticateSubkey("rsa", List.of(PgpCapability.SIGN));
+
+        assertThatThrownBy(() -> PgpKeyValidator.validateSshExportable(signOnlyRsa))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("authenticate");
+    }
+
+    @Test
     void validateSshExportableRejectsEd448() {
         PgpKey ed448Auth = authenticateSubkey("ed448");
 

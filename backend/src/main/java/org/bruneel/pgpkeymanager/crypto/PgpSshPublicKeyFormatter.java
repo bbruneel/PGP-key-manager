@@ -3,8 +3,11 @@ package org.bruneel.pgpkeymanager.crypto;
 import java.io.IOException;
 import java.security.PublicKey;
 import java.util.Base64;
+import java.util.Iterator;
 
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
+import org.bouncycastle.bcpg.SignatureSubpacketTags;
+import org.bouncycastle.bcpg.sig.KeyFlags;
 import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 import org.bouncycastle.crypto.params.ECNamedDomainParameters;
 import org.bouncycastle.crypto.params.ECPublicKeyParameters;
@@ -14,6 +17,8 @@ import org.bouncycastle.crypto.util.OpenSSHPublicKeyUtil;
 import org.bouncycastle.crypto.util.PublicKeyFactory;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyConverter;
 import org.bruneel.pgpkeymanager.service.CryptoException;
 
@@ -24,6 +29,9 @@ final class PgpSshPublicKeyFormatter {
     private PgpSshPublicKeyFormatter() {}
 
     static String formatLine(PGPPublicKey publicKey, String comment) {
+        if (!hasAuthenticateFlag(publicKey)) {
+            throw new CryptoException("OpenSSH export requires the authenticate capability on this key");
+        }
         if (!isSshCompatibleAlgorithm(publicKey.getAlgorithm())) {
             throw new CryptoException("Algorithm cannot be exported as an OpenSSH public key");
         }
@@ -70,5 +78,32 @@ final class PgpSshPublicKeyFormatter {
             throw new CryptoException("Unsupported ECDSA curve for OpenSSH export");
         }
         throw new CryptoException("Unsupported key type for OpenSSH export");
+    }
+
+    private static boolean hasAuthenticateFlag(PGPPublicKey publicKey) {
+        return (extractKeyFlags(publicKey) & KeyFlags.AUTHENTICATION) != 0;
+    }
+
+    private static int extractKeyFlags(PGPPublicKey publicKey) {
+        int merged = 0;
+        Iterator<PGPSignature> signatures = publicKey.getSignatures();
+        while (signatures.hasNext()) {
+            merged |= keyFlagsFromSignature(signatures.next());
+        }
+        if (merged == 0) {
+            Iterator<PGPSignature> keySignatures = publicKey.getKeySignatures();
+            while (keySignatures.hasNext()) {
+                merged |= keyFlagsFromSignature(keySignatures.next());
+            }
+        }
+        return merged;
+    }
+
+    private static int keyFlagsFromSignature(PGPSignature signature) {
+        PGPSignatureSubpacketVector hashed = signature.getHashedSubPackets();
+        if (hashed != null && hashed.hasSubpacket(SignatureSubpacketTags.KEY_FLAGS)) {
+            return hashed.getKeyFlags();
+        }
+        return 0;
     }
 }

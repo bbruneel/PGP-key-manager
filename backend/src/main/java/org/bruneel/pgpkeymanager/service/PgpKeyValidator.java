@@ -137,6 +137,7 @@ public final class PgpKeyValidator {
         return KeyRole.fromDb(role);
     }
 
+    /** Keep in sync with {@code frontend/src/lib/ssh-export.ts} (SSH_EXPORT_ALGORITHMS). */
     private static final List<String> SSH_EXPORT_ALGORITHMS = List.of("ed25519", "rsa", "ecdsa");
 
     public static void validateSshExportable(PgpKey key) {
