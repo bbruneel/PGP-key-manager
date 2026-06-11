@@ -121,6 +121,12 @@ export function KeyDetailPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
   const [activeTab, setActiveTab] = useState<"overview" | "subkeys" | "actions">("overview")
+  const [prevId, setPrevId] = useState(id)
+
+  if (id !== prevId) {
+    setPrevId(id)
+    setActiveTab("overview")
+  }
 
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
@@ -163,9 +169,6 @@ export function KeyDetailPage() {
     })
   }, [id])
 
-  useEffect(() => {
-    setActiveTab("overview")
-  }, [id])
 
   useEffect(() => {
     queueMicrotask(() => {
