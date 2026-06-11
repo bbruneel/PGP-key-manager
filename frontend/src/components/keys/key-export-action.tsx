@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -24,15 +24,18 @@ export function KeyExportAction({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
-  const [exportCache, setExportCache] = useState<{ keyId: string; armored: string } | null>(null)
+  const [exportCache, setExportCache] = useState<{
+    keyId: string
+    invalidateToken: number
+    armored: string
+  } | null>(null)
 
-  useEffect(() => {
-    setExportCache(null)
-  }, [keyId, invalidateToken])
+  const cacheValid =
+    exportCache?.keyId === keyId && exportCache?.invalidateToken === invalidateToken
 
   async function exportArmored(forceRefresh = false): Promise<string> {
-    if (!forceRefresh && exportCache?.keyId === keyId) {
-      return exportCache.armored
+    if (!forceRefresh && cacheValid) {
+      return exportCache!.armored
     }
 
     logUiEvent("info", {
@@ -49,7 +52,7 @@ export function KeyExportAction({
     try {
       const token = await getAccessToken()
       const armored = await keysApi.exportPublic({ accessToken: token, keyId })
-      setExportCache({ keyId, armored })
+      setExportCache({ keyId, invalidateToken, armored })
       logUiEvent("info", {
         eventId: "keyDetail.export.success",
         message: "Public key exported",
@@ -122,7 +125,7 @@ export function KeyExportAction({
         <Button type="button" variant="outline" disabled={loading} onClick={() => void handleDownload()}>
           Download .asc
         </Button>
-        {exportCache?.keyId === keyId ? (
+        {cacheValid ? (
           <Button
             type="button"
             variant="ghost"
