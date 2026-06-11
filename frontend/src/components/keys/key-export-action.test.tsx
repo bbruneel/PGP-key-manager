@@ -60,6 +60,32 @@ describe("KeyExportAction", () => {
     })
   })
 
+  it("refetches after invalidateToken changes", async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <KeyExportAction keyId="key-1" fingerprint="ABCD1234" getAccessToken={getAccessToken} />,
+    )
+
+    await user.click(screen.getByRole("button", { name: /copy to clipboard/i }))
+    await waitFor(() => {
+      expect(keysApi.exportPublic).toHaveBeenCalledTimes(1)
+    })
+
+    rerender(
+      <KeyExportAction
+        keyId="key-1"
+        fingerprint="ABCD1234"
+        getAccessToken={getAccessToken}
+        invalidateToken={1}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: /copy to clipboard/i }))
+    await waitFor(() => {
+      expect(keysApi.exportPublic).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it("reuses cached export for copy then download", async () => {
     const user = userEvent.setup()
     render(<KeyExportAction keyId="key-1" fingerprint="ABCD1234" getAccessToken={getAccessToken} />)

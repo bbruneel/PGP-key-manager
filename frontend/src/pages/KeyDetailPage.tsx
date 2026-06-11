@@ -751,6 +751,7 @@ export function KeyDetailPage() {
             keyId={keyData.id!}
             fingerprint={keyData.fingerprint}
             getAccessToken={getAccessToken}
+            invalidateToken={subkeysRefreshToken}
           />
 
           {keyData.role === "primary" && keyData.id ? (

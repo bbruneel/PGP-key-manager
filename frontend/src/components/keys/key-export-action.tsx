@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -11,13 +11,24 @@ type KeyExportActionProps = {
   keyId: string
   fingerprint?: string | null
   getAccessToken: () => Promise<string>
+  /** Bumped when key material may have changed (refresh, revoke, rotate, etc.). */
+  invalidateToken?: number
 }
 
-export function KeyExportAction({ keyId, fingerprint, getAccessToken }: KeyExportActionProps) {
+export function KeyExportAction({
+  keyId,
+  fingerprint,
+  getAccessToken,
+  invalidateToken = 0,
+}: KeyExportActionProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [exportCache, setExportCache] = useState<{ keyId: string; armored: string } | null>(null)
+
+  useEffect(() => {
+    setExportCache(null)
+  }, [keyId, invalidateToken])
 
   async function exportArmored(forceRefresh = false): Promise<string> {
     if (!forceRefresh && exportCache?.keyId === keyId) {
