@@ -74,6 +74,34 @@ class PgpCryptoServiceTest {
     }
 
     @Test
+    void exportPublicSubkeyFromArmored() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Subkey Export Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "export-test-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "export-test-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        String exported = crypto.exportPublicKey(sub.updatedArmoredPublic(), subKeyId);
+
+        assertThat(exported)
+                .contains("BEGIN PGP PUBLIC KEY BLOCK")
+                .doesNotContain("BEGIN PGP MESSAGE");
+    }
+
+    @Test
     void addEcdsaSigningSubkey() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(

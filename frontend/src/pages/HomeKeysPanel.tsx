@@ -1,19 +1,65 @@
-import { useCallback, useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Link, useSearchParams } from "react-router-dom"
+import { toast } from "sonner"
 
+import { KeysListFilters } from "@/components/keys/keys-list-filters"
 import { Button } from "@/components/ui/button"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
-import { formatCapabilities, formatKeyExpiry } from "@/lib/key-display"
+import {
+  bulkExportFilename,
+  bulkExportPublicKeys,
+  downloadArmoredBundle,
+} from "@/lib/bulk-export-keys"
+import { formatCapabilities, formatKeyExpiry, formatKeyStatus } from "@/lib/key-display"
 import { keysApi } from "@/lib/keys-api"
+import {
+  applyMaterialViewFilter,
+  buildKeysListSearch,
+  listOptionsFromParams,
+  parseKeysListParams,
+  type KeysListParams,
+} from "@/lib/keys-list-params"
+import { logUiEvent } from "@/lib/ui-logger"
+import { cn } from "@/lib/utils"
 import type { PgpKeySummary } from "@/types/api"
 
+function statusBadgeClass(status: string | null | undefined): string {
+  switch (status) {
+    case "revoked":
+      return "border-destructive/30 bg-destructive/10 text-destructive"
+    case "expired":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+    default:
+      return "border-border bg-muted/60 text-muted-foreground"
+  }
+}
+
 export function HomeKeysPanel() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const listParams = useMemo(() => parseKeysListParams(searchParams), [searchParams])
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
   const [keys, setKeys] = useState<PgpKeySummary[]>([])
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkExporting, setBulkExporting] = useState(false)
+
+  const updateListParams = useCallback(
+    (nextParams: KeysListParams) => {
+      logUiEvent("info", {
+        eventId: "keysList.filterChange",
+        message: "Keys list filters changed",
+        view: nextParams.view,
+        keyStatus: nextParams.status,
+        filterCapability: nextParams.capability,
+      })
+      const query = buildKeysListSearch(nextParams)
+      setSearchParams(query ? query.replace(/^\?/, "") : "")
+    },
+    [setSearchParams],
+  )
 
   const loadKeys = useCallback(async () => {
     if (!isConfigured || !isAuthenticated) {
@@ -24,8 +70,19 @@ export function HomeKeysPanel() {
     setRequestId(null)
     try {
       const token = await getAccessToken()
-      const data = await keysApi.list({ accessToken: token, role: "primary" })
-      setKeys(data)
+      const listOptions = listOptionsFromParams(listParams)
+      const data = await keysApi.list({ accessToken: token, ...listOptions })
+      const filtered = applyMaterialViewFilter(data, listParams.view)
+      setKeys(filtered)
+      setSelectedIds(new Set())
+      logUiEvent("info", {
+        eventId: "keysList.loaded",
+        message: "Keys list loaded",
+        count: filtered.length,
+        view: listParams.view,
+        keyStatus: listParams.status,
+        filterCapability: listParams.capability,
+      })
     } catch (e) {
       setKeys([])
       setError(getApiErrorMessage(e))
@@ -35,13 +92,77 @@ export function HomeKeysPanel() {
     } finally {
       setLoading(false)
     }
-  }, [getAccessToken, isAuthenticated, isConfigured])
+  }, [getAccessToken, isAuthenticated, isConfigured, listParams])
 
   useEffect(() => {
     queueMicrotask(() => {
       void loadKeys()
     })
   }, [loadKeys])
+
+  const selectableIds = useMemo(
+    () => keys.map((key) => key.id).filter((id): id is string => Boolean(id)),
+    [keys],
+  )
+
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id))
+
+  function toggleSelected(keyId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(keyId)) {
+        next.delete(keyId)
+      } else {
+        next.add(keyId)
+      }
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set())
+      return
+    }
+    setSelectedIds(new Set(selectableIds))
+  }
+
+  async function handleBulkExport() {
+    const keyIds = [...selectedIds]
+    if (keyIds.length === 0) {
+      return
+    }
+
+    logUiEvent("info", {
+      eventId: "keysList.bulkExport.submit",
+      message: "Bulk export requested",
+      count: keyIds.length,
+    })
+
+    setBulkExporting(true)
+    try {
+      const armored = await bulkExportPublicKeys({ keyIds, getAccessToken })
+      downloadArmoredBundle(bulkExportFilename(), armored)
+      toast.success(`Exported ${keyIds.length} public key${keyIds.length === 1 ? "" : "s"}`)
+      logUiEvent("info", {
+        eventId: "keysList.bulkExport.success",
+        message: "Bulk export completed",
+        count: keyIds.length,
+      })
+    } catch (e) {
+      const message = getApiErrorMessage(e)
+      toast.error(message)
+      logUiEvent("error", {
+        eventId: "keysList.bulkExport.error",
+        message: "Bulk export failed",
+        operationId: e instanceof ApiError ? e.operationId : "exportPublicKey",
+        requestId: e instanceof ApiError ? e.requestId : undefined,
+        status: e instanceof ApiError ? e.status : undefined,
+      })
+    } finally {
+      setBulkExporting(false)
+    }
+  }
 
   if (!isConfigured) {
     return (
@@ -86,8 +207,21 @@ export function HomeKeysPanel() {
           >
             Refresh
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="transition-colors duration-200"
+            disabled={selectedIds.size === 0 || bulkExporting}
+            onClick={() => void handleBulkExport()}
+          >
+            {bulkExporting ? "Exporting…" : `Export selected (${selectedIds.size})`}
+          </Button>
         </div>
       </header>
+
+      <div className="mb-4">
+        <KeysListFilters params={listParams} disabled={loading} onChange={updateListParams} />
+      </div>
 
       {loading && <p className="text-sm text-muted-foreground">Loading keys…</p>}
       {error && (
@@ -100,7 +234,7 @@ export function HomeKeysPanel() {
       )}
       {!loading && !error && keys.length === 0 && (
         <div className="text-sm text-muted-foreground">
-          <p>No keys yet. Create a new key or import an existing one to get started.</p>
+          <p>No keys match the current filters.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" variant="default" asChild>
               <Link to="/keys/new">Create key</Link>
@@ -112,36 +246,77 @@ export function HomeKeysPanel() {
         </div>
       )}
       {!loading && keys.length > 0 && (
-        <ul className="space-y-3">
-          {keys.map((key) => (
-            <li
-              key={key.id}
-              className="rounded-md border border-input bg-background px-3 py-2.5 text-sm"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="font-medium text-foreground">{key.label ?? "Unlabeled key"}</p>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">{key.fingerprint}</p>
-                  {key.keyId ? (
-                    <p className="mt-1 font-mono text-xs text-muted-foreground">Key ID {key.keyId}</p>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <input
+              id="keys-select-all"
+              type="checkbox"
+              className="size-4 rounded border border-input"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+              aria-label="Select all keys"
+            />
+            <label htmlFor="keys-select-all" className="text-muted-foreground">
+              Select all
+            </label>
+          </div>
+          <ul className="space-y-3">
+            {keys.map((key) => (
+              <li
+                key={key.id}
+                className={cn(
+                  "rounded-md border border-input bg-background px-3 py-2.5 text-sm",
+                  (key.status === "revoked" || key.status === "expired") && "opacity-80",
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-start gap-3">
+                    {key.id ? (
+                      <input
+                        type="checkbox"
+                        className="mt-1 size-4 rounded border border-input"
+                        checked={selectedIds.has(key.id)}
+                        onChange={() => toggleSelected(key.id!)}
+                        aria-label={`Select ${key.label ?? "Unlabeled key"}`}
+                      />
+                    ) : null}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-foreground">{key.label ?? "Unlabeled key"}</p>
+                        {key.status ? (
+                          <span
+                            className={cn(
+                              "rounded-md border px-2 py-0.5 text-xs font-medium",
+                              statusBadgeClass(key.status),
+                            )}
+                          >
+                            {formatKeyStatus(key.status)}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">{key.fingerprint}</p>
+                      {key.keyId ? (
+                        <p className="mt-1 font-mono text-xs text-muted-foreground">Key ID {key.keyId}</p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {key.keyType}
+                        {key.algorithm ? ` · ${key.algorithm}` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {formatCapabilities(key.capabilities)} · {formatKeyExpiry(key.expiresAt)}
+                      </p>
+                    </div>
+                  </div>
+                  {key.id ? (
+                    <Button type="button" variant="outline" size="sm" asChild>
+                      <Link to={`/keys/${key.id}`}>View</Link>
+                    </Button>
                   ) : null}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {key.keyType}
-                    {key.algorithm ? ` · ${key.algorithm}` : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatCapabilities(key.capabilities)} · {formatKeyExpiry(key.expiresAt)}
-                  </p>
                 </div>
-                {key.id ? (
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <Link to={`/keys/${key.id}`}>View</Link>
-                  </Button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   )

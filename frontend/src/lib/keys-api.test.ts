@@ -276,6 +276,45 @@ describe("keysApi.importSubkeysFromKeyring", () => {
   })
 })
 
+describe("keysApi.update", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls PATCH /api/keys/{keyId} with updateKey operationId", async () => {
+    const body = { label: "Renamed key" }
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-1", label: "Renamed key" })
+
+    const result = await keysApi.update({ accessToken: "token-abc", keyId: "key-1", body })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1", {
+      operationId: "updateKey",
+      accessToken: "token-abc",
+      method: "PATCH",
+      body,
+    })
+    expect(result).toEqual({ id: "key-1", label: "Renamed key" })
+  })
+})
+
+describe("keysApi.delete", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls DELETE /api/keys/{keyId} with deleteKey operationId", async () => {
+    vi.mocked(requestJson).mockResolvedValue(undefined)
+
+    await keysApi.delete({ accessToken: "token-abc", keyId: "key-1" })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1", {
+      operationId: "deleteKey",
+      accessToken: "token-abc",
+      method: "DELETE",
+    })
+  })
+})
+
 describe("keysApi.exportPublic", () => {
   beforeEach(() => {
     vi.mocked(requestText).mockReset()

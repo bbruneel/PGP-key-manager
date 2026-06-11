@@ -13,6 +13,9 @@ export type UiLogContext = {
   previousAlgorithm?: string
   capabilities?: string[]
   openpgpVersion?: number
+  view?: string
+  keyStatus?: string
+  filterCapability?: string
 }
 
 const LOG_PREFIX = "[pgp-ui]"
@@ -60,6 +63,9 @@ export function logUiEvent(
     previousAlgorithm: context.previousAlgorithm,
     capabilities: context.capabilities,
     openpgpVersion: context.openpgpVersion,
+    view: context.view,
+    keyStatus: context.keyStatus,
+    filterCapability: context.filterCapability,
   }
 
   switch (level) {

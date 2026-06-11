@@ -10,7 +10,35 @@ import { ImportKeyPage } from "@/pages/ImportKeyPage"
 import { KeyDetailPage } from "@/pages/KeyDetailPage"
 import { KeysPage } from "@/pages/KeysPage"
 import { OverviewPage } from "@/pages/OverviewPage"
+import { PoliciesPage } from "@/pages/PoliciesPage"
+import { SettingsPage } from "@/pages/SettingsPage"
 import type { ApiHealth } from "@/pages/HomePage"
+
+function resolvePageTitle(pathname: string): string {
+  if (pathname === "/keys/new") {
+    return "Create key"
+  }
+  if (pathname === "/keys/import") {
+    return "Import key"
+  }
+  if (
+    /^\/keys\/[^/]+$/.test(pathname) &&
+    pathname !== "/keys/new" &&
+    pathname !== "/keys/import"
+  ) {
+    return "Key detail"
+  }
+  if (pathname.startsWith("/keys")) {
+    return "Keys"
+  }
+  if (pathname === "/policies") {
+    return "Policies"
+  }
+  if (pathname === "/settings") {
+    return "Settings"
+  }
+  return "Overview"
+}
 
 function AppContent() {
   const [apiHealth, setApiHealth] = useState<ApiHealth>("unknown")
@@ -19,17 +47,7 @@ function AppContent() {
     setApiHealth(health)
   }, [])
 
-  const pageTitle = location.pathname === "/keys/new"
-    ? "Create key"
-    : location.pathname === "/keys/import"
-      ? "Import key"
-      : /^\/keys\/[^/]+$/.test(location.pathname) &&
-          location.pathname !== "/keys/new" &&
-          location.pathname !== "/keys/import"
-        ? "Key detail"
-        : location.pathname.startsWith("/keys")
-          ? "Keys"
-          : "Overview"
+  const pageTitle = resolvePageTitle(location.pathname)
 
   return (
     <AppShell footerStatus={apiHealth} pageTitle={pageTitle}>
@@ -39,6 +57,8 @@ function AppContent() {
         <Route path="/keys/new" element={<CreateKeyPage />} />
         <Route path="/keys/import" element={<ImportKeyPage />} />
         <Route path="/keys/:id" element={<KeyDetailPage />} />
+        <Route path="/policies" element={<PoliciesPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </AppShell>
   )

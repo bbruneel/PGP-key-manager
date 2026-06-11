@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { NavLink } from "react-router-dom"
+import { Link, NavLink, useSearchParams } from "react-router-dom"
 import {
   ChevronDown,
   Download,
@@ -18,18 +18,32 @@ import { cn } from "@/lib/utils"
 
 import packageJson from "../../../package.json"
 
+type NavChild = {
+  label: string
+  to: string
+}
+
 type NavItem = {
   label: string
   to?: string
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-  children?: string[]
+  children?: NavChild[]
 }
 
 const navItems: NavItem[] = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
-  { label: "Keys", to: "/keys", icon: KeyRound, children: ["Public", "Private", "Subkeys"] },
-  { label: "Policies", icon: Shield },
-  { label: "Settings", icon: Settings },
+  {
+    label: "Keys",
+    to: "/keys",
+    icon: KeyRound,
+    children: [
+      { label: "Public", to: "/keys?view=public" },
+      { label: "Private", to: "/keys?view=private" },
+      { label: "Subkeys", to: "/keys?view=subkeys" },
+    ],
+  },
+  { label: "Policies", to: "/policies", icon: Shield },
+  { label: "Settings", to: "/settings", icon: Settings },
 ]
 
 type AppShellProps = {
@@ -122,11 +136,13 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
               type="button"
               size="sm"
               className="hidden gap-1.5 shadow-sm transition-colors duration-200 sm:inline-flex"
-              disabled
-              title="Coming soon"
+              asChild
+              title="Select keys on the Keys page to export"
             >
-              <Download className="size-4" />
-              Export keys
+              <Link to="/keys">
+                <Download className="size-4" />
+                Export keys
+              </Link>
             </Button>
             <ThemeToggle />
           </div>
@@ -151,7 +167,8 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
 function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
   const Icon = item.icon
   const hasChildren = Boolean(item.children?.length)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
+  const [searchParams] = useSearchParams()
 
   if (item.to) {
     return (
@@ -188,33 +205,35 @@ function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }
         </div>
         {hasChildren && expanded ? (
           <ul className="mt-0.5 ml-5 space-y-0.5 border-l border-sidebar-border/80 pl-6">
-            {item.children!.map((child) => (
-              <li key={child}>
-                <button
-                  type="button"
-                  disabled
-                  title="Coming soon"
-                  className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors duration-200 hover:bg-sidebar-accent/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {child}
-                </button>
-              </li>
-            ))}
+            {item.children!.map((child) => {
+              const childView = new URL(child.to, "http://local").searchParams.get("view")
+              const activeView = searchParams.get("view") ?? "all"
+              const isChildActive = childView === activeView
+
+              return (
+                <li key={child.label}>
+                  <NavLink
+                    to={child.to}
+                    onClick={onNavigate}
+                    className={() =>
+                      cn(
+                        "block w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-200",
+                        isChildActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
+                      )
+                    }
+                  >
+                    {child.label}
+                  </NavLink>
+                </li>
+              )
+            })}
           </ul>
         ) : null}
       </div>
     )
   }
 
-  return (
-    <button
-      type="button"
-      disabled
-      title="Coming soon"
-      className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors duration-200 hover:bg-sidebar-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <Icon className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
-      <span className="flex-1 text-left">{item.label}</span>
-    </button>
-  )
+  return null
 }

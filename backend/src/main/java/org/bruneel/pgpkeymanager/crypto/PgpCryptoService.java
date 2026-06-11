@@ -233,7 +233,14 @@ public class PgpCryptoService {
             if (key == null) {
                 throw new CryptoException("Public key id not found");
             }
-            return PgpCryptoSupport.armorPublicRing(new PGPPublicKeyRing(List.of(key)));
+            if (key.isMasterKey()) {
+                return PgpCryptoSupport.armorPublicRing(new PGPPublicKeyRing(List.of(key)));
+            }
+            PGPPublicKey master = ring.getPublicKey();
+            if (master.getKeyID() == key.getKeyID()) {
+                return PgpCryptoSupport.armorPublicRing(new PGPPublicKeyRing(List.of(key)));
+            }
+            return PgpCryptoSupport.armorPublicRing(new PGPPublicKeyRing(List.of(master, key)));
         } catch (IOException | PGPException e) {
             throw new CryptoException("Failed to export public key", e);
         }
