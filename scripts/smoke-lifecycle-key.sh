@@ -82,7 +82,7 @@ echo "✓ created subkey id=${SUBKEY_ID}"
 echo "→ GET ${API_BASE_URL}/api/keys/${PRIMARY_ID}/export-public"
 EXPORT_BODY="$(
   curl -sS -w '\n%{http_code}' "${API_BASE_URL}/api/keys/${PRIMARY_ID}/export-public" \
-    -H 'Accept: application/json; version=1' \
+    -H 'Accept: application/pgp-keys' \
     -H "Authorization: Bearer ${TOKEN}"
 )"
 EXPORT_TEXT="$(echo "${EXPORT_BODY}" | sed '$d')"
@@ -176,8 +176,8 @@ ROTATE_RESPONSE="$(
 ROTATE_BODY="$(echo "${ROTATE_RESPONSE}" | sed '$d')"
 ROTATE_STATUS="$(echo "${ROTATE_RESPONSE}" | tail -n 1)"
 
-if [[ "${ROTATE_STATUS}" != "200" ]]; then
-  echo "error: expected HTTP 200 on rotate with ECDH, got ${ROTATE_STATUS}" >&2
+if [[ "${ROTATE_STATUS}" != "201" ]]; then
+  echo "error: expected HTTP 201 on rotate with ECDH, got ${ROTATE_STATUS}" >&2
   echo "${ROTATE_BODY}" >&2
   exit 1
 fi

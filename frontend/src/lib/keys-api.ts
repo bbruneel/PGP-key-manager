@@ -195,6 +195,7 @@ export const keysApi = {
       operationId: "exportPublicKey",
       accessToken: options.accessToken,
       method: "GET",
+      headers: { Accept: "application/pgp-keys" },
     })
   },
 }

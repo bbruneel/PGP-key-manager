@@ -2,6 +2,9 @@
 # Generate a throwaway PGP keyring (primary + subkeys) in an isolated GNUPGHOME
 # for manual import testing. Does not touch ~/.gnupg.
 #
+# For legacy RSA/ECDSA/ECDH rotate tests (Phase 6), use generate-legacy-gpg-keyring.sh
+# and scripts/MANUAL_CHECKS.md.
+#
 # Usage:
 #   ./scripts/generate-test-gpg-keyring.sh
 #   ./scripts/generate-test-gpg-keyring.sh /path/to/output-dir
