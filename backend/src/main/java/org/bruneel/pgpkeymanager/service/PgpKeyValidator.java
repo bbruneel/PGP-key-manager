@@ -66,6 +66,10 @@ public final class PgpKeyValidator {
         if (caps.contains(PgpCapability.CERTIFY)) {
             throw new BadRequestException("Subkey capabilities must not include certify");
         }
+        if (caps.contains(PgpCapability.ENCRYPT) && caps.contains(PgpCapability.AUTHENTICATE)) {
+            throw new BadRequestException(
+                    "Use separate subkeys for encryption and authentication; select encrypt or authenticate, not both");
+        }
         validateAlgorithmForOpenpgpVersion(request.algorithm(), openpgpVersion);
         validateAlgorithmForCapabilities(request.algorithm(), caps, false);
     }

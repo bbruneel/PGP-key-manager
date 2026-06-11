@@ -5,7 +5,7 @@ import {
   SubkeyAlgorithmFields,
 } from "@/components/keys/subkey-algorithm-fields"
 import { applyCapabilityChangeToAlgorithmValues, type OpenpgpVersion } from "@/lib/algorithm-spec"
-import { SUBKEY_CAPABILITY_OPTIONS } from "@/lib/subkey-capabilities"
+import { SUBKEY_CAPABILITY_OPTIONS, toggleSubkeyCapability } from "@/lib/subkey-capabilities"
 import type { PgpCapability } from "@/types/api"
 import type { RotateKeyFieldErrors, RotateKeyFormValues } from "@/lib/rotate-key-validation"
 
@@ -46,9 +46,10 @@ export function RotateKeyForm({
   }
 
   function toggleCapability(capability: PgpCapability) {
-    const nextCapabilities = values.capabilities.includes(capability)
-      ? values.capabilities.filter((item) => item !== capability)
-      : [...values.capabilities, capability]
+    const nextCapabilities = toggleSubkeyCapability(values.capabilities, capability)
+    if (nextCapabilities === null) {
+      return
+    }
     const { next, adjusted } = applyCapabilityChangeToAlgorithmValues(
       values,
       nextCapabilities,

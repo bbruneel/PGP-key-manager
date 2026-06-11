@@ -73,6 +73,32 @@ describe("CreateSubkeyForm", () => {
     expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
   })
 
+  it("selecting authenticate replaces encrypt capability", async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+
+    render(
+      <CreateSubkeyForm
+        values={defaultCreateSubkeyFormValues()}
+        fieldErrors={{}}
+        apiError={null}
+        requestId={null}
+        submitting={false}
+        disabled={false}
+        primaryOpenpgpVersion={4}
+        onChange={onChange}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByLabelText("authenticate"))
+
+    expect(onChange).toHaveBeenCalled()
+    const lastCall = onChange.mock.calls.at(-1)?.[0]
+    expect(lastCall.capabilities).toEqual(["authenticate"])
+    expect(lastCall.algorithm).toBe("ed25519")
+  })
+
   it("disables submit when disabled", () => {
     render(
       <CreateSubkeyForm

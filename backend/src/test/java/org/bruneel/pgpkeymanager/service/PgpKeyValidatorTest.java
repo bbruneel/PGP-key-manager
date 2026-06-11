@@ -20,6 +20,21 @@ import java.util.UUID;
 class PgpKeyValidatorTest {
 
     @Test
+    void subkeyRejectsEncryptAndAuthenticateTogether() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validateSubkeyRequest(
+                                        new CreateSubkeyRequest(
+                                                List.of("encrypt", "authenticate"),
+                                                new AlgorithmSpecDto("rsa", 4096, null),
+                                                null,
+                                                "passphrase"),
+                                        4))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("separate subkeys");
+    }
+
+    @Test
     void subkeyMustNotCertify() {
         assertThatThrownBy(
                         () ->

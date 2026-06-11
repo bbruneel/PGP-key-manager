@@ -56,9 +56,17 @@ export function validateRotateKeyForm(
   const fieldErrors: RotateKeyFieldErrors = {}
 
   if (!isValidSubkeyCapabilitySet(values.capabilities)) {
-    fieldErrors.capabilities = values.capabilities.includes("certify")
-      ? "Subkeys cannot include certify"
-      : "Select at least one capability"
+    if (values.capabilities.includes("certify")) {
+      fieldErrors.capabilities = "Subkeys cannot include certify"
+    } else if (
+      values.capabilities.includes("encrypt") &&
+      values.capabilities.includes("authenticate")
+    ) {
+      fieldErrors.capabilities =
+        "Use separate subkeys for encryption and authentication (select one of encrypt or authenticate)"
+    } else {
+      fieldErrors.capabilities = "Select at least one capability"
+    }
   }
 
   const algorithmValidation = validateAlgorithmSpec(

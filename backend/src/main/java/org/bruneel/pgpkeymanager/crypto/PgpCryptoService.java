@@ -143,7 +143,12 @@ public class PgpCryptoService {
                     expiresAt,
                     PgpCryptoSupport.armorPublicRing(updatedPublic),
                     PgpCryptoSupport.armorSecretRing(updatedSecret));
+        } catch (CryptoException e) {
+            throw e;
         } catch (Exception e) {
+            if (PgpCryptoSupport.isPassphraseMismatch(e)) {
+                throw new CryptoException("Passphrase does not unlock the private key");
+            }
             throw new CryptoException("Failed to add subkey", e);
         }
     }

@@ -328,6 +328,106 @@ class PgpCryptoServiceTest {
     }
 
     @Test
+    void addSubkey_encryptAuthenticateRsaOnLifecycleKeyring() {
+        char[] passphrase = "smoke-lifecycle-passphrase-1".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Lifecycle Smoke", "lifecycle@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-06-01T00:00:00Z"),
+                        passphrase);
+
+        SubkeyMaterial encryptSub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        passphrase,
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-06-01T00:00:00Z"));
+
+        long encryptSubKeyId = PgpCryptoSupport.parseKeyIdHex(encryptSub.keyId());
+        PgpCryptoService.KeyRingUpdate extended =
+                crypto.extendExpiryInRing(
+                        encryptSub.updatedArmoredPrivate(),
+                        passphrase,
+                        encryptSubKeyId,
+                        Instant.parse("2031-06-01T00:00:00Z"));
+
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(extended.armoredPrivate(), passphrase, encryptSubKeyId, 3);
+
+        SubkeyMaterial secondEncrypt =
+                crypto.addSubkey(
+                        4,
+                        revoked.armoredPrivate(),
+                        passphrase,
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-06-01T00:00:00Z"));
+
+        long secondSubKeyId = PgpCryptoSupport.parseKeyIdHex(secondEncrypt.keyId());
+        PgpCryptoService.KeyRingUpdate secondRevoked =
+                crypto.revokeKeyInRing(
+                        secondEncrypt.updatedArmoredPrivate(), passphrase, secondSubKeyId, 3);
+
+        SubkeyMaterial thirdEncrypt =
+                crypto.addSubkey(
+                        4,
+                        secondRevoked.armoredPrivate(),
+                        passphrase,
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2031-06-01T00:00:00Z"));
+
+        long thirdSubKeyId = PgpCryptoSupport.parseKeyIdHex(thirdEncrypt.keyId());
+        PgpCryptoService.KeyRingUpdate thirdExtended =
+                crypto.extendExpiryInRing(
+                        thirdEncrypt.updatedArmoredPrivate(),
+                        passphrase,
+                        thirdSubKeyId,
+                        Instant.parse("2031-06-01T00:00:00Z"));
+
+        SubkeyMaterial authSub =
+                crypto.addSubkey(
+                        4,
+                        thirdExtended.armoredPrivate(),
+                        passphrase,
+                        List.of(PgpCapability.AUTHENTICATE),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2028-06-11T00:00:00Z"));
+
+        assertThat(authSub.capabilities()).containsExactly(PgpCapability.AUTHENTICATE);
+        assertThat(authSub.algorithm()).isEqualTo("ed25519");
+    }
+
+    @Test
+    void addSubkey_wrongPassphraseReportsUnlockFailure() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Passphrase Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-06-01T00:00:00Z"),
+                        "correct-passphrase".toCharArray());
+
+        assertThatThrownBy(
+                        () ->
+                                crypto.addSubkey(
+                                        4,
+                                        primary.armoredPrivate(),
+                                        "wrong-passphrase".toCharArray(),
+                                        List.of(PgpCapability.AUTHENTICATE),
+                                        new AlgorithmSpecDto("ed25519", null, null),
+                                        Instant.parse("2029-06-01T00:00:00Z")))
+                .isInstanceOf(CryptoException.class)
+                .hasMessage("Passphrase does not unlock the private key");
+    }
+
+    @Test
     void exportSshPublicKey_ed25519AuthenticateSubkey() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(
