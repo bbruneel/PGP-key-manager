@@ -13,6 +13,7 @@ import type {
   RevokeKeyRequest,
   RotateKeyRequest,
   RotateKeyResponse,
+  UpdatePgpKeyRequest,
 } from "@/types/api"
 
 export type ListKeysOptions = {
@@ -76,10 +77,22 @@ export type ExportPublicKeyOptions = {
   keyId: string
 }
 
+export type UpdateKeyOptions = {
+  accessToken: string
+  keyId: string
+  body: UpdatePgpKeyRequest
+}
+
+export type DeleteKeyOptions = {
+  accessToken: string
+  keyId: string
+}
+
 /**
  * Key API client. Phase 1 adds create; Phase 2 adds register (import);
  * Phase 3 adds detail, subkeys, and lifecycle actions; Phase 4 adds createSubkey;
- * Phase 5 adds importSubkeysFromKeyring; Phase 6 extends algorithm UI (see algorithm-spec.ts).
+ * Phase 5 adds importSubkeysFromKeyring; Phase 6 extends algorithm UI (see algorithm-spec.ts);
+ * Phase 7 adds update and delete.
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeySummary[]> {
@@ -130,6 +143,23 @@ export const keysApi = {
       operationId: "getKey",
       accessToken: options.accessToken,
       method: "GET",
+    })
+  },
+
+  update(options: UpdateKeyOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>(`/api/keys/${options.keyId}`, {
+      operationId: "updateKey",
+      accessToken: options.accessToken,
+      method: "PATCH",
+      body: options.body,
+    })
+  },
+
+  delete(options: DeleteKeyOptions): Promise<void> {
+    return requestJson<void>(`/api/keys/${options.keyId}`, {
+      operationId: "deleteKey",
+      accessToken: options.accessToken,
+      method: "DELETE",
     })
   },
 

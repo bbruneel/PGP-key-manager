@@ -38,6 +38,10 @@ vi.mock("@/lib/ui-logger", () => ({
   logUiEvent: vi.fn(),
 }))
 
+vi.mock("@/lib/clipboard", () => ({
+  copyTextToClipboard: vi.fn(),
+}))
+
 vi.mock("@/lib/keys-api", () => ({
   keysApi: {
     get: vi.fn(),
@@ -48,11 +52,14 @@ vi.mock("@/lib/keys-api", () => ({
     extendExpiry: vi.fn(),
     rotate: vi.fn(),
     exportPublic: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
   },
 }))
 
 import { toast } from "sonner"
 
+import { copyTextToClipboard } from "@/lib/clipboard"
 import { KeyDetailPage } from "@/pages/KeyDetailPage"
 import type { PgpKey } from "@/types/api"
 
@@ -116,6 +123,12 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.createSubkey).mockReset()
     vi.mocked(keysApi.importSubkeysFromKeyring).mockReset()
     vi.mocked(keysApi.revoke).mockReset()
+    vi.mocked(keysApi.extendExpiry).mockReset()
+    vi.mocked(keysApi.rotate).mockReset()
+    vi.mocked(keysApi.exportPublic).mockReset()
+    vi.mocked(keysApi.update).mockReset()
+    vi.mocked(keysApi.delete).mockReset()
+    vi.mocked(copyTextToClipboard).mockReset()
     vi.mocked(logUiEvent).mockReset()
     getAccessToken.mockResolvedValue("access-token")
     vi.mocked(keysApi.get).mockResolvedValue(primaryKey)
@@ -126,7 +139,7 @@ describe("KeyDetailPage", () => {
     renderDetail()
 
     expect(await screen.findByRole("heading", { name: "Work key" })).toBeInTheDocument()
-    expect(screen.getByText("PRIMARYFINGERPRINT")).toBeInTheDocument()
+    expect(within(screen.getByRole("region", { name: "Key summary" })).getByText("PRIMARYFINGERPRINT")).toBeInTheDocument()
     expect(keysApi.get).toHaveBeenCalledWith({
       accessToken: "access-token",
       keyId: "primary-1",
@@ -261,6 +274,142 @@ describe("KeyDetailPage", () => {
     expect(screen.queryByRole("region", { name: "Add subkey" })).not.toBeInTheDocument()
     expect(screen.getByRole("region", { name: "Import subkeys from keyring" })).toBeInTheDocument()
     expect(screen.getByText(/import or register private key material/i)).toBeInTheDocument()
+  })
+
+  it("updates key label", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.update).mockResolvedValue({
+      ...primaryKey,
+      label: "Renamed key",
+    })
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const editSection = screen.getByRole("region", { name: "Edit key label" })
+    const labelInput = within(editSection).getByLabelText(/^label$/i)
+    await user.clear(labelInput)
+    await user.type(labelInput, "Renamed key")
+    await user.click(within(editSection).getByRole("button", { name: /^save label$/i }))
+
+    await waitFor(() => {
+      expect(keysApi.update).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        keyId: "primary-1",
+        body: { label: "Renamed key" },
+      })
+    })
+    expect(await screen.findByRole("heading", { name: "Renamed key" })).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith("Label updated")
+  })
+
+  it("deletes key and navigates to keys list", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.delete).mockResolvedValue(undefined)
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const deleteSection = screen.getByRole("region", { name: "Delete key" })
+    await user.click(within(deleteSection).getByRole("button", { name: /^delete key$/i }))
+    await user.click(within(deleteSection).getByRole("button", { name: /^confirm delete$/i }))
+
+    await waitFor(() => {
+      expect(keysApi.delete).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        keyId: "primary-1",
+      })
+    })
+    expect(navigate).toHaveBeenCalledWith("/keys")
+    expect(toast.success).toHaveBeenCalledWith("Key deleted")
+  })
+
+  it("refreshes key detail on button click", async () => {
+    const user = userEvent.setup()
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+    expect(keysApi.get).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole("button", { name: /^refresh$/i }))
+
+    await waitFor(() => {
+      expect(keysApi.get).toHaveBeenCalledTimes(2)
+    })
+    expect(logUiEvent).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({ eventId: "keyDetail.refresh" }),
+    )
+  })
+
+  it("submits extend expiry", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.extendExpiry).mockResolvedValue({
+      ...primaryKey,
+      expiresAt: "2035-06-01T00:00:00Z",
+    })
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const extendSection = screen.getByRole("region", { name: "Extend expiry" })
+    await user.type(within(extendSection).getByLabelText(/^passphrase$/i), "valid-passphrase")
+    await user.click(within(extendSection).getByRole("button", { name: /^extend expiry$/i }))
+
+    await waitFor(() => {
+      expect(keysApi.extendExpiry).toHaveBeenCalled()
+    })
+  })
+
+  it("submits rotate on subkey detail", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.get).mockImplementation(async ({ keyId }) => {
+      if (keyId === "sub-1") {
+        return subkey
+      }
+      return primaryKey
+    })
+    vi.mocked(keysApi.rotate).mockResolvedValue({
+      newKey: { ...subkey, id: "sub-new" },
+      previousKey: { ...subkey, status: "revoked" },
+    })
+
+    renderDetail("/keys/sub-1")
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const rotateSection = screen.getByRole("region", { name: "Rotate subkey" })
+    await user.type(within(rotateSection).getByLabelText(/^passphrase$/i), "valid-passphrase")
+    await user.click(within(rotateSection).getByRole("button", { name: /^rotate subkey$/i }))
+
+    await waitFor(() => {
+      expect(keysApi.rotate).toHaveBeenCalled()
+    })
+  })
+
+  it("exports public key to clipboard", async () => {
+    const user = userEvent.setup()
+    const armored = "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQENBGexample\n-----END PGP PUBLIC KEY BLOCK-----"
+    vi.mocked(keysApi.exportPublic).mockResolvedValue(armored)
+    vi.mocked(copyTextToClipboard).mockResolvedValue(undefined)
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+    await user.click(screen.getByRole("button", { name: /copy to clipboard/i }))
+
+    await waitFor(() => {
+      expect(keysApi.exportPublic).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        keyId: "primary-1",
+      })
+      expect(copyTextToClipboard).toHaveBeenCalledWith(armored)
+      expect(toast.success).toHaveBeenCalledWith("Public key copied to clipboard")
+    })
   })
 
   it("does not render create subkey form on subkey detail", async () => {

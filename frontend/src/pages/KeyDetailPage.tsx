@@ -5,6 +5,8 @@ import { toast } from "sonner"
 import { notifyAlgorithmAdjusted } from "@/lib/algorithm-adjustment-toast"
 
 import { CreateSubkeyForm } from "@/components/keys/create-subkey-form"
+import { DeleteKeyForm } from "@/components/keys/delete-key-form"
+import { EditKeyLabelForm } from "@/components/keys/edit-key-label-form"
 import { ImportSubkeysForm } from "@/components/keys/import-subkeys-form"
 import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
 import { KeyDetailSubkeys } from "@/components/keys/key-detail-subkeys"
@@ -45,7 +47,14 @@ import {
   type RotateKeyFieldErrors,
   type RotateKeyFormValues,
 } from "@/lib/rotate-key-validation"
+import {
+  buildUpdateKeyLabelRequest,
+  validateUpdateKeyLabelForm,
+  type UpdateKeyLabelFieldErrors,
+  type UpdateKeyLabelFormValues,
+} from "@/lib/update-key-label-validation"
 import { logUiEvent } from "@/lib/ui-logger"
+import { Button } from "@/components/ui/button"
 import type { PgpKey } from "@/types/api"
 
 function clearPassphrase<T extends { passphrase: string }>(values: T): T {
@@ -94,6 +103,16 @@ export function KeyDetailPage() {
   const [importSubkeysRequestId, setImportSubkeysRequestId] = useState<string | null>(null)
   const [importSubkeysSubmitting, setImportSubkeysSubmitting] = useState(false)
 
+  const [updateLabelValues, setUpdateLabelValues] = useState<UpdateKeyLabelFormValues>({ label: "" })
+  const [updateLabelFieldErrors, setUpdateLabelFieldErrors] = useState<UpdateKeyLabelFieldErrors>({})
+  const [updateLabelApiError, setUpdateLabelApiError] = useState<string | null>(null)
+  const [updateLabelRequestId, setUpdateLabelRequestId] = useState<string | null>(null)
+  const [updateLabelSubmitting, setUpdateLabelSubmitting] = useState(false)
+
+  const [deleteApiError, setDeleteApiError] = useState<string | null>(null)
+  const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null)
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
       return
@@ -107,6 +126,7 @@ export function KeyDetailPage() {
       const token = await getAccessToken()
       const loaded = await keysApi.get({ accessToken: token, keyId: id })
       setKeyData(loaded)
+      setUpdateLabelValues({ label: loaded.label ?? "" })
 
       if (loaded.role === "subkey" && loaded.parentKeyId) {
         const parent = await keysApi.get({ accessToken: token, keyId: loaded.parentKeyId })
@@ -150,6 +170,125 @@ export function KeyDetailPage() {
   const canCreateSubkey = Boolean(isPrimary && !isRevoked && requiresPassphrase)
   const canImportSubkeys = Boolean(isPrimary && !isRevoked && keyData && hasArmoredKeyring(keyData))
   const showMetadataOnlyHint = Boolean(isPrimary && !requiresPassphrase && !isRevoked)
+
+  const handleRefresh = useCallback(() => {
+    logUiEvent("info", {
+      eventId: "keyDetail.refresh",
+      message: "Key detail refresh requested",
+      keyId: id,
+    })
+    void loadKey()
+    setSubkeysRefreshToken((token) => token + 1)
+  }, [id, loadKey])
+
+  const handleUpdateLabelSubmit = useCallback(async () => {
+    if (!id || !keyData?.id) {
+      return
+    }
+
+    logUiEvent("info", {
+      eventId: "keyDetail.updateLabel.submit",
+      message: "Update key label form submitted",
+      keyId: id,
+    })
+
+    const validation = validateUpdateKeyLabelForm(updateLabelValues)
+    if (!validation.valid) {
+      setUpdateLabelFieldErrors(validation.fieldErrors)
+      logUiEvent("warn", {
+        eventId: "keyDetail.updateLabel.validationFailed",
+        message: "Update key label validation failed",
+        keyId: id,
+      })
+      return
+    }
+
+    setUpdateLabelFieldErrors({})
+    setUpdateLabelApiError(null)
+    setUpdateLabelRequestId(null)
+    setUpdateLabelSubmitting(true)
+
+    try {
+      const token = await getAccessToken()
+      const updated = await keysApi.update({
+        accessToken: token,
+        keyId: id,
+        body: buildUpdateKeyLabelRequest(updateLabelValues),
+      })
+      setKeyData(updated)
+      setUpdateLabelValues({ label: updated.label ?? "" })
+      toast.success("Label updated")
+      logUiEvent("info", {
+        eventId: "keyDetail.updateLabel.apiSuccess",
+        message: "Key label updated",
+        keyId: id,
+        operationId: "updateKey",
+      })
+    } catch (error) {
+      setUpdateLabelApiError(getApiErrorMessage(error))
+      if (error instanceof ApiError) {
+        if (error.requestId) {
+          setUpdateLabelRequestId(error.requestId)
+        }
+        logUiEvent("error", {
+          eventId: "keyDetail.updateLabel.apiError",
+          message: "Update key label failed",
+          keyId: id,
+          operationId: error.operationId,
+          requestId: error.requestId,
+          status: error.status,
+        })
+      }
+    } finally {
+      setUpdateLabelSubmitting(false)
+    }
+  }, [getAccessToken, id, keyData?.id, updateLabelValues])
+
+  const handleDeleteSubmit = useCallback(async () => {
+    if (!id) {
+      return
+    }
+
+    logUiEvent("info", {
+      eventId: "keyDetail.delete.submit",
+      message: "Delete key confirmed",
+      keyId: id,
+    })
+
+    setDeleteApiError(null)
+    setDeleteRequestId(null)
+    setDeleteSubmitting(true)
+
+    try {
+      const token = await getAccessToken()
+      await keysApi.delete({ accessToken: token, keyId: id })
+      toast.success("Key deleted")
+      logUiEvent("info", {
+        eventId: "keyDetail.delete.apiSuccess",
+        message: "Key deleted",
+        keyId: id,
+        operationId: "deleteKey",
+      })
+      navigate("/keys")
+    } catch (error) {
+      setDeleteApiError(getApiErrorMessage(error))
+      if (error instanceof ApiError) {
+        if (error.requestId) {
+          setDeleteRequestId(error.requestId)
+        }
+        logUiEvent("error", {
+          eventId: "keyDetail.delete.apiError",
+          message: "Delete key failed",
+          keyId: id,
+          operationId: error.operationId,
+          requestId: error.requestId,
+          status: error.status,
+        })
+      }
+    } finally {
+      setDeleteSubmitting(false)
+    }
+  }, [getAccessToken, id, navigate])
 
   const handleCreateSubkeySubmit = useCallback(async () => {
     if (!id || !keyData || keyData.role !== "primary" || !keyData.id) {
@@ -554,12 +693,17 @@ export function KeyDetailPage() {
             View metadata, manage subkeys, and run lifecycle actions.
           </p>
         </div>
-        <Link
-          to="/keys"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Back to keys
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
+            Refresh
+          </Button>
+          <Link
+            to="/keys"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Back to keys
+          </Link>
+        </div>
       </header>
 
       {loading ? <p className="text-sm text-muted-foreground">Loading key…</p> : null}
@@ -588,6 +732,20 @@ export function KeyDetailPage() {
           ) : null}
 
           <KeyDetailSummary keyData={keyData} />
+
+          <EditKeyLabelForm
+            values={updateLabelValues}
+            fieldErrors={updateLabelFieldErrors}
+            apiError={updateLabelApiError}
+            requestId={updateLabelRequestId}
+            submitting={updateLabelSubmitting}
+            disabled={false}
+            onChange={(nextValues) => {
+              setUpdateLabelValues(nextValues)
+              setUpdateLabelFieldErrors({})
+            }}
+            onSubmit={() => void handleUpdateLabelSubmit()}
+          />
 
           <KeyExportAction
             keyId={keyData.id!}
@@ -679,6 +837,16 @@ export function KeyDetailPage() {
               onSubmit={() => void handleExtendSubmit()}
             />
           </div>
+
+          <DeleteKeyForm
+            role={keyData.role ?? "primary"}
+            fingerprint={keyData.fingerprint}
+            apiError={deleteApiError}
+            requestId={deleteRequestId}
+            submitting={deleteSubmitting}
+            disabled={false}
+            onSubmit={() => void handleDeleteSubmit()}
+          />
 
           {isSubkey ? (
             <RotateKeyForm

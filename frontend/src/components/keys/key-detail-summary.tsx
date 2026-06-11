@@ -16,7 +16,7 @@ export function KeyDetailSummary({ keyData }: KeyDetailSummaryProps) {
   const privateMaterial = hasPrivateMaterial(keyData)
 
   return (
-    <section aria-label="Key summary" className="space-y-4">
+    <section role="region" aria-label="Key summary" className="space-y-4">
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-foreground">
           {keyData.label ?? "Unlabeled key"}

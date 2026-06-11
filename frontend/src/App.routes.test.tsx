@@ -84,6 +84,18 @@ describe("App routes", () => {
     expect(screen.getAllByRole("heading", { name: /key detail/i }).length).toBeGreaterThanOrEqual(1)
   })
 
+  it("renders policies page at /policies", async () => {
+    renderApp("/policies")
+    expect(await screen.findByRole("heading", { name: /^policies$/i, level: 1 })).toBeInTheDocument()
+    expect(screen.getByText(/phase 9/i)).toBeInTheDocument()
+  })
+
+  it("renders settings page at /settings", async () => {
+    renderApp("/settings")
+    expect(await screen.findByRole("heading", { name: /^settings$/i, level: 1 })).toBeInTheDocument()
+    expect(screen.getByText(/phase 10/i)).toBeInTheDocument()
+  })
+
   it("navigates between overview and keys via sidebar links", async () => {
     const user = userEvent.setup()
     renderApp("/")

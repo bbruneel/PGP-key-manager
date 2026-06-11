@@ -17,8 +17,13 @@ export function KeyExportAction({ keyId, fingerprint, getAccessToken }: KeyExpor
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
+  const [exportCache, setExportCache] = useState<{ keyId: string; armored: string } | null>(null)
 
-  async function exportArmored(): Promise<string> {
+  async function exportArmored(forceRefresh = false): Promise<string> {
+    if (!forceRefresh && exportCache?.keyId === keyId) {
+      return exportCache.armored
+    }
+
     logUiEvent("info", {
       eventId: "keyDetail.export.submit",
       message: "Export public key requested",
@@ -33,6 +38,7 @@ export function KeyExportAction({ keyId, fingerprint, getAccessToken }: KeyExpor
     try {
       const token = await getAccessToken()
       const armored = await keysApi.exportPublic({ accessToken: token, keyId })
+      setExportCache({ keyId, armored })
       logUiEvent("info", {
         eventId: "keyDetail.export.success",
         message: "Public key exported",
@@ -90,7 +96,7 @@ export function KeyExportAction({ keyId, fingerprint, getAccessToken }: KeyExpor
   }
 
   return (
-    <section aria-label="Export public key" className="space-y-3">
+    <section role="region" aria-label="Export public key" className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold text-foreground">Export public key</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -105,6 +111,17 @@ export function KeyExportAction({ keyId, fingerprint, getAccessToken }: KeyExpor
         <Button type="button" variant="outline" disabled={loading} onClick={() => void handleDownload()}>
           Download .asc
         </Button>
+        {exportCache?.keyId === keyId ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={loading}
+            onClick={() => void exportArmored(true)}
+          >
+            Refresh export
+          </Button>
+        ) : null}
       </div>
 
       {error ? (
