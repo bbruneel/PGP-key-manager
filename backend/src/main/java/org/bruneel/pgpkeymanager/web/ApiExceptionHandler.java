@@ -62,11 +62,33 @@ public class ApiExceptionHandler {
     @ExceptionHandler(CryptoException.class)
     public ResponseEntity<ProblemDetail> crypto(CryptoException ex) {
         log.warn("Cryptographic operation failed: {}", ex.getMessage(), ex);
-        ProblemDetail problem =
-                ProblemDetail.forStatusAndDetail(
-                        HttpStatus.BAD_REQUEST, "Cryptographic operation failed. Check request parameters.");
+        String detail = userFacingCryptoDetail(ex);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problem.setTitle("Cryptographic Error");
         return ResponseEntity.badRequest().body(problem);
+    }
+
+    private static String userFacingCryptoDetail(CryptoException ex) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank() || ex.getCause() != null) {
+            return genericCryptoDetail();
+        }
+        if ("Passphrase does not unlock the private key".equals(message)) {
+            return message;
+        }
+        if (message.startsWith("Expiry must")
+                || message.startsWith("OpenSSH export requires")
+                || message.startsWith("Algorithm cannot be exported")
+                || message.startsWith("Unsupported ")
+                || message.startsWith("Keyring OpenPGP version")
+                || message.startsWith("ed448 and x448 require")) {
+            return message;
+        }
+        return genericCryptoDetail();
+    }
+
+    private static String genericCryptoDetail() {
+        return "Cryptographic operation failed. Check request parameters.";
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

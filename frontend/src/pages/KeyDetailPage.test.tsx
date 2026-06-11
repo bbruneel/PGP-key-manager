@@ -53,6 +53,7 @@ vi.mock("@/lib/keys-api", () => ({
     extendExpiry: vi.fn(),
     rotate: vi.fn(),
     exportPublic: vi.fn(),
+    exportSshPublic: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
   },
@@ -101,6 +102,21 @@ const subkey: PgpKey = {
   openpgpVersion: 4,
 }
 
+const authSubkey: PgpKey = {
+  id: "auth-sub-1",
+  label: "Work key",
+  fingerprint: "AUTHFINGERPRINT",
+  keyId: "AUTH1234",
+  keyType: "private",
+  role: "subkey",
+  parentKeyId: "primary-1",
+  capabilities: ["authenticate"],
+  algorithm: "ed25519",
+  status: "active",
+  expiresAt: "2030-06-01T00:00:00Z",
+  openpgpVersion: 4,
+}
+
 function renderDetail(path = "/keys/primary-1") {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -128,6 +144,7 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.extendExpiry).mockReset()
     vi.mocked(keysApi.rotate).mockReset()
     vi.mocked(keysApi.exportPublic).mockReset()
+    vi.mocked(keysApi.exportSshPublic).mockReset()
     vi.mocked(keysApi.update).mockReset()
     vi.mocked(keysApi.delete).mockReset()
     vi.mocked(copyTextToClipboard).mockReset()
@@ -429,5 +446,35 @@ describe("KeyDetailPage", () => {
     await screen.findByRole("heading", { name: "Work key" })
 
     expect(screen.queryByRole("region", { name: "Add subkey" })).not.toBeInTheDocument()
+  })
+
+  it("shows SSH export for authenticate subkey", async () => {
+    vi.mocked(keysApi.get).mockImplementation(async ({ keyId }) => {
+      if (keyId === "auth-sub-1") {
+        return authSubkey
+      }
+      return primaryKey
+    })
+
+    renderDetail("/keys/auth-sub-1")
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    expect(screen.getByRole("region", { name: "Export SSH public key" })).toBeInTheDocument()
+  })
+
+  it("hides SSH export for encrypt-only subkey", async () => {
+    vi.mocked(keysApi.get).mockImplementation(async ({ keyId }) => {
+      if (keyId === "sub-1") {
+        return subkey
+      }
+      return primaryKey
+    })
+
+    renderDetail("/keys/sub-1")
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    expect(screen.queryByRole("region", { name: "Export SSH public key" })).not.toBeInTheDocument()
   })
 })

@@ -154,4 +154,17 @@ public final class PgpCryptoSupport {
         String normalized = keyId.length() > 16 ? keyId.substring(keyId.length() - 16) : keyId;
         return Long.parseUnsignedLong(normalized, 16);
     }
+
+    /** Detects Bouncy Castle passphrase decryption failures without leaking key material. */
+    public static boolean isPassphraseMismatch(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains("checksum mismatch")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
 }

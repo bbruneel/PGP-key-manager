@@ -69,6 +69,19 @@ describe("validateCreateSubkeyForm", () => {
     expect(result.fieldErrors.algorithm).toMatch(/key size/i)
   })
 
+  it("rejects encrypt and authenticate together", () => {
+    const values = {
+      ...defaultCreateSubkeyFormValues(),
+      capabilities: ["encrypt" as const, "authenticate" as const],
+      algorithm: "rsa" as const,
+      keySize: 4096 as const,
+      passphrase: "valid-passphrase",
+    }
+    const result = validateCreateSubkeyForm(values)
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.capabilities).toMatch(/separate subkeys/i)
+  })
+
   it("rejects ed25519 for dual sign+encrypt subkey", () => {
     const values = {
       ...defaultCreateSubkeyFormValues(),

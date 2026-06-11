@@ -22,4 +22,15 @@ class ApiExceptionHandlerTest {
                 .isEqualTo("Cryptographic operation failed. Check request parameters.");
         assertThat(response.getBody().getDetail()).doesNotContain("internal BC");
     }
+
+    @Test
+    void cryptoExceptionReturnsPassphraseDetailWhenDirectMessage() {
+        ApiExceptionHandler handler = new ApiExceptionHandler();
+        ResponseEntity<ProblemDetail> response =
+                handler.crypto(new CryptoException("Passphrase does not unlock the private key"));
+
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getDetail())
+                .isEqualTo("Passphrase does not unlock the private key");
+    }
 }

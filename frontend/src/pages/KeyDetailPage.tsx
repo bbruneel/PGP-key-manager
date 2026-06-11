@@ -12,6 +12,7 @@ import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
 import { KeyDetailSubkeys } from "@/components/keys/key-detail-subkeys"
 import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
 import { KeyExportAction } from "@/components/keys/key-export-action"
+import { KeySshExportAction } from "@/components/keys/key-ssh-export-action"
 import { RevokeKeyForm } from "@/components/keys/revoke-key-form"
 import { RotateKeyForm } from "@/components/keys/rotate-key-form"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
@@ -53,6 +54,7 @@ import {
   type UpdateKeyLabelFieldErrors,
   type UpdateKeyLabelFormValues,
 } from "@/lib/update-key-label-validation"
+import { isSshExportableKey } from "@/lib/ssh-export"
 import { logUiEvent } from "@/lib/ui-logger"
 import { Button } from "@/components/ui/button"
 import type { PgpKey } from "@/types/api"
@@ -173,6 +175,9 @@ export function KeyDetailPage() {
   const canCreateSubkey = Boolean(isPrimary && !isRevoked && requiresPassphrase)
   const canImportSubkeys = Boolean(isPrimary && !isRevoked && keyData && hasArmoredKeyring(keyData))
   const showMetadataOnlyHint = Boolean(isPrimary && !requiresPassphrase && !isRevoked)
+  const showSshExport = Boolean(
+    keyData && isSshExportableKey(keyData.capabilities, keyData.algorithm),
+  )
 
   const handleRefresh = useCallback(() => {
     logUiEvent("info", {
@@ -815,6 +820,16 @@ export function KeyDetailPage() {
             getAccessToken={getAccessToken}
             invalidateToken={subkeysRefreshToken}
           />
+
+          {showSshExport ? (
+            <KeySshExportAction
+              keyId={keyData.id!}
+              fingerprint={keyData.fingerprint}
+              keyIdHex={keyData.keyId}
+              getAccessToken={getAccessToken}
+              invalidateToken={subkeysRefreshToken}
+            />
+          ) : null}
 
           {keyData.role === "primary" && keyData.id ? (
             <KeyDetailSubkeys

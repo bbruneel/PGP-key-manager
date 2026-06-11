@@ -6,11 +6,33 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import org.bruneel.pgpkeymanager.domain.KeyRole;
+import org.bruneel.pgpkeymanager.domain.PgpCapability;
+import org.bruneel.pgpkeymanager.domain.PgpKey;
+import org.bruneel.pgpkeymanager.domain.PgpKey.KeyType;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ValiditySpecDto;
 
+import java.time.Instant;
+import java.util.UUID;
+
 class PgpKeyValidatorTest {
+
+    @Test
+    void subkeyRejectsEncryptAndAuthenticateTogether() {
+        assertThatThrownBy(
+                        () ->
+                                PgpKeyValidator.validateSubkeyRequest(
+                                        new CreateSubkeyRequest(
+                                                List.of("encrypt", "authenticate"),
+                                                new AlgorithmSpecDto("rsa", 4096, null),
+                                                null,
+                                                "passphrase"),
+                                        4))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("separate subkeys");
+    }
 
     @Test
     void subkeyMustNotCertify() {
@@ -185,5 +207,68 @@ class PgpKeyValidatorTest {
                                         new AlgorithmSpecDto("bogus", null, null), 4))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Signing keys require");
+    }
+
+    @Test
+    void validateSshExportableRequiresAuthenticateCapability() {
+        PgpKey signOnly = authenticateSubkey("ed25519", List.of(PgpCapability.SIGN));
+
+        assertThatThrownBy(() -> PgpKeyValidator.validateSshExportable(signOnly))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("authenticate");
+    }
+
+    @Test
+    void validateSshExportableRejectsSignOnlyRsa() {
+        PgpKey signOnlyRsa = authenticateSubkey("rsa", List.of(PgpCapability.SIGN));
+
+        assertThatThrownBy(() -> PgpKeyValidator.validateSshExportable(signOnlyRsa))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("authenticate");
+    }
+
+    @Test
+    void validateSshExportableRejectsEd448() {
+        PgpKey ed448Auth = authenticateSubkey("ed448");
+
+        assertThatThrownBy(() -> PgpKeyValidator.validateSshExportable(ed448Auth))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("ed25519, rsa, or ecdsa");
+    }
+
+    @Test
+    void validateSshExportableAcceptsEd25519Authenticate() {
+        PgpKey ed25519Auth = authenticateSubkey("ed25519");
+
+        PgpKeyValidator.validateSshExportable(ed25519Auth);
+    }
+
+    private static PgpKey authenticateSubkey(String algorithm) {
+        return authenticateSubkey(algorithm, List.of(PgpCapability.AUTHENTICATE));
+    }
+
+    private static PgpKey authenticateSubkey(String algorithm, List<PgpCapability> capabilities) {
+        return new PgpKey(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "auth-subkey",
+                "A1B2C3D4E5F6789012345678ABCDEF0123456789",
+                "ABCDEF01",
+                KeyType.PUBLIC,
+                KeyRole.SUBKEY,
+                UUID.randomUUID(),
+                capabilities,
+                algorithm,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                4,
+                Instant.parse("2026-01-01T00:00:00Z"),
+                Instant.parse("2026-01-01T00:00:00Z"));
     }
 }

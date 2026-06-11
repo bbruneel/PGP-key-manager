@@ -143,7 +143,12 @@ public class PgpCryptoService {
                     expiresAt,
                     PgpCryptoSupport.armorPublicRing(updatedPublic),
                     PgpCryptoSupport.armorSecretRing(updatedSecret));
+        } catch (CryptoException e) {
+            throw e;
         } catch (Exception e) {
+            if (PgpCryptoSupport.isPassphraseMismatch(e)) {
+                throw new CryptoException("Passphrase does not unlock the private key");
+            }
             throw new CryptoException("Failed to add subkey", e);
         }
     }
@@ -220,6 +225,19 @@ public class PgpCryptoService {
                     PgpCryptoSupport.armorSecretRing(updated));
         } catch (Exception e) {
             throw new CryptoException("Failed to extend key expiry in keyring", e);
+        }
+    }
+
+    public String exportSshPublicKey(String armoredPublic, long keyId, String comment) {
+        try {
+            PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            PGPPublicKey key = findPublicKey(ring, keyId);
+            if (key == null) {
+                throw new CryptoException("Public key id not found");
+            }
+            return PgpSshPublicKeyFormatter.formatLine(key, comment);
+        } catch (IOException | PGPException e) {
+            throw new CryptoException("Failed to export OpenSSH public key", e);
         }
     }
 

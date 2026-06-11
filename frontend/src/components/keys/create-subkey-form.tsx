@@ -5,7 +5,7 @@ import {
   SubkeyAlgorithmFields,
 } from "@/components/keys/subkey-algorithm-fields"
 import { applyCapabilityChangeToAlgorithmValues } from "@/lib/algorithm-spec"
-import { SUBKEY_CAPABILITY_OPTIONS } from "@/lib/subkey-capabilities"
+import { SUBKEY_CAPABILITY_OPTIONS, toggleSubkeyCapability } from "@/lib/subkey-capabilities"
 import type { OpenpgpVersion } from "@/lib/algorithm-spec"
 import type { PgpCapability } from "@/types/api"
 import type { CreateSubkeyFieldErrors, CreateSubkeyFormValues } from "@/lib/create-subkey-validation"
@@ -50,9 +50,10 @@ export function CreateSubkeyForm({
   }
 
   function toggleCapability(capability: PgpCapability) {
-    const nextCapabilities = values.capabilities.includes(capability)
-      ? values.capabilities.filter((item) => item !== capability)
-      : [...values.capabilities, capability]
+    const nextCapabilities = toggleSubkeyCapability(values.capabilities, capability)
+    if (nextCapabilities === null) {
+      return
+    }
     const { next, adjusted } = applyCapabilityChangeToAlgorithmValues(
       values,
       nextCapabilities,
@@ -72,6 +73,8 @@ export function CreateSubkeyForm({
         <h3 className="text-sm font-semibold text-foreground">Add subkey</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Create a new subkey on the primary keyring. Your passphrase unlocks the primary private key.
+          Use separate subkeys for encryption and SSH authentication (Ed25519 authenticate is recommended
+          for OpenSSH export).
         </p>
       </div>
 

@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
+import org.bruneel.pgpkeymanager.domain.PgpKey;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 
@@ -64,6 +65,10 @@ public final class PgpKeyValidator {
         List<PgpCapability> caps = parseCapabilities(request.capabilities());
         if (caps.contains(PgpCapability.CERTIFY)) {
             throw new BadRequestException("Subkey capabilities must not include certify");
+        }
+        if (caps.contains(PgpCapability.ENCRYPT) && caps.contains(PgpCapability.AUTHENTICATE)) {
+            throw new BadRequestException(
+                    "Use separate subkeys for encryption and authentication; select encrypt or authenticate, not both");
         }
         validateAlgorithmForOpenpgpVersion(request.algorithm(), openpgpVersion);
         validateAlgorithmForCapabilities(request.algorithm(), caps, false);
@@ -134,5 +139,23 @@ public final class PgpKeyValidator {
             return KeyRole.PRIMARY;
         }
         return KeyRole.fromDb(role);
+    }
+
+    /** Keep in sync with {@code frontend/src/lib/ssh-export.ts} (SSH_EXPORT_ALGORITHMS). */
+    private static final List<String> SSH_EXPORT_ALGORITHMS = List.of("ed25519", "rsa", "ecdsa");
+
+    public static void validateSshExportable(PgpKey key) {
+        if (key.capabilities() == null || !key.capabilities().contains(PgpCapability.AUTHENTICATE)) {
+            throw new BadRequestException(
+                    "OpenSSH export requires the authenticate capability on this key");
+        }
+        if (key.algorithm() == null || key.algorithm().isBlank()) {
+            throw new BadRequestException("Key algorithm is required for OpenSSH export");
+        }
+        String alg = key.algorithm().toLowerCase();
+        if (!SSH_EXPORT_ALGORITHMS.contains(alg)) {
+            throw new BadRequestException(
+                    "OpenSSH export requires ed25519, rsa, or ecdsa; got " + key.algorithm());
+        }
     }
 }

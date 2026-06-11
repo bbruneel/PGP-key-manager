@@ -189,4 +189,11 @@ public class PgpKeyController {
                 .contentType(MediaType.parseMediaType("application/pgp-keys"))
                 .body(armored);
     }
+
+    @GetMapping(path = "/{keyId}/export-ssh-public", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> exportSshPublic(@PathVariable UUID keyId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        String sshLine = pgpKeyService.exportSshPublic(user, keyId);
+        return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(sshLine);
+    }
 }

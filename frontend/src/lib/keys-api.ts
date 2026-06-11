@@ -89,6 +89,11 @@ export type ExportPublicKeyOptions = {
   keyId: string
 }
 
+export type ExportSshPublicKeyOptions = {
+  accessToken: string
+  keyId: string
+}
+
 export type UpdateKeyOptions = {
   accessToken: string
   keyId: string
@@ -260,6 +265,15 @@ export const keysApi = {
       accessToken: options.accessToken,
       method: "GET",
       headers: { Accept: "application/pgp-keys" },
+    })
+  },
+
+  exportSshPublic(options: ExportSshPublicKeyOptions): Promise<string> {
+    return requestText(`/api/keys/${options.keyId}/export-ssh-public`, {
+      operationId: "exportSshPublicKey",
+      accessToken: options.accessToken,
+      method: "GET",
+      headers: { Accept: "text/plain" },
     })
   },
 }

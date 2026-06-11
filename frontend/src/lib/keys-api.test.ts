@@ -398,3 +398,24 @@ describe("keysApi.exportPublic", () => {
     expect(result).toBe(armored)
   })
 })
+
+describe("keysApi.exportSshPublic", () => {
+  beforeEach(() => {
+    vi.mocked(requestText).mockReset()
+  })
+
+  it("calls GET /api/keys/{keyId}/export-ssh-public with exportSshPublicKey operationId", async () => {
+    const sshLine = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample openpgp:0xabcdef01"
+    vi.mocked(requestText).mockResolvedValue(sshLine)
+
+    const result = await keysApi.exportSshPublic({ accessToken: "token-abc", keyId: "key-1" })
+
+    expect(requestText).toHaveBeenCalledWith("/api/keys/key-1/export-ssh-public", {
+      operationId: "exportSshPublicKey",
+      accessToken: "token-abc",
+      method: "GET",
+      headers: { Accept: "text/plain" },
+    })
+    expect(result).toBe(sshLine)
+  })
+})

@@ -39,6 +39,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/keys/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview keyring import
+         * @description Parse armored key material without persisting. Returns primary and subkey metadata,
+         *     revocation state read from the keyring, and warnings when public/private blocks differ.
+         */
+        post: operations["previewKeyring"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/keys/{keyId}": {
         parameters: {
             query?: never;
@@ -76,6 +97,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview import subkeys from stored keyring
+         * @description Parse the primary's stored armored keyring and show which subkey rows would be
+         *     registered, updated (revocation sync), or skipped without writing to the database.
+         *     Primary revocation state is not part of this preview — only subkey rows are considered.
+         */
+        post: operations["previewImportSubkeysFromKeyring"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/keys/{primaryKeyId}/subkeys/import-from-keyring": {
         parameters: {
             query?: never;
@@ -89,8 +132,11 @@ export interface paths {
          * Import subkey rows from stored keyring
          * @description Parses non-master keys from the primary's stored armored keyring and registers metadata-only
          *     subkey rows for any fingerprints not already registered under this primary. Idempotent —
-         *     existing subkey rows are skipped. Returns `201` when new rows are registered, `200` when
-         *     `registered` is empty (all skipped or no subkeys in the keyring).
+         *     existing subkey rows that are already up to date are skipped. Active subkey rows whose
+         *     fingerprints are revoked in the stored keyring are synced to revoked (`updated` /
+         *     `updatedCount`). Primary revocation is detected on initial register only; this endpoint
+         *     does not update the primary row. Returns `201` when new rows are registered, `200` when
+         *     `registered` is empty (all skipped/synced or no subkeys in the keyring).
          */
         post: operations["importSubkeysFromKeyring"];
         delete?: never;
@@ -189,6 +235,28 @@ export interface paths {
         };
         /** Export public key */
         get: operations["exportPublicKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/keys/{keyId}/export-ssh-public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export OpenSSH public key
+         * @description Returns a one-line OpenSSH public key for keys with the `authenticate` capability
+         *     and an SSH-compatible algorithm (`ed25519`, `rsa`, or `ecdsa`). Encryption-only
+         *     algorithms (for example `cv25519`) and keys without `authenticate` return 400.
+         */
+        get: operations["exportSshPublicKey"];
         put?: never;
         post?: never;
         delete?: never;
@@ -333,6 +401,43 @@ export interface components {
             registered: components["schemas"]["PgpKeySummary"][];
             /** @description Subkeys already registered under this primary that were skipped. */
             skippedCount: number;
+            /** @description Existing subkey rows synced to revoked status from the keyring. */
+            updated: components["schemas"]["PgpKeySummary"][];
+            /** @description Number of existing subkey rows updated (revocation sync). */
+            updatedCount: number;
+        };
+        PreviewKeyEntry: {
+            role: components["schemas"]["KeyRole"];
+            fingerprint: string;
+            keyId: string;
+            algorithm: string;
+            capabilities: components["schemas"]["PgpCapability"][];
+            /** Format: date-time */
+            expiresAt?: string | null;
+            status: components["schemas"]["KeyStatus"];
+            /** Format: date-time */
+            revokedAt?: string | null;
+            revocationReason?: string | null;
+            /** @enum {integer} */
+            openpgpVersion: 4 | 6;
+        };
+        PreviewKeyringResponse: {
+            primary: components["schemas"]["PreviewKeyEntry"];
+            subkeys: components["schemas"]["PreviewKeyEntry"][];
+            warnings: string[];
+            /**
+             * @description Which armored block(s) were used; when both are pasted, private is authoritative.
+             * @enum {string}
+             */
+            source: "public" | "private" | "both";
+        };
+        PreviewImportSubkeysResponse: {
+            wouldRegister: components["schemas"]["PreviewKeyEntry"][];
+            wouldUpdate: components["schemas"]["PreviewKeyEntry"][];
+            wouldSkipCount: number;
+            warnings: string[];
+            /** @enum {string} */
+            source: "public" | "private" | "both";
         };
         PgpKeySummary: {
             /** Format: uuid */
@@ -372,6 +477,11 @@ export interface components {
             armoredPublic?: string;
             /** @description Present on primary detail when generated or imported with private material. */
             encryptedPrivateArmored?: string;
+            /**
+             * @description Present on primary register responses when subkey rows were auto-imported from a
+             *     multi-key armored export. Omitted on generate and on other responses.
+             */
+            registeredSubkeyCount?: number;
         };
     };
     responses: {
@@ -462,6 +572,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PgpKey"];
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    previewKeyring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePgpKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description Parsed keyring preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewKeyringResponse"];
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];
@@ -583,6 +718,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PgpKey"];
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    previewImportSubkeysFromKeyring: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                primaryKeyId: components["parameters"]["PrimaryKeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewImportSubkeysResponse"];
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];
@@ -746,6 +904,29 @@ export interface operations {
                 };
                 content: {
                     "application/pgp-keys": string;
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    exportSshPublicKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OpenSSH authorized_keys line (type, base64, comment) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];
