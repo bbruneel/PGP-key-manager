@@ -3,17 +3,20 @@ import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { ImportKeyForm } from "@/components/keys/import-key-form"
+import { ImportKeyPreview } from "@/components/keys/import-key-preview"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import {
   buildImportKeyRequest,
   defaultImportKeyFormValues,
+  shouldClearImportPreview,
   validateImportKeyForm,
   type ImportKeyFieldErrors,
   type ImportKeyFormValues,
 } from "@/lib/import-key-validation"
 import { keysApi } from "@/lib/keys-api"
 import { logUiEvent } from "@/lib/ui-logger"
+import type { PreviewKeyringResponse } from "@/types/api"
 
 function clearArmoredFields(values: ImportKeyFormValues): ImportKeyFormValues {
   return {
@@ -31,6 +34,8 @@ export function ImportKeyPage() {
   const [apiError, setApiError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  const [preview, setPreview] = useState<PreviewKeyringResponse | null>(null)
 
   useEffect(() => {
     logUiEvent("debug", {
@@ -38,6 +43,66 @@ export function ImportKeyPage() {
       message: "Import key page viewed",
     })
   }, [])
+
+  const handlePreview = useCallback(async () => {
+    logUiEvent("info", {
+      eventId: "importKey.preview.submit",
+      message: "Import key preview requested",
+    })
+
+    setApiError(null)
+    setRequestId(null)
+
+    const validation = validateImportKeyForm(values)
+    if (!validation.valid) {
+      setFieldErrors(validation.fieldErrors)
+      logUiEvent("warn", {
+        eventId: "importKey.preview.validationFailed",
+        message: "Client-side validation failed before preview",
+      })
+      return
+    }
+
+    setFieldErrors({})
+    setPreviewing(true)
+
+    try {
+      const token = await getAccessToken()
+      const body = buildImportKeyRequest(values)
+      const response = await keysApi.previewKeyring({ accessToken: token, body })
+      setPreview(response)
+      logUiEvent("info", {
+        eventId: "importKey.preview.success",
+        message: "Import key preview loaded",
+        operationId: "previewKeyring",
+        count: response.subkeys.length,
+      })
+    } catch (error) {
+      setPreview(null)
+      const message = getApiErrorMessage(error)
+      setApiError(message)
+
+      if (error instanceof ApiError) {
+        if (error.requestId) {
+          setRequestId(error.requestId)
+        }
+        logUiEvent("error", {
+          eventId: "importKey.preview.error",
+          message: "Import key preview failed",
+          operationId: error.operationId,
+          requestId: error.requestId,
+          status: error.status,
+        })
+      } else {
+        logUiEvent("error", {
+          eventId: "importKey.preview.error",
+          message: "Import key preview failed",
+        })
+      }
+    } finally {
+      setPreviewing(false)
+    }
+  }, [getAccessToken, values])
 
   const handleSubmit = useCallback(async () => {
     logUiEvent("info", {
@@ -66,22 +131,15 @@ export function ImportKeyPage() {
       const body = buildImportKeyRequest(values)
       const imported = await keysApi.register({ accessToken: token, body })
 
-      let subkeyCount = 0
-      if (imported.id && imported.role === "primary") {
-        const subkeys = await keysApi.listSubkeys({
-          accessToken: token,
-          primaryKeyId: imported.id,
+      const subkeyCount = imported.registeredSubkeyCount ?? 0
+      if (subkeyCount > 0) {
+        logUiEvent("info", {
+          eventId: "importKey.subkeysRegistered",
+          message: "Subkey rows registered during import",
+          operationId: "createKey",
+          keyId: imported.id ?? undefined,
+          count: subkeyCount,
         })
-        subkeyCount = subkeys.length
-        if (subkeyCount > 0) {
-          logUiEvent("info", {
-            eventId: "importKey.subkeysRegistered",
-            message: "Subkey rows registered during import",
-            operationId: "listSubkeys",
-            keyId: imported.id,
-            count: subkeyCount,
-          })
-        }
       }
 
       logUiEvent("info", {
@@ -107,6 +165,7 @@ export function ImportKeyPage() {
       })
 
       setValues(clearArmoredFields(values))
+      setPreview(null)
       navigate(imported.id ? `/keys/${imported.id}` : "/keys")
     } catch (error) {
       const message = getApiErrorMessage(error)
@@ -131,7 +190,6 @@ export function ImportKeyPage() {
       }
     } finally {
       setSubmitting(false)
-      setValues((current) => clearArmoredFields(current))
     }
   }, [getAccessToken, navigate, values])
 
@@ -161,10 +219,20 @@ export function ImportKeyPage() {
       <header className="mb-6">
         <h2 className="text-xl font-semibold tracking-tight text-foreground">Import key</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Register an existing OpenPGP key by pasting armored blocks. The server derives fingerprint,
-          algorithm, capabilities, and expiry from the key material.
+          Register an existing OpenPGP key by pasting armored blocks. Preview import to see primary
+          and subkey metadata, including revocation state, before registering.
         </p>
       </header>
+
+      {preview ? (
+        <ImportKeyPreview
+          className="mb-6"
+          primary={preview.primary}
+          subkeys={preview.subkeys}
+          warnings={preview.warnings}
+          source={preview.source}
+        />
+      ) : null}
 
       <ImportKeyForm
         values={values}
@@ -172,10 +240,15 @@ export function ImportKeyPage() {
         apiError={apiError}
         requestId={requestId}
         submitting={submitting}
+        previewing={previewing}
         onChange={(nextValues) => {
+          if (shouldClearImportPreview(values, nextValues)) {
+            setPreview(null)
+          }
           setValues(nextValues)
           setFieldErrors({})
         }}
+        onPreview={() => void handlePreview()}
         onSubmit={() => void handleSubmit()}
         onCancel={() => navigate("/keys")}
       />

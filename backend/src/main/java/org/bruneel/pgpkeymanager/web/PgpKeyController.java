@@ -32,6 +32,8 @@ import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
 import org.bruneel.pgpkeymanager.web.dto.ImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PgpKeyResponse;
+import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
+import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
 import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyResponse;
@@ -69,12 +71,20 @@ public class PgpKeyController {
         return PgpKeyResponse.from(pgpKeyService.getForUser(user, keyId), true);
     }
 
+    @PostMapping(path = "/preview", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public PreviewKeyringResponse previewKeyring(
+            @Valid @RequestBody CreatePgpKeyRequest request, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return pgpKeyService.previewKeyring(user, request);
+    }
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public PgpKeyResponse create(
             @Valid @RequestBody CreatePgpKeyRequest request, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return PgpKeyResponse.from(pgpKeyService.create(user, request), true);
+        var outcome = pgpKeyService.create(user, request);
+        return PgpKeyResponse.from(outcome.key(), true, outcome.registeredSubkeyCount());
     }
 
     @PatchMapping(path = "/{keyId}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -110,6 +120,13 @@ public class PgpKeyController {
             Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         return PgpKeyResponse.from(pgpKeyService.createSubkey(user, primaryKeyId, request), false);
+    }
+
+    @PostMapping("/{primaryKeyId}/subkeys/import-from-keyring/preview")
+    public PreviewImportSubkeysResponse previewImportSubkeysFromKeyring(
+            @PathVariable UUID primaryKeyId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return pgpKeyService.previewImportSubkeysFromKeyring(user, primaryKeyId);
     }
 
     @PostMapping("/{primaryKeyId}/subkeys/import-from-keyring")

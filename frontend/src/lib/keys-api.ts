@@ -9,6 +9,8 @@ import type {
   PgpKey,
   ImportSubkeysResponse,
   PgpKeySummary,
+  PreviewImportSubkeysResponse,
+  PreviewKeyringResponse,
   RegisterPgpKeyRequest,
   RevokeKeyRequest,
   RotateKeyRequest,
@@ -31,6 +33,16 @@ export type CreateKeyOptions = {
 export type RegisterKeyOptions = {
   accessToken: string
   body: RegisterPgpKeyRequest
+}
+
+export type PreviewKeyringOptions = {
+  accessToken: string
+  body: RegisterPgpKeyRequest
+}
+
+export type PreviewImportSubkeysFromKeyringOptions = {
+  accessToken: string
+  primaryKeyId: string
 }
 
 export type GetKeyOptions = {
@@ -92,7 +104,7 @@ export type DeleteKeyOptions = {
  * Key API client. Phase 1 adds create; Phase 2 adds register (import);
  * Phase 3 adds detail, subkeys, and lifecycle actions; Phase 4 adds createSubkey;
  * Phase 5 adds importSubkeysFromKeyring; Phase 6 extends algorithm UI (see algorithm-spec.ts);
- * Phase 7 adds update and delete.
+ * Phase 7 adds update and delete; Phase 8 adds previewKeyring and previewImportSubkeysFromKeyring.
  */
 export const keysApi = {
   list(options: ListKeysOptions): Promise<PgpKeySummary[]> {
@@ -136,6 +148,28 @@ export const keysApi = {
       method: "POST",
       body: options.body,
     })
+  },
+
+  previewKeyring(options: PreviewKeyringOptions): Promise<PreviewKeyringResponse> {
+    return requestJson<PreviewKeyringResponse>("/api/keys/preview", {
+      operationId: "previewKeyring",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+    })
+  },
+
+  previewImportSubkeysFromKeyring(
+    options: PreviewImportSubkeysFromKeyringOptions,
+  ): Promise<PreviewImportSubkeysResponse> {
+    return requestJson<PreviewImportSubkeysResponse>(
+      `/api/keys/${options.primaryKeyId}/subkeys/import-from-keyring/preview`,
+      {
+        operationId: "previewImportSubkeysFromKeyring",
+        accessToken: options.accessToken,
+        method: "POST",
+      },
+    )
   },
 
   get(options: GetKeyOptions): Promise<PgpKey> {

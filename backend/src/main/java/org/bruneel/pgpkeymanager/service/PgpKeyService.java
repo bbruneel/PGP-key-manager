@@ -2,8 +2,9 @@ package org.bruneel.pgpkeymanager.service;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -31,6 +32,9 @@ import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
+import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
+import org.bruneel.pgpkeymanager.web.dto.PreviewKeyEntry;
+import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
 import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
@@ -73,7 +77,7 @@ public class PgpKeyService {
                 .orElseThrow(() -> new KeyNotFoundException(id));
     }
 
-    public PgpKey create(AppUser user, CreatePgpKeyRequest request) {
+    public CreateKeyOutcome create(AppUser user, CreatePgpKeyRequest request) {
         long start = System.currentTimeMillis();
         boolean generate = isGenerateRequest(request);
         String operation = generate ? "create_key" : "register_key";
@@ -83,14 +87,60 @@ public class PgpKeyService {
                         : PgpKeyValidator.OPENPGP_V4;
         operationLogger.started(operation, user.id(), null, openpgpVersion);
         try {
-            PgpKey created = generate ? generatePrimary(user, request) : registerKey(user, request);
-            completeSuccess(operation, user.id(), created.id(), created.openpgpVersion(), start);
+            CreateKeyOutcome outcome =
+                    generate ? new CreateKeyOutcome(generatePrimary(user, request), null) : registerKey(user, request);
+            completeSuccess(operation, user.id(), outcome.key().id(), outcome.key().openpgpVersion(), start);
             if (generate) {
-                operationMetrics.recordVersionGenerated(created.openpgpVersion());
+                operationMetrics.recordVersionGenerated(outcome.key().openpgpVersion());
             }
-            return created;
+            return outcome;
         } catch (RuntimeException ex) {
             completeFailure(operation, user.id(), null, openpgpVersion, start, ex);
+            throw ex;
+        }
+    }
+
+    public PreviewKeyringResponse previewKeyring(AppUser user, CreatePgpKeyRequest request) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("preview_keyring", user.id(), null, PgpKeyValidator.OPENPGP_V4);
+        try {
+            PgpKeyValidator.rejectOpenpgpVersionOnRegister(request.openpgpVersion());
+            ImportedKeyringMetadata keyring =
+                    metadataParser.parseKeyring(request.armoredPublic(), request.encryptedPrivateArmored());
+            metadataParser.validateFingerprintMatch(keyring.primary(), request.fingerprint());
+            PreviewKeyringResponse response = PreviewKeyringResponse.from(keyring);
+            log.info(
+                    "preview_keyring_completed subkeyCount={} warningCount={} source={} revokedSubkeyCount={}",
+                    response.subkeys().size(),
+                    response.warnings().size(),
+                    response.source(),
+                    response.subkeys().stream().filter(entry -> entry.revokedAt() != null).count());
+            completeSuccess("preview_keyring", user.id(), null, keyring.primary().openpgpVersion(), start);
+            return response;
+        } catch (RuntimeException ex) {
+            completeFailure("preview_keyring", user.id(), null, PgpKeyValidator.OPENPGP_V4, start, ex);
+            throw ex;
+        }
+    }
+
+    /** Preview subkey register/sync/skip actions. Primary revocation is not included. */
+    public PreviewImportSubkeysResponse previewImportSubkeysFromKeyring(AppUser user, UUID primaryKeyId) {
+        long start = System.currentTimeMillis();
+        PgpKey primary = requirePrimary(user, primaryKeyId);
+        int openpgpVersion = primary.openpgpVersion();
+        operationLogger.started("preview_import_subkeys_from_keyring", user.id(), primaryKeyId, null, openpgpVersion);
+        try {
+            PreviewImportSubkeysResponse response = buildImportSubkeysPreview(user, primary);
+            log.info(
+                    "preview_import_subkeys_from_keyring_completed parentKeyId={} wouldRegister={} wouldUpdate={} wouldSkip={}",
+                    primaryKeyId,
+                    response.wouldRegister().size(),
+                    response.wouldUpdate().size(),
+                    response.wouldSkipCount());
+            completeSuccess("preview_import_subkeys_from_keyring", user.id(), primaryKeyId, openpgpVersion, start);
+            return response;
+        } catch (RuntimeException ex) {
+            completeFailure("preview_import_subkeys_from_keyring", user.id(), primaryKeyId, openpgpVersion, start, ex);
             throw ex;
         }
     }
@@ -125,6 +175,11 @@ public class PgpKeyService {
                 .orElseThrow(() -> new KeyNotFoundException(subkeyId));
     }
 
+    /**
+     * Registers missing subkey rows and syncs revocation for existing subkeys from the stored
+     * keyring. Does not update the primary row — primary revocation is applied on initial
+     * register when armored material is parsed.
+     */
     public ImportSubkeysResult importSubkeysFromKeyring(AppUser user, UUID primaryKeyId) {
         long start = System.currentTimeMillis();
         PgpKey primary = requirePrimary(user, primaryKeyId);
@@ -142,11 +197,18 @@ public class PgpKeyService {
             ImportSubkeysResult result =
                     registerImportedSubkeys(user, primary, keyring.subkeys(), primary.keyType());
             log.info(
-                    "import_subkeys_from_keyring_completed parentKeyId={} registeredCount={} skippedCount={} fingerprints={}",
+                    "import_subkeys_from_keyring_completed parentKeyId={} registeredCount={} skippedCount={} updatedCount={} fingerprints={}",
                     primaryKeyId,
                     result.registered().size(),
                     result.skippedCount(),
+                    result.updated().size(),
                     result.registered().stream().map(PgpKey::fingerprint).toList());
+            if (!result.updated().isEmpty()) {
+                log.info(
+                        "import_subkeys_from_keyring_synced parentKeyId={} fingerprints={}",
+                        primaryKeyId,
+                        result.updated().stream().map(PgpKey::fingerprint).toList());
+            }
             completeSuccess(
                     "import_subkeys_from_keyring", user.id(), primaryKeyId, openpgpVersion, start);
             return result;
@@ -412,7 +474,7 @@ public class PgpKeyService {
                 request.storageRef());
     }
 
-    private PgpKey registerKey(AppUser user, CreatePgpKeyRequest request) {
+    private CreateKeyOutcome registerKey(AppUser user, CreatePgpKeyRequest request) {
         PgpKeyValidator.rejectOpenpgpVersionOnRegister(request.openpgpVersion());
         if (request.keyType() == null || request.keyType().isBlank()) {
             throw new BadRequestException("keyType is required");
@@ -427,10 +489,10 @@ public class PgpKeyService {
             requirePrimaryCapabilitiesIfPresent(request);
             return registerPrimaryKey(user, request, keyType);
         }
-        return registerSubkey(user, request, keyType, parentKeyId);
+        return new CreateKeyOutcome(registerSubkey(user, request, keyType, parentKeyId), null);
     }
 
-    private PgpKey registerPrimaryKey(AppUser user, CreatePgpKeyRequest request, KeyType keyType) {
+    private CreateKeyOutcome registerPrimaryKey(AppUser user, CreatePgpKeyRequest request, KeyType keyType) {
         ImportedKeyringMetadata keyring =
                 metadataParser.parseKeyring(request.armoredPublic(), request.encryptedPrivateArmored());
         ImportedKeyMetadata metadata = keyring.primary();
@@ -452,8 +514,8 @@ public class PgpKeyService {
                                     metadata.algorithm(),
                                     metadata.algorithmSpecJson(),
                                     metadata.expiresAt(),
-                                    null,
-                                    null,
+                                    metadata.revokedAt(),
+                                    metadata.revocationReason(),
                                     request.armoredPublic(),
                                     request.encryptedPrivateArmored(),
                                     request.storageProvider(),
@@ -463,39 +525,63 @@ public class PgpKeyService {
             throw new ConflictException("A key with this fingerprint already exists for your account");
         }
 
+        int registeredSubkeyCount = 0;
         if (!keyring.subkeys().isEmpty()) {
-            registerImportedSubkeys(user, primary, keyring.subkeys(), keyType);
+            ImportSubkeysResult importResult = registerImportedSubkeys(user, primary, keyring.subkeys(), keyType);
+            registeredSubkeyCount = importResult.registered().size();
         }
-        return primary;
+        return new CreateKeyOutcome(primary, registeredSubkeyCount);
     }
 
     private ImportSubkeysResult registerImportedSubkeys(
             AppUser user, PgpKey primary, List<ImportedKeyMetadata> subkeys, KeyType keyType) {
-        Set<String> existingFingerprints = new HashSet<>();
+        Map<String, PgpKey> existingByFingerprint = new HashMap<>();
         for (PgpKey existing : pgpKeyRepository.findSubkeysByParentId(primary.id(), user.id())) {
-            existingFingerprints.add(existing.fingerprint().toUpperCase());
+            existingByFingerprint.put(existing.fingerprint().toUpperCase(), existing);
         }
 
         List<PgpKey> registered = new ArrayList<>();
+        List<PgpKey> updated = new ArrayList<>();
         int skippedCount = 0;
+        int revokedRegisteredCount = 0;
         for (ImportedKeyMetadata subkey : subkeys) {
-            if (existingFingerprints.contains(subkey.fingerprint().toUpperCase())) {
-                skippedCount++;
+            String fingerprint = subkey.fingerprint().toUpperCase();
+            PgpKey existing = existingByFingerprint.get(fingerprint);
+            if (existing != null) {
+                if (existing.revokedAt() == null && subkey.revokedAt() != null) {
+                    RevocationReason reason =
+                            subkey.revocationReason() != null
+                                    ? subkey.revocationReason()
+                                    : RevocationReason.NO_REASON;
+                    PgpKey synced =
+                            pgpKeyRepository
+                                    .markRevoked(existing.id(), user.id(), subkey.revokedAt(), reason)
+                                    .orElseThrow(() -> new KeyNotFoundException(existing.id()));
+                    updated.add(synced);
+                    existingByFingerprint.put(fingerprint, synced);
+                } else {
+                    skippedCount++;
+                }
                 continue;
             }
             PgpKey inserted = insertImportedSubkeyRow(user, primary, subkey, keyType);
             registered.add(inserted);
-            existingFingerprints.add(subkey.fingerprint().toUpperCase());
+            if (subkey.revokedAt() != null) {
+                revokedRegisteredCount++;
+            }
+            existingByFingerprint.put(fingerprint, inserted);
         }
 
         log.info(
-                "register_imported_subkeys_completed parentKeyId={} registeredCount={} skippedCount={} fingerprints={}",
+                "register_imported_subkeys_completed parentKeyId={} registeredCount={} skippedCount={} updatedCount={} revokedRegisteredCount={} fingerprints={}",
                 primary.id(),
                 registered.size(),
                 skippedCount,
+                updated.size(),
+                revokedRegisteredCount,
                 registered.stream().map(PgpKey::fingerprint).toList());
 
-        return new ImportSubkeysResult(List.copyOf(registered), skippedCount);
+        return new ImportSubkeysResult(List.copyOf(registered), skippedCount, List.copyOf(updated));
     }
 
     private PgpKey insertImportedSubkeyRow(
@@ -509,6 +595,8 @@ public class PgpKeyService {
                 metadata.algorithmSpecJson(),
                 metadata.capabilities(),
                 metadata.expiresAt(),
+                metadata.revokedAt(),
+                metadata.revocationReason(),
                 null,
                 null,
                 keyType,
@@ -573,6 +661,8 @@ public class PgpKeyService {
                 material.algorithmSpecJson(),
                 material.capabilities(),
                 material.expiresAt(),
+                null,
+                null,
                 material.armoredPublic(),
                 material.armoredPrivate(),
                 keyType,
@@ -602,6 +692,8 @@ public class PgpKeyService {
                 material.expiresAt(),
                 null,
                 null,
+                null,
+                null,
                 KeyType.PRIVATE,
                 KeyRole.SUBKEY,
                 parentKeyId,
@@ -619,6 +711,8 @@ public class PgpKeyService {
             String algorithmSpecJson,
             List<PgpCapability> capabilities,
             Instant expiresAt,
+            Instant revokedAt,
+            RevocationReason revocationReason,
             String armoredPublic,
             String armoredPrivate,
             KeyType keyType,
@@ -641,8 +735,8 @@ public class PgpKeyService {
                             algorithm,
                             algorithmSpecJson,
                             expiresAt,
-                            null,
-                            null,
+                            revokedAt,
+                            revocationReason,
                             armoredPublic,
                             armoredPrivate,
                             storageProvider,
@@ -736,5 +830,41 @@ public class PgpKeyService {
             case KEY_RETIRED -> 3;
             case USER_ID_INVALID -> 32;
         };
+    }
+
+    private PreviewImportSubkeysResponse buildImportSubkeysPreview(AppUser user, PgpKey primary) {
+        String armoredPublic = primary.armoredPublic();
+        String armoredPrivate = primary.encryptedPrivateArmored();
+        if ((armoredPublic == null || armoredPublic.isBlank())
+                && (armoredPrivate == null || armoredPrivate.isBlank())) {
+            throw new BadRequestException("Primary key has no armored keyring material to import subkeys from");
+        }
+
+        ImportedKeyringMetadata keyring = metadataParser.parseKeyring(armoredPublic, armoredPrivate);
+        Map<String, PgpKey> existingByFingerprint = new HashMap<>();
+        for (PgpKey existing : pgpKeyRepository.findSubkeysByParentId(primary.id(), user.id())) {
+            existingByFingerprint.put(existing.fingerprint().toUpperCase(), existing);
+        }
+
+        List<PreviewKeyEntry> wouldRegister = new ArrayList<>();
+        List<PreviewKeyEntry> wouldUpdate = new ArrayList<>();
+        int wouldSkipCount = 0;
+        for (ImportedKeyMetadata subkey : keyring.subkeys()) {
+            PgpKey existing = existingByFingerprint.get(subkey.fingerprint().toUpperCase());
+            if (existing == null) {
+                wouldRegister.add(PreviewKeyEntry.from(subkey, KeyRole.SUBKEY));
+            } else if (existing.revokedAt() == null && subkey.revokedAt() != null) {
+                wouldUpdate.add(PreviewKeyEntry.from(subkey, KeyRole.SUBKEY));
+            } else {
+                wouldSkipCount++;
+            }
+        }
+
+        return new PreviewImportSubkeysResponse(
+                List.copyOf(wouldRegister),
+                List.copyOf(wouldUpdate),
+                wouldSkipCount,
+                keyring.warnings(),
+                keyring.source());
     }
 }

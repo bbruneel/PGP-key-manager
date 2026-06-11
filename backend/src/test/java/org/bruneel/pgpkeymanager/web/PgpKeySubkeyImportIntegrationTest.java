@@ -1,5 +1,6 @@
 package org.bruneel.pgpkeymanager.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -12,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -20,8 +22,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import org.bruneel.pgpkeymanager.TestJwtConfiguration;
+import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
+import org.bruneel.pgpkeymanager.crypto.PgpKeyMetadataParser;
+import org.bruneel.pgpkeymanager.repo.AppUserRepository;
+import org.bruneel.pgpkeymanager.repo.PgpKeyRepository;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService;
+import org.bruneel.pgpkeymanager.crypto.PgpCryptoSupport;
 import org.bruneel.pgpkeymanager.crypto.SubkeyMaterial;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
@@ -29,6 +36,7 @@ import org.bruneel.pgpkeymanager.web.dto.UserIdSpecDto;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -42,6 +50,39 @@ class PgpKeySubkeyImportIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private PgpKeyRepository pgpKeyRepository;
+
+    @Autowired
+    private AppUserRepository appUserRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private PgpKeyMetadataParser metadataParser;
+
+    @Test
+    void registerMultiKeyArmorReturnsRegisteredSubkeyCount() throws Exception {
+        SubkeyMaterial keyring = buildKeyringWithEncryptSubkey();
+        String armoredPublic = jsonEscape(keyring.updatedArmoredPublic());
+
+        mockMvc.perform(post("/api/keys")
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "label": "count-import",
+                                  "keyType": "public",
+                                  "armoredPublic": "%s"
+                                }
+                                """
+                                        .formatted(armoredPublic)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.registeredSubkeyCount").value(1));
+    }
 
     @Test
     void registerMultiKeyArmorAutoImportsSubkeyRows() throws Exception {
@@ -110,6 +151,119 @@ class PgpKeySubkeyImportIntegrationTest {
         mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));
+    }
+
+    @Test
+    void registerMultiKeyArmorImportsRevokedSubkeyAsRevoked() throws Exception {
+        SubkeyMaterial keyring = buildKeyringWithEncryptSubkey();
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(keyring.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        keyring.updatedArmoredPrivate(),
+                        PASSPHRASE.toCharArray(),
+                        subKeyId,
+                        3);
+        String armoredPublic = jsonEscape(revoked.armoredPublic());
+
+        MvcResult register =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "revoked-subkey-import",
+                                          "keyType": "public",
+                                          "armoredPublic": "%s"
+                                        }
+                                        """
+                                                .formatted(armoredPublic)))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+
+        String primaryId = readJsonField(register.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].status").value("revoked"))
+                .andExpect(jsonPath("$[0].revokedAt").exists());
+    }
+
+    @Test
+    void importFromKeyringSyncsRevokedSubkeyStatus() throws Exception {
+        SubkeyMaterial keyring = buildKeyringWithEncryptSubkey();
+        String armoredPrivate = jsonEscape(keyring.updatedArmoredPrivate());
+
+        MvcResult register =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "sync-revoked",
+                                          "keyType": "private",
+                                          "encryptedPrivateArmored": "%s"
+                                        }
+                                        """
+                                                .formatted(armoredPrivate)))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+
+        String primaryId = readJsonField(register.getResponse().getContentAsString(), "id");
+        String subkeyId =
+                readJsonField(
+                        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[0].status").value("active"))
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString(),
+                        "id");
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(keyring.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        keyring.updatedArmoredPrivate(),
+                        PASSPHRASE.toCharArray(),
+                        subKeyId,
+                        3);
+
+        AppUser user = appUserRepository.upsertByAuth0Sub("user");
+        var updatedPrimary =
+                transactionTemplate.execute(
+                        status ->
+                                pgpKeyRepository.updateKeyringMaterial(
+                                        UUID.fromString(primaryId),
+                                        user.id(),
+                                        revoked.armoredPublic(),
+                                        revoked.armoredPrivate(),
+                                        null,
+                                        null,
+                                        null));
+        assertThat(updatedPrimary).isPresent();
+        assertThat(metadataParser.parseKeyring(
+                        updatedPrimary.get().armoredPublic(),
+                        updatedPrimary.get().encryptedPrivateArmored())
+                .subkeys()
+                .get(0)
+                .revokedAt())
+                .isNotNull();
+
+        mockMvc.perform(
+                        post("/api/keys/{primaryKeyId}/subkeys/import-from-keyring", primaryId)
+                                .with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.registered", hasSize(0)))
+                .andExpect(jsonPath("$.updated", hasSize(1)))
+                .andExpect(jsonPath("$.updatedCount").value(1))
+                .andExpect(jsonPath("$.updated[0].id").value(subkeyId))
+                .andExpect(jsonPath("$.updated[0].status").value("revoked"));
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("revoked"));
     }
 
     @Test

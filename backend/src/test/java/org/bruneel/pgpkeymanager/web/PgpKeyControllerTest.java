@@ -31,12 +31,16 @@ import org.bruneel.pgpkeymanager.TestPgpKeys;
 import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpKey;
+import org.bruneel.pgpkeymanager.service.CreateKeyOutcome;
 import org.bruneel.pgpkeymanager.service.CurrentUserService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
+import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
+import org.bruneel.pgpkeymanager.web.dto.PreviewKeyEntry;
+import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
 import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
@@ -92,7 +96,8 @@ class PgpKeyControllerTest {
     void createReturns201() throws Exception {
         PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
-        when(pgpKeyService.create(eq(USER), any(CreatePgpKeyRequest.class))).thenReturn(key);
+        when(pgpKeyService.create(eq(USER), any(CreatePgpKeyRequest.class)))
+                .thenReturn(new CreateKeyOutcome(key, 2));
 
         mockMvc.perform(post("/api/keys")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -105,9 +110,62 @@ class PgpKeyControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(key.id().toString()));
+                .andExpect(jsonPath("$.id").value(key.id().toString()))
+                .andExpect(jsonPath("$.registeredSubkeyCount").value(2));
 
         verify(pgpKeyService).create(eq(USER), any(CreatePgpKeyRequest.class));
+    }
+
+    @Test
+    void previewKeyringReturnsParsedMetadata() throws Exception {
+        PreviewKeyEntry primary =
+                new PreviewKeyEntry(
+                        "primary",
+                        "A1B2C3D4E5F6789012345678ABCDEF0123456789",
+                        "A1B2C3D4E5F67890",
+                        "ed25519",
+                        List.of("certify", "sign"),
+                        null,
+                        "active",
+                        null,
+                        null,
+                        4);
+        PreviewKeyringResponse preview =
+                new PreviewKeyringResponse(primary, List.of(), List.of("warning"), "both");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.previewKeyring(eq(USER), any(CreatePgpKeyRequest.class))).thenReturn(preview);
+
+        mockMvc.perform(post("/api/keys/preview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "keyType": "public",
+                                  "armoredPublic": "-----BEGIN PGP PUBLIC KEY BLOCK-----"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.primary.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"))
+                .andExpect(jsonPath("$.source").value("both"))
+                .andExpect(jsonPath("$.warnings[0]").value("warning"));
+
+        verify(pgpKeyService).previewKeyring(eq(USER), any(CreatePgpKeyRequest.class));
+    }
+
+    @Test
+    void previewImportSubkeysFromKeyringReturnsCounts() throws Exception {
+        UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        PreviewImportSubkeysResponse preview =
+                new PreviewImportSubkeysResponse(List.of(), List.of(), 1, List.of(), "private");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.previewImportSubkeysFromKeyring(USER, primaryId)).thenReturn(preview);
+
+        mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview", primaryId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.wouldSkipCount").value(1))
+                .andExpect(jsonPath("$.source").value("private"));
+
+        verify(pgpKeyService).previewImportSubkeysFromKeyring(USER, primaryId);
     }
 
     @Test

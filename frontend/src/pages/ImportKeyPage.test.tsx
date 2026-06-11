@@ -36,6 +36,7 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/keys-api", () => ({
   keysApi: {
     register: vi.fn(),
+    previewKeyring: vi.fn(),
     listSubkeys: vi.fn(),
   },
 }))
@@ -79,9 +80,9 @@ describe("ImportKeyPage", () => {
     getAccessToken.mockReset()
     navigate.mockReset()
     vi.mocked(keysApi.register).mockReset()
+    vi.mocked(keysApi.previewKeyring).mockReset()
     vi.mocked(keysApi.listSubkeys).mockReset()
     getAccessToken.mockResolvedValue("access-token")
-    vi.mocked(keysApi.listSubkeys).mockResolvedValue([])
   })
 
   it("shows validation errors without calling the API", async () => {
@@ -174,10 +175,8 @@ describe("ImportKeyPage", () => {
       id: "key-with-subkeys",
       fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
       role: "primary",
+      registeredSubkeyCount: 1,
     })
-    vi.mocked(keysApi.listSubkeys).mockResolvedValue([
-      { id: "sub-1", fingerprint: "SUBKEYFINGERPRINT", role: "subkey" },
-    ])
 
     renderImportKeyPage()
 
@@ -185,10 +184,7 @@ describe("ImportKeyPage", () => {
     await user.click(getSubmitButton())
 
     await waitFor(() => {
-      expect(keysApi.listSubkeys).toHaveBeenCalledWith({
-        accessToken: "access-token",
-        primaryKeyId: "key-with-subkeys",
-      })
+      expect(keysApi.listSubkeys).not.toHaveBeenCalled()
       expect(navigate).toHaveBeenCalledWith("/keys/key-with-subkeys")
       expect(toast.success).toHaveBeenCalledWith(
         "Key imported",
@@ -197,6 +193,113 @@ describe("ImportKeyPage", () => {
         }),
       )
     })
+  })
+
+  it("keeps preview visible when label changes after preview", async () => {
+    const user = userEvent.setup()
+
+    vi.mocked(keysApi.previewKeyring).mockResolvedValue({
+      primary: {
+        role: "primary",
+        fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+        keyId: "ABCDEF0123456789",
+        algorithm: "ed25519",
+        capabilities: ["certify", "sign"],
+        status: "active",
+        openpgpVersion: 4,
+      },
+      subkeys: [],
+      warnings: [],
+      source: "public",
+    })
+
+    renderImportKeyPage()
+
+    await user.type(screen.getByLabelText(/armored public key/i), SAMPLE_PUBLIC_ARMOR)
+    await user.click(screen.getByRole("button", { name: /^preview import$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Import preview" })).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/label/i), "My imported key")
+
+    expect(screen.getByRole("region", { name: "Import preview" })).toBeInTheDocument()
+  })
+
+  it("clears preview when armored public key changes after preview", async () => {
+    const user = userEvent.setup()
+
+    vi.mocked(keysApi.previewKeyring).mockResolvedValue({
+      primary: {
+        role: "primary",
+        fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+        keyId: "ABCDEF0123456789",
+        algorithm: "ed25519",
+        capabilities: ["certify", "sign"],
+        status: "active",
+        openpgpVersion: 4,
+      },
+      subkeys: [],
+      warnings: [],
+      source: "public",
+    })
+
+    renderImportKeyPage()
+
+    const publicField = screen.getByLabelText(/armored public key/i)
+    await user.type(publicField, SAMPLE_PUBLIC_ARMOR)
+    await user.click(screen.getByRole("button", { name: /^preview import$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Import preview" })).toBeInTheDocument()
+    })
+
+    await user.type(publicField, "x")
+
+    expect(screen.queryByRole("region", { name: "Import preview" })).not.toBeInTheDocument()
+  })
+
+  it("loads preview without registering the key", async () => {
+    const user = userEvent.setup()
+
+    vi.mocked(keysApi.previewKeyring).mockResolvedValue({
+      primary: {
+        role: "primary",
+        fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+        keyId: "ABCDEF0123456789",
+        algorithm: "ed25519",
+        capabilities: ["certify", "sign"],
+        status: "active",
+        openpgpVersion: 4,
+      },
+      subkeys: [
+        {
+          role: "subkey",
+          fingerprint: "SUBKEYFINGERPRINT0123456789ABCDEF01",
+          keyId: "SUBKEYFINGERPRINT",
+          algorithm: "cv25519",
+          capabilities: ["encrypt"],
+          status: "revoked",
+          revokedAt: "2026-06-01T00:00:00Z",
+          openpgpVersion: 4,
+        },
+      ],
+      warnings: [],
+      source: "public",
+    })
+
+    renderImportKeyPage()
+
+    await user.type(screen.getByLabelText(/armored public key/i), SAMPLE_PUBLIC_ARMOR)
+    await user.click(screen.getByRole("button", { name: /^preview import$/i }))
+
+    await waitFor(() => {
+      expect(keysApi.previewKeyring).toHaveBeenCalled()
+      expect(screen.getByRole("region", { name: "Import preview" })).toBeInTheDocument()
+      expect(screen.getByText("Revoked")).toBeInTheDocument()
+    })
+    expect(keysApi.register).not.toHaveBeenCalled()
   })
 
   it("shows ApiError detail and request id on failure", async () => {
@@ -221,5 +324,6 @@ describe("ImportKeyPage", () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/request id: req-import-fail/i)).toBeInTheDocument()
     expect(navigate).not.toHaveBeenCalled()
+    expect(screen.getByLabelText(/armored public key/i)).toHaveValue(SAMPLE_PUBLIC_ARMOR)
   })
 })

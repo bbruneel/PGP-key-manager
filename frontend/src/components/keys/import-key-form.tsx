@@ -11,8 +11,10 @@ type ImportKeyFormProps = {
   apiError: string | null
   requestId: string | null
   submitting: boolean
+  previewing?: boolean
   onChange: (values: ImportKeyFormValues) => void
   onSubmit: () => void
+  onPreview?: () => void
   onCancel: () => void
 }
 
@@ -29,8 +31,10 @@ export function ImportKeyForm({
   apiError,
   requestId,
   submitting,
+  previewing = false,
   onChange,
   onSubmit,
+  onPreview,
   onCancel,
 }: ImportKeyFormProps) {
   function updateField<K extends keyof ImportKeyFormValues>(key: K, value: ImportKeyFormValues[K]) {
@@ -176,10 +180,20 @@ export function ImportKeyForm({
       ) : null}
 
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" disabled={submitting}>
+        {onPreview ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onPreview}
+            disabled={submitting || previewing}
+          >
+            {previewing ? "Previewing…" : "Preview import"}
+          </Button>
+        ) : null}
+        <Button type="submit" disabled={submitting || previewing}>
           {submitting ? "Importing key…" : "Import key"}
         </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitting || previewing}>
           Cancel
         </Button>
       </div>

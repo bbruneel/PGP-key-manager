@@ -4,20 +4,24 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
+import org.bouncycastle.bcpg.SignatureSubpacketTags;
 import org.bouncycastle.bcpg.sig.KeyFlags;
+import org.bouncycastle.bcpg.sig.RevocationReason;
+import org.bouncycastle.bcpg.sig.RevocationReasonTags;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
-import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
-import org.bouncycastle.openpgp.PGPSignature;
-import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
 import org.bouncycastle.openpgp.PGPSecretKey;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
+import org.bouncycastle.openpgp.PGPSignature;
+import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.service.BadRequestException;
@@ -43,7 +47,8 @@ public class PgpKeyMetadataParser {
 
     public ImportedKeyringMetadata parseKeyring(String armoredPublic, String encryptedPrivateArmored) {
         try {
-            PGPPublicKeyRing ring = loadPublicKeyRing(armoredPublic, encryptedPrivateArmored);
+            LoadedKeyring loaded = loadPublicKeyRing(armoredPublic, encryptedPrivateArmored);
+            PGPPublicKeyRing ring = loaded.ring();
             PGPPublicKey master = ring.getPublicKey();
             ImportedKeyMetadata primary = buildMetadata(master, armoredPublic, encryptedPrivateArmored);
 
@@ -59,11 +64,13 @@ public class PgpKeyMetadataParser {
             }
 
             log.info(
-                    "register_keyring_metadata_parsed masterFingerprint={} subkeyCount={}",
+                    "register_keyring_metadata_parsed masterFingerprint={} subkeyCount={} source={} warningCount={}",
                     primary.fingerprint(),
-                    subkeys.size());
+                    subkeys.size(),
+                    loaded.source(),
+                    loaded.warnings().size());
 
-            return new ImportedKeyringMetadata(primary, List.copyOf(subkeys));
+            return new ImportedKeyringMetadata(primary, List.copyOf(subkeys), List.copyOf(loaded.warnings()), loaded.source());
         } catch (BadRequestException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -94,15 +101,17 @@ public class PgpKeyMetadataParser {
                 PgpKeyValidator.validateDetectedOpenpgpVersion(
                         PgpCryptoSupport.detectOpenpgpVersionFromArmored(
                                 encryptedPrivateArmored, armoredPublic));
+        RevocationDetails revocation = resolveRevocation(master, fingerprint, true);
 
         log.info(
-                "register_key_metadata_parsed fingerprint={} keyId={} algorithm={} capabilities={} expiresAt={} openpgpVersion={}",
+                "register_key_metadata_parsed fingerprint={} keyId={} algorithm={} capabilities={} expiresAt={} openpgpVersion={} revoked={}",
                 fingerprint,
                 keyId,
                 algorithmSpec.algorithm(),
                 capabilities.stream().map(PgpCapability::toApi).toList(),
                 expiresAt,
-                openpgpVersion);
+                openpgpVersion,
+                revocation != null);
 
         return new ImportedKeyMetadata(
                 fingerprint,
@@ -111,7 +120,9 @@ public class PgpKeyMetadataParser {
                 writeAlgorithmSpecJson(algorithmSpec),
                 capabilities,
                 expiresAt,
-                openpgpVersion);
+                openpgpVersion,
+                revocation != null ? revocation.revokedAt() : null,
+                revocation != null ? revocation.reason() : null);
     }
 
     private ImportedKeyMetadata buildSubkeyMetadata(PGPPublicKey subkey, int openpgpVersion) {
@@ -120,15 +131,17 @@ public class PgpKeyMetadataParser {
         AlgorithmSpecDto algorithmSpec = resolveAlgorithmSpec(subkey);
         List<PgpCapability> capabilities = resolveCapabilities(subkey);
         Instant expiresAt = resolveExpiresAt(subkey);
+        RevocationDetails revocation = resolveRevocation(subkey, fingerprint, false);
 
         log.info(
-                "register_subkey_metadata_parsed fingerprint={} keyId={} algorithm={} capabilities={} expiresAt={} openpgpVersion={}",
+                "register_subkey_metadata_parsed fingerprint={} keyId={} algorithm={} capabilities={} expiresAt={} openpgpVersion={} revoked={}",
                 fingerprint,
                 keyId,
                 algorithmSpec.algorithm(),
                 capabilities.stream().map(PgpCapability::toApi).toList(),
                 expiresAt,
-                openpgpVersion);
+                openpgpVersion,
+                revocation != null);
 
         return new ImportedKeyMetadata(
                 fingerprint,
@@ -137,10 +150,69 @@ public class PgpKeyMetadataParser {
                 writeAlgorithmSpecJson(algorithmSpec),
                 capabilities,
                 expiresAt,
-                openpgpVersion);
+                openpgpVersion,
+                revocation != null ? revocation.revokedAt() : null,
+                revocation != null ? revocation.reason() : null);
     }
 
-    private PGPPublicKeyRing loadPublicKeyRing(String armoredPublic, String encryptedPrivateArmored)
+    private record RevocationDetails(Instant revokedAt, org.bruneel.pgpkeymanager.domain.RevocationReason reason) {}
+
+    private RevocationDetails resolveRevocation(PGPPublicKey key, String fingerprint, boolean isPrimary) {
+        if (!key.isRevoked()) {
+            return null;
+        }
+
+        int revocationType = isPrimary ? PGPSignature.KEY_REVOCATION : PGPSignature.SUBKEY_REVOCATION;
+        Iterator<PGPSignature> revocations = key.getSignaturesOfType(revocationType);
+        Instant revokedAt = null;
+        org.bruneel.pgpkeymanager.domain.RevocationReason reason =
+                org.bruneel.pgpkeymanager.domain.RevocationReason.NO_REASON;
+
+        while (revocations.hasNext()) {
+            PGPSignature signature = revocations.next();
+            if (revokedAt == null) {
+                revokedAt = signature.getCreationTime().toInstant();
+            }
+            PGPSignatureSubpacketVector hashed = signature.getHashedSubPackets();
+            if (hashed != null && hashed.hasSubpacket(SignatureSubpacketTags.REVOCATION_REASON)) {
+                org.bouncycastle.bcpg.SignatureSubpacket subpacket =
+                        hashed.getSubpacket(SignatureSubpacketTags.REVOCATION_REASON);
+                if (subpacket instanceof RevocationReason revocationReason) {
+                    reason = mapRevocationReason(revocationReason.getRevocationReason());
+                }
+            }
+        }
+
+        if (revokedAt == null) {
+            log.warn(
+                    "register_revocation_missing_timestamp fingerprint={} isPrimary={} — using current time",
+                    fingerprint,
+                    isPrimary);
+            revokedAt = Instant.now();
+        }
+
+        String eventId = isPrimary ? "register_key_revocation_detected" : "register_subkey_revocation_detected";
+        log.info("{} fingerprint={} reason={} revokedAt={}", eventId, fingerprint, reason, revokedAt);
+
+        return new RevocationDetails(revokedAt, reason);
+    }
+
+    private org.bruneel.pgpkeymanager.domain.RevocationReason mapRevocationReason(byte code) {
+        return switch (code) {
+            case RevocationReasonTags.KEY_SUPERSEDED ->
+                    org.bruneel.pgpkeymanager.domain.RevocationReason.KEY_SUPERSEDED;
+            case RevocationReasonTags.KEY_COMPROMISED ->
+                    org.bruneel.pgpkeymanager.domain.RevocationReason.KEY_COMPROMISED;
+            case RevocationReasonTags.KEY_RETIRED -> org.bruneel.pgpkeymanager.domain.RevocationReason.KEY_RETIRED;
+            case RevocationReasonTags.USER_NO_LONGER_VALID ->
+                    org.bruneel.pgpkeymanager.domain.RevocationReason.USER_ID_INVALID;
+            default -> org.bruneel.pgpkeymanager.domain.RevocationReason.NO_REASON;
+        };
+    }
+
+    private record LoadedKeyring(PGPPublicKeyRing ring, List<String> warnings, String source) {}
+
+    private LoadedKeyring loadPublicKeyRing(String armoredPublic, String encryptedPrivateArmored)
             throws IOException, PGPException {
         boolean hasPublic = armoredPublic != null && !armoredPublic.isBlank();
         boolean hasPrivate = encryptedPrivateArmored != null && !encryptedPrivateArmored.isBlank();
@@ -155,12 +227,60 @@ public class PgpKeyMetadataParser {
             if (!publicFingerprint.equalsIgnoreCase(privateFingerprint)) {
                 throw new BadRequestException("armored public and private key blocks do not match");
             }
-            return fromPublic;
+            List<String> warnings = compareSubkeyFingerprints(fromPublic, fromPrivate);
+            return new LoadedKeyring(fromPrivate, warnings, "both");
         }
         if (hasPublic) {
-            return PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            return new LoadedKeyring(PgpCryptoSupport.loadPublicKeyRing(armoredPublic), List.of(), "public");
         }
-        return loadPublicKeyRingFromPrivate(encryptedPrivateArmored);
+        return new LoadedKeyring(loadPublicKeyRingFromPrivate(encryptedPrivateArmored), List.of(), "private");
+    }
+
+    private List<String> compareSubkeyFingerprints(PGPPublicKeyRing fromPublic, PGPPublicKeyRing fromPrivate) {
+        Set<String> publicSubkeys = subkeyFingerprints(fromPublic);
+        Set<String> privateSubkeys = subkeyFingerprints(fromPrivate);
+        if (publicSubkeys.equals(privateSubkeys)) {
+            return List.of();
+        }
+
+        Set<String> onlyInPrivate = new HashSet<>(privateSubkeys);
+        onlyInPrivate.removeAll(publicSubkeys);
+        Set<String> onlyInPublic = new HashSet<>(publicSubkeys);
+        onlyInPublic.removeAll(privateSubkeys);
+
+        log.warn(
+                "register_keyring_public_private_subkey_mismatch publicSubkeyCount={} privateSubkeyCount={} onlyInPrivate={} onlyInPublic={}",
+                publicSubkeys.size(),
+                privateSubkeys.size(),
+                onlyInPrivate,
+                onlyInPublic);
+
+        List<String> warnings = new ArrayList<>();
+        if (!onlyInPrivate.isEmpty()) {
+            warnings.add(
+                    "Private keyring has "
+                            + onlyInPrivate.size()
+                            + " subkey(s) not present in the pasted public block; using the private keyring.");
+        }
+        if (!onlyInPublic.isEmpty()) {
+            warnings.add(
+                    "Public block lists "
+                            + onlyInPublic.size()
+                            + " subkey(s) absent from the private keyring; those entries are ignored.");
+        }
+        return List.copyOf(warnings);
+    }
+
+    private Set<String> subkeyFingerprints(PGPPublicKeyRing ring) {
+        Set<String> fingerprints = new HashSet<>();
+        Iterator<PGPPublicKey> keys = ring.getPublicKeys();
+        while (keys.hasNext()) {
+            PGPPublicKey key = keys.next();
+            if (!key.isMasterKey()) {
+                fingerprints.add(PgpCryptoSupport.fingerprintHex(key).toUpperCase());
+            }
+        }
+        return fingerprints;
     }
 
     private PGPPublicKeyRing loadPublicKeyRingFromPrivate(String encryptedPrivateArmored)
@@ -208,7 +328,7 @@ public class PgpKeyMetadataParser {
 
     private int keyFlagsFromSignature(PGPSignature signature) {
         PGPSignatureSubpacketVector hashed = signature.getHashedSubPackets();
-        if (hashed != null && hashed.hasSubpacket(org.bouncycastle.bcpg.SignatureSubpacketTags.KEY_FLAGS)) {
+        if (hashed != null && hashed.hasSubpacket(SignatureSubpacketTags.KEY_FLAGS)) {
             return hashed.getKeyFlags();
         }
         return 0;
