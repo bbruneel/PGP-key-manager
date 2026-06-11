@@ -423,6 +423,26 @@ public class PgpKeyService {
         return pgpCryptoService.exportPublicKey(armored, targetKeyId);
     }
 
+    public String exportSshPublic(AppUser user, UUID keyId) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("export_ssh_public", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
+        try {
+            PgpKey key = getForUser(user, keyId);
+            openpgpVersion = key.openpgpVersion();
+            PgpKeyValidator.validateSshExportable(key);
+            String armored = resolveArmoredPublic(key, user);
+            long targetKeyId = parseKeyId(key);
+            String comment = "openpgp:0x" + key.keyId().toLowerCase();
+            String sshLine = pgpCryptoService.exportSshPublicKey(armored, targetKeyId, comment);
+            completeSuccess("export_ssh_public", user.id(), keyId, openpgpVersion, start);
+            return sshLine;
+        } catch (RuntimeException ex) {
+            completeFailure("export_ssh_public", user.id(), keyId, openpgpVersion, start, ex);
+            throw ex;
+        }
+    }
+
     public record RotateResult(PgpKey newKey, PgpKey previousKey) {}
 
     private PgpKey generatePrimary(AppUser user, CreatePgpKeyRequest request) {

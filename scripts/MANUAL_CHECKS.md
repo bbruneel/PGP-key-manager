@@ -158,6 +158,17 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 
 ---
 
+## Phase 9 — SSH public key export
+
+1. Create or open a primary key with private material.
+2. Add an **authenticate** subkey (default Ed25519) via **Add subkey**.
+3. Open the new subkey detail (`/keys/{subkeyId}`).
+4. Confirm **Export SSH public key** appears; **Copy SSH public key** should yield a line starting with `ssh-ed25519 `.
+5. Open an encrypt-only subkey (e.g. Cv25519): SSH export section should be hidden.
+6. Optional API check: `GET /api/keys/{encryptSubkeyId}/export-ssh-public` should return 400.
+
+---
+
 ## PR sign-off template
 
 Copy into the PR test plan when complete:

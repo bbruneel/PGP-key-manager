@@ -391,6 +391,29 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/{keyId}/export-ssh-public:
+    get:
+      tags: [Keys]
+      summary: Export OpenSSH public key
+      description: |
+        Returns a one-line OpenSSH public key for keys with the `authenticate` capability
+        and an SSH-compatible algorithm (`ed25519`, `rsa`, or `ecdsa`). Encryption-only
+        algorithms (for example `cv25519`) and keys without `authenticate` return 400.
+      operationId: exportSshPublicKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      responses:
+        '200':
+          description: OpenSSH authorized_keys line (type, base64, comment)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyComment openpgp:0x70dfa6b7
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:

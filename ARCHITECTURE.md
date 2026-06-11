@@ -170,6 +170,14 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 5. Revoke and extend require passphrase when the primary keyring stores private material; rotate is subkey-only and always requires passphrase (unlocks the primary keyring for new subkey creation; optional `revokePrevious` also revokes the current subkey in the keyring).
 6. On success: sonner toast, refetch key/subkeys; rotate navigates to the new subkey. Passphrase fields are cleared after submit.
 
+## SSH public key export (Phase 9)
+
+1. On key detail (`/keys/:id`), when the key has the `authenticate` capability and an SSH-compatible algorithm (`ed25519`, `rsa`, or `ecdsa`), the **Export SSH public key** section appears below armored PGP export.
+2. `keysApi.exportSshPublic()` sends `GET /api/keys/{keyId}/export-ssh-public` with `operationId: exportSshPublicKey` and `Accept: text/plain`.
+3. Backend `PgpKeyService.exportSshPublic()` validates capability and algorithm, converts the subkey via Bouncy Castle (`PgpSshPublicKeyFormatter`), and logs `export_ssh_public` through `KeyOperationLogger` / `KeyOperationMetrics`.
+4. `[pgp-ui]` events: `keyDetail.exportSsh.submit`, `keyDetail.exportSsh.success`, `keyDetail.exportSsh.error`.
+5. Client helper `isSshExportableKey()` (`frontend/src/lib/ssh-export.ts`) gates UI visibility; copy or download `.pub` uses the same export cache pattern as armored PGP export.
+
 ## Add subkey (Phase 4)
 
 1. On primary key detail (`/keys/:id`), when the primary has private material and is not revoked, the **Add subkey** form appears below the subkeys list (inline — no separate route).

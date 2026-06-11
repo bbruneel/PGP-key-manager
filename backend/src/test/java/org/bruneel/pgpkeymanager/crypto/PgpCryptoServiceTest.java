@@ -326,4 +326,122 @@ class PgpCryptoServiceTest {
                                         "passphrase-12345678".toCharArray()))
                 .isInstanceOf(CryptoException.class);
     }
+
+    @Test
+    void exportSshPublicKey_ed25519AuthenticateSubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("SSH Auth Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "ssh-export-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "ssh-export-passphrase".toCharArray(),
+                        List.of(PgpCapability.AUTHENTICATE),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        String sshLine =
+                crypto.exportSshPublicKey(
+                        sub.updatedArmoredPublic(), subKeyId, "openpgp:0x" + sub.keyId().toLowerCase());
+
+        assertThat(sshLine).startsWith("ssh-ed25519 ");
+        assertThat(sshLine).endsWith("openpgp:0x" + sub.keyId().toLowerCase());
+        assertThat(sshLine.split(" ")).hasSize(3);
+    }
+
+    @Test
+    void exportSshPublicKey_rsaAuthenticateSubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("SSH RSA Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "ssh-export-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "ssh-export-passphrase".toCharArray(),
+                        List.of(PgpCapability.AUTHENTICATE),
+                        new AlgorithmSpecDto("rsa", 2048, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        String sshLine =
+                crypto.exportSshPublicKey(
+                        sub.updatedArmoredPublic(), subKeyId, "openpgp:0x" + sub.keyId().toLowerCase());
+
+        assertThat(sshLine).startsWith("ssh-rsa ");
+    }
+
+    @Test
+    void exportSshPublicKey_ecdsaAuthenticateSubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("SSH ECDSA Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "ssh-export-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "ssh-export-passphrase".toCharArray(),
+                        List.of(PgpCapability.AUTHENTICATE),
+                        new AlgorithmSpecDto("ecdsa", null, "P-256"),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+        String sshLine =
+                crypto.exportSshPublicKey(
+                        sub.updatedArmoredPublic(), subKeyId, "openpgp:0x" + sub.keyId().toLowerCase());
+
+        assertThat(sshLine).startsWith("ecdsa-sha2-nistp");
+    }
+
+    @Test
+    void exportSshPublicKey_rejectsEncryptOnlySubkey() {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("SSH Encrypt Test", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        "ssh-export-passphrase".toCharArray());
+
+        SubkeyMaterial sub =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        "ssh-export-passphrase".toCharArray(),
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(sub.keyId());
+
+        assertThatThrownBy(
+                        () ->
+                                crypto.exportSshPublicKey(
+                                        sub.updatedArmoredPublic(),
+                                        subKeyId,
+                                        "openpgp:0x" + sub.keyId().toLowerCase()))
+                .isInstanceOf(CryptoException.class)
+                .hasMessageContaining("OpenSSH");
+    }
 }

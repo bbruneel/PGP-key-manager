@@ -68,7 +68,7 @@ Environment variables (backend):
 
 ### API contract
 
-OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, and export-public.
+OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, export-public, and export-ssh-public (authenticate subkeys with ed25519, rsa, or ecdsa).
 
 ### API documentation (Redocly)
 
@@ -136,7 +136,7 @@ The SPA uses a typed client on top of `apiFetch`:
 | `frontend/src/lib/api-client.ts` | `requestJson` — versioned JSON, Bearer token, `X-Request-Id` correlation |
 | `frontend/src/lib/api-error.ts` | RFC 7807 `ProblemDetail` parsing and `ApiError` for UI messages |
 | `frontend/src/lib/logger.ts` | Structured `[pgp-api]` console logs with `operationId` + `requestId` |
-| `frontend/src/lib/keys-api.ts` | Key endpoints (`list`, `create`, `register`, `get`, `listSubkeys`, `createSubkey`, lifecycle, `exportPublic`) |
+| `frontend/src/lib/keys-api.ts` | Key endpoints (`list`, `create`, `register`, `get`, `listSubkeys`, `createSubkey`, lifecycle, `exportPublic`, `exportSshPublic`) |
 | `frontend/src/lib/ui-logger.ts` | Structured `[pgp-ui]` console logs with `eventId` (e.g. `createKey.submit`, `importKey.submit`) |
 | `frontend/src/lib/create-key-validation.ts` | Client-side create form validation and `CreatePgpKeyRequest` builder |
 | `frontend/src/lib/key-display.ts` | Human-readable key list helpers (`formatKeyExpiry`, `formatCapabilities`) |

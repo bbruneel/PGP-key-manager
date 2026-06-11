@@ -223,6 +223,19 @@ public class PgpCryptoService {
         }
     }
 
+    public String exportSshPublicKey(String armoredPublic, long keyId, String comment) {
+        try {
+            PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            PGPPublicKey key = findPublicKey(ring, keyId);
+            if (key == null) {
+                throw new CryptoException("Public key id not found");
+            }
+            return PgpSshPublicKeyFormatter.formatLine(key, comment);
+        } catch (IOException | PGPException e) {
+            throw new CryptoException("Failed to export OpenSSH public key", e);
+        }
+    }
+
     public String exportPublicKey(String armoredPublic, long keyId) {
         try {
             PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);

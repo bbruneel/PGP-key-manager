@@ -99,6 +99,34 @@ class PgpKeyLifecycleIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PUBLIC KEY BLOCK")));
 
+        MvcResult createAuthSubkey =
+                mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys", primaryId)
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "capabilities": ["authenticate"],
+                                          "algorithm": { "algorithm": "ed25519" },
+                                          "validity": { "expiresAt": "2029-06-01T00:00:00Z" },
+                                          "passphrase": "%s"
+                                        }
+                                        """
+                                        .formatted(PASSPHRASE)))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.capabilities[0]").value("authenticate"))
+                        .andReturn();
+
+        String authSubkeyId = readJsonField(createAuthSubkey.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(get("/api/keys/{keyId}/export-ssh-public", authSubkeyId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(content().string(org.hamcrest.Matchers.startsWith("ssh-ed25519 ")));
+
+        mockMvc.perform(get("/api/keys/{keyId}/export-ssh-public", subkeyId).with(jwt()))
+                .andExpect(status().isBadRequest());
+
         mockMvc.perform(post("/api/keys/{keyId}/extend-expiry", subkeyId)
                         .with(jwt())
                         .contentType(MediaType.APPLICATION_JSON)

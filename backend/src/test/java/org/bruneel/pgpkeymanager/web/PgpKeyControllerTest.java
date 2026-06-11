@@ -327,6 +327,21 @@ class PgpKeyControllerTest {
     }
 
     @Test
+    void exportSshPublicReturnsOpenSshLine() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.exportSshPublic(USER, keyId))
+                .thenReturn("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample openpgp:0xabcdef01");
+
+        mockMvc.perform(get("/api/keys/{keyId}/export-ssh-public", keyId))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(content().string(containsString("ssh-ed25519")));
+
+        verify(pgpKeyService).exportSshPublic(USER, keyId);
+    }
+
+    @Test
     void rotateReturns201() throws Exception {
         UUID subkeyId = UUID.fromString("00000000-0000-0000-0000-000000000004");
         PgpKey previous = TestPgpKeys.samplePublic(USER.id());
