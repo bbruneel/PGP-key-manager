@@ -4,6 +4,7 @@ import {
   buildImportKeyRequest,
   defaultImportKeyFormValues,
   normalizeFingerprint,
+  shouldClearImportPreview,
   validateImportKeyForm,
   type ImportKeyFormValues,
 } from "@/lib/import-key-validation"
@@ -142,6 +143,40 @@ hQEMAexample
     const result = validateImportKeyForm(validValues({ label: "a".repeat(129) }))
     expect(result.valid).toBe(false)
     expect(result.fieldErrors.label).toBeDefined()
+  })
+})
+
+describe("shouldClearImportPreview", () => {
+  it("returns false when only label or fingerprint changes", () => {
+    const base = validValues()
+    expect(shouldClearImportPreview(base, { ...base, label: "Work key" })).toBe(false)
+    expect(
+      shouldClearImportPreview(base, {
+        ...base,
+        fingerprint: "ABCD1234EFGH5678IJKL9012MNOP3456QRST",
+      }),
+    ).toBe(false)
+  })
+
+  it("returns true when armored material or import mode changes", () => {
+    const base = validValues()
+    expect(shouldClearImportPreview(base, { ...base, armoredPublic: "changed" })).toBe(true)
+    expect(
+      shouldClearImportPreview(base, {
+        ...base,
+        importMode: "private",
+        encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR,
+      }),
+    ).toBe(true)
+    expect(
+      shouldClearImportPreview(
+        validValues({ importMode: "private", encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR }),
+        {
+          ...validValues({ importMode: "private", encryptedPrivateArmored: SAMPLE_PRIVATE_ARMOR }),
+          encryptedPrivateArmored: "changed",
+        },
+      ),
+    ).toBe(true)
   })
 })
 

@@ -80,6 +80,18 @@ export function validateImportKeyForm(values: ImportKeyFormValues): ImportKeyVal
   }
 }
 
+/** True when a form edit invalidates a loaded keyring preview (armored material or import mode). */
+export function shouldClearImportPreview(
+  previous: ImportKeyFormValues,
+  next: ImportKeyFormValues,
+): boolean {
+  return (
+    previous.importMode !== next.importMode ||
+    previous.armoredPublic !== next.armoredPublic ||
+    previous.encryptedPrivateArmored !== next.encryptedPrivateArmored
+  )
+}
+
 export function buildImportKeyRequest(values: ImportKeyFormValues): RegisterPgpKeyRequest {
   const request: RegisterPgpKeyRequest = {
     keyType: values.importMode,

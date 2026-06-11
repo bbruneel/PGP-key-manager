@@ -9,6 +9,7 @@ import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import {
   buildImportKeyRequest,
   defaultImportKeyFormValues,
+  shouldClearImportPreview,
   validateImportKeyForm,
   type ImportKeyFieldErrors,
   type ImportKeyFormValues,
@@ -241,9 +242,11 @@ export function ImportKeyPage() {
         submitting={submitting}
         previewing={previewing}
         onChange={(nextValues) => {
+          if (shouldClearImportPreview(values, nextValues)) {
+            setPreview(null)
+          }
           setValues(nextValues)
           setFieldErrors({})
-          setPreview(null)
         }}
         onPreview={() => void handlePreview()}
         onSubmit={() => void handleSubmit()}

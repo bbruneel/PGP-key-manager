@@ -195,6 +195,71 @@ describe("ImportKeyPage", () => {
     })
   })
 
+  it("keeps preview visible when label changes after preview", async () => {
+    const user = userEvent.setup()
+
+    vi.mocked(keysApi.previewKeyring).mockResolvedValue({
+      primary: {
+        role: "primary",
+        fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+        keyId: "ABCDEF0123456789",
+        algorithm: "ed25519",
+        capabilities: ["certify", "sign"],
+        status: "active",
+        openpgpVersion: 4,
+      },
+      subkeys: [],
+      warnings: [],
+      source: "public",
+    })
+
+    renderImportKeyPage()
+
+    await user.type(screen.getByLabelText(/armored public key/i), SAMPLE_PUBLIC_ARMOR)
+    await user.click(screen.getByRole("button", { name: /^preview import$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Import preview" })).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/label/i), "My imported key")
+
+    expect(screen.getByRole("region", { name: "Import preview" })).toBeInTheDocument()
+  })
+
+  it("clears preview when armored public key changes after preview", async () => {
+    const user = userEvent.setup()
+
+    vi.mocked(keysApi.previewKeyring).mockResolvedValue({
+      primary: {
+        role: "primary",
+        fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+        keyId: "ABCDEF0123456789",
+        algorithm: "ed25519",
+        capabilities: ["certify", "sign"],
+        status: "active",
+        openpgpVersion: 4,
+      },
+      subkeys: [],
+      warnings: [],
+      source: "public",
+    })
+
+    renderImportKeyPage()
+
+    const publicField = screen.getByLabelText(/armored public key/i)
+    await user.type(publicField, SAMPLE_PUBLIC_ARMOR)
+    await user.click(screen.getByRole("button", { name: /^preview import$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: "Import preview" })).toBeInTheDocument()
+    })
+
+    await user.type(publicField, "x")
+
+    expect(screen.queryByRole("region", { name: "Import preview" })).not.toBeInTheDocument()
+  })
+
   it("loads preview without registering the key", async () => {
     const user = userEvent.setup()
 
