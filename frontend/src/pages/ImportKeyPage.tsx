@@ -189,7 +189,6 @@ export function ImportKeyPage() {
       }
     } finally {
       setSubmitting(false)
-      setValues((current) => clearArmoredFields(current))
     }
   }, [getAccessToken, navigate, values])
 

@@ -123,6 +123,7 @@ public class PgpKeyService {
         }
     }
 
+    /** Preview subkey register/sync/skip actions. Primary revocation is not included. */
     public PreviewImportSubkeysResponse previewImportSubkeysFromKeyring(AppUser user, UUID primaryKeyId) {
         long start = System.currentTimeMillis();
         PgpKey primary = requirePrimary(user, primaryKeyId);
@@ -174,6 +175,11 @@ public class PgpKeyService {
                 .orElseThrow(() -> new KeyNotFoundException(subkeyId));
     }
 
+    /**
+     * Registers missing subkey rows and syncs revocation for existing subkeys from the stored
+     * keyring. Does not update the primary row — primary revocation is applied on initial
+     * register when armored material is parsed.
+     */
     public ImportSubkeysResult importSubkeysFromKeyring(AppUser user, UUID primaryKeyId) {
         long start = System.currentTimeMillis();
         PgpKey primary = requirePrimary(user, primaryKeyId);

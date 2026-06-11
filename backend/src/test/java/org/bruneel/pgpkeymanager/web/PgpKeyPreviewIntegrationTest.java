@@ -1,7 +1,9 @@
 package org.bruneel.pgpkeymanager.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,18 +17,23 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import org.bruneel.pgpkeymanager.TestJwtConfiguration;
 import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoSupport;
 import org.bruneel.pgpkeymanager.crypto.SubkeyMaterial;
+import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
+import org.bruneel.pgpkeymanager.repo.AppUserRepository;
+import org.bruneel.pgpkeymanager.repo.PgpKeyRepository;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.UserIdSpecDto;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -40,6 +47,15 @@ class PgpKeyPreviewIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private PgpKeyRepository pgpKeyRepository;
+
+    @Autowired
+    private AppUserRepository appUserRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @Test
     void previewKeyringShowsRevokedSubkey() throws Exception {
@@ -99,6 +115,66 @@ class PgpKeyPreviewIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.wouldRegister", hasSize(0)))
                 .andExpect(jsonPath("$.wouldSkipCount").value(1));
+    }
+
+    @Test
+    void previewImportSubkeysFromKeyringShowsWouldUpdateForRevocationSync() throws Exception {
+        SubkeyMaterial keyring = buildKeyringWithEncryptSubkey();
+        String armoredPrivate = jsonEscape(keyring.updatedArmoredPrivate());
+
+        MvcResult register =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "preview-revocation-sync",
+                                          "keyType": "private",
+                                          "encryptedPrivateArmored": "%s"
+                                        }
+                                        """
+                                                .formatted(armoredPrivate)))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+
+        String primaryId = readJsonField(register.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("active"));
+
+        long subKeyId = PgpCryptoSupport.parseKeyIdHex(keyring.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        keyring.updatedArmoredPrivate(),
+                        PASSPHRASE.toCharArray(),
+                        subKeyId,
+                        3);
+
+        AppUser user = appUserRepository.upsertByAuth0Sub("user");
+        var updatedPrimary =
+                transactionTemplate.execute(
+                        status ->
+                                pgpKeyRepository.updateKeyringMaterial(
+                                        UUID.fromString(primaryId),
+                                        user.id(),
+                                        revoked.armoredPublic(),
+                                        revoked.armoredPrivate(),
+                                        null,
+                                        null,
+                                        null));
+        assertThat(updatedPrimary).isPresent();
+
+        mockMvc.perform(
+                        post("/api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview", primaryId)
+                                .with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.wouldRegister", hasSize(0)))
+                .andExpect(jsonPath("$.wouldUpdate", hasSize(1)))
+                .andExpect(jsonPath("$.wouldUpdate[0].status").value("revoked"))
+                .andExpect(jsonPath("$.wouldUpdate[0].fingerprint").value(keyring.fingerprint()))
+                .andExpect(jsonPath("$.wouldSkipCount").value(0));
     }
 
     private SubkeyMaterial buildKeyringWithEncryptSubkey() {

@@ -184,6 +184,10 @@ public class PgpKeyMetadataParser {
         }
 
         if (revokedAt == null) {
+            log.warn(
+                    "register_revocation_missing_timestamp fingerprint={} isPrimary={} — using current time",
+                    fingerprint,
+                    isPrimary);
             revokedAt = Instant.now();
         }
 

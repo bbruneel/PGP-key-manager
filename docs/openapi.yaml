@@ -227,6 +227,7 @@ paths:
       description: |
         Parse the primary's stored armored keyring and show which subkey rows would be
         registered, updated (revocation sync), or skipped without writing to the database.
+        Primary revocation state is not part of this preview — only subkey rows are considered.
       parameters:
         - $ref: '#/components/parameters/PrimaryKeyId'
       responses:
@@ -248,8 +249,11 @@ paths:
       description: |
         Parses non-master keys from the primary's stored armored keyring and registers metadata-only
         subkey rows for any fingerprints not already registered under this primary. Idempotent —
-        existing subkey rows are skipped. Returns `201` when new rows are registered, `200` when
-        `registered` is empty (all skipped or no subkeys in the keyring).
+        existing subkey rows that are already up to date are skipped. Active subkey rows whose
+        fingerprints are revoked in the stored keyring are synced to revoked (`updated` /
+        `updatedCount`). Primary revocation is detected on initial register only; this endpoint
+        does not update the primary row. Returns `201` when new rows are registered, `200` when
+        `registered` is empty (all skipped/synced or no subkeys in the keyring).
       parameters:
         - $ref: '#/components/parameters/PrimaryKeyId'
       responses:

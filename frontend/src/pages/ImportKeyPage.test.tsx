@@ -259,5 +259,6 @@ describe("ImportKeyPage", () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/request id: req-import-fail/i)).toBeInTheDocument()
     expect(navigate).not.toHaveBeenCalled()
+    expect(screen.getByLabelText(/armored public key/i)).toHaveValue(SAMPLE_PUBLIC_ARMOR)
   })
 })
