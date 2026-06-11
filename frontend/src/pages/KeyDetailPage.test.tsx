@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { createMemoryRouter, MemoryRouter, Route, Routes, RouterProvider } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { keysApi } from "@/lib/keys-api"
@@ -461,6 +461,33 @@ describe("KeyDetailPage", () => {
     await screen.findByRole("heading", { name: "Work key" })
 
     expect(screen.getByRole("region", { name: "Export SSH public key" })).toBeInTheDocument()
+  })
+
+  it("resets active tab to overview when navigating to a different key", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.get).mockImplementation(async ({ keyId }) => {
+      if (keyId === "sub-1") {
+        return subkey
+      }
+      return primaryKey
+    })
+
+    const router = createMemoryRouter(
+      [{ path: "/keys/:id", element: <KeyDetailPage /> }],
+      { initialEntries: ["/keys/primary-1"] },
+    )
+    render(<RouterProvider router={router} />)
+
+    await screen.findByRole("heading", { name: "Work key" })
+    await user.click(screen.getByRole("button", { name: /^subkeys$/i }))
+
+    await router.navigate("/keys/sub-1")
+    await screen.findByText(/subkey of/i)
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: /^subkeys$/i })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole("button", { name: /copy to clipboard/i })).toBeVisible()
   })
 
   it("hides SSH export for encrypt-only subkey", async () => {
