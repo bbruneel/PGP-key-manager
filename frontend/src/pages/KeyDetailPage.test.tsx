@@ -479,13 +479,13 @@ describe("KeyDetailPage", () => {
     render(<RouterProvider router={router} />)
 
     await screen.findByRole("heading", { name: "Work key" })
-    await user.click(screen.getByRole("button", { name: /^subkeys$/i }))
+    await user.click(screen.getByRole("tab", { name: /^subkeys$/i }))
 
     await router.navigate("/keys/sub-1")
     await screen.findByText(/subkey of/i)
 
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /^subkeys$/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("tab", { name: /^subkeys$/i })).not.toBeInTheDocument()
     })
     expect(screen.getByRole("button", { name: /copy to clipboard/i })).toBeVisible()
   })

@@ -65,6 +65,15 @@ function clearPassphrase<T extends { passphrase: string }>(values: T): T {
   return { ...values, passphrase: "" }
 }
 
+function tabButtonClassName(isActive: boolean) {
+  return cn(
+    "flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all outline-none -mb-[2px] cursor-pointer focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+    isActive
+      ? "border-primary text-primary"
+      : "border-transparent text-muted-foreground hover:text-foreground",
+  )
+}
+
 export function KeyDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -798,15 +807,18 @@ export function KeyDetailPage() {
       {keyData ? (
         <div className="space-y-6">
           {/* Tabs bar */}
-          <div className="flex border-b border-border bg-card/30 backdrop-blur-md rounded-t-lg">
+          <div
+            role="tablist"
+            aria-label="Key detail sections"
+            className="flex border-b border-border bg-card/30 backdrop-blur-md rounded-t-lg"
+          >
             <button
               type="button"
-              className={cn(
-                "flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all focus:outline-none -mb-[2px] cursor-pointer",
-                activeTab === "overview"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
+              id="key-detail-overview-tab"
+              role="tab"
+              aria-selected={activeTab === "overview"}
+              aria-controls="key-detail-overview-panel"
+              className={tabButtonClassName(activeTab === "overview")}
               onClick={() => setActiveTab("overview")}
             >
               <Info className="size-4" />
@@ -815,12 +827,11 @@ export function KeyDetailPage() {
             {isPrimary ? (
               <button
                 type="button"
-                className={cn(
-                  "flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all focus:outline-none -mb-[2px] cursor-pointer",
-                  activeTab === "subkeys"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
+                id="key-detail-subkeys-tab"
+                role="tab"
+                aria-selected={activeTab === "subkeys"}
+                aria-controls="key-detail-subkeys-panel"
+                className={tabButtonClassName(activeTab === "subkeys")}
                 onClick={() => setActiveTab("subkeys")}
               >
                 <Layers className="size-4" />
@@ -829,12 +840,11 @@ export function KeyDetailPage() {
             ) : null}
             <button
               type="button"
-              className={cn(
-                "flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-all focus:outline-none -mb-[2px] cursor-pointer",
-                activeTab === "actions"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
+              id="key-detail-actions-tab"
+              role="tab"
+              aria-selected={activeTab === "actions"}
+              aria-controls="key-detail-actions-panel"
+              className={tabButtonClassName(activeTab === "actions")}
               onClick={() => setActiveTab("actions")}
             >
               <ShieldAlert className="size-4" />
@@ -843,7 +853,12 @@ export function KeyDetailPage() {
           </div>
 
           {/* Overview Tab Content */}
-          <div className={cn("space-y-6", activeTab !== "overview" && "hidden")}>
+          <div
+            id="key-detail-overview-panel"
+            role="tabpanel"
+            aria-labelledby="key-detail-overview-tab"
+            className={cn("space-y-6", activeTab !== "overview" && "hidden")}
+          >
             {isSubkey && keyData.parentKeyId ? (
               <p className="text-sm text-muted-foreground">
                 Subkey of{" "}
@@ -899,7 +914,12 @@ export function KeyDetailPage() {
 
           {/* Subkeys Tab Content */}
           {isPrimary ? (
-            <div className={cn("space-y-6", activeTab !== "subkeys" && "hidden")}>
+            <div
+              id="key-detail-subkeys-panel"
+              role="tabpanel"
+              aria-labelledby="key-detail-subkeys-tab"
+              className={cn("space-y-6", activeTab !== "subkeys" && "hidden")}
+            >
               {keyData.role === "primary" && keyData.id ? (
                 <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
                   <KeyDetailSubkeys
@@ -971,7 +991,12 @@ export function KeyDetailPage() {
           ) : null}
 
           {/* Actions Tab Content */}
-          <div className={cn("space-y-6", activeTab !== "actions" && "hidden")}>
+          <div
+            id="key-detail-actions-panel"
+            role="tabpanel"
+            aria-labelledby="key-detail-actions-tab"
+            className={cn("space-y-6", activeTab !== "actions" && "hidden")}
+          >
             <div className="grid gap-6 md:grid-cols-2">
               <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
                 <RevokeKeyForm
