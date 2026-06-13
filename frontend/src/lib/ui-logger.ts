@@ -1,6 +1,6 @@
 export type UiLogLevel = "debug" | "info" | "warn" | "error"
 
-export type TabDirection = "left" | "right"
+export type TabDirection = "left" | "right" | "first" | "last"
 
 export type UiLogContext = {
   eventId: string

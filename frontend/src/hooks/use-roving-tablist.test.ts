@@ -139,4 +139,51 @@ describe("useRovingTablist", () => {
     document.body.removeChild(overviewTab)
     document.body.removeChild(actionsTab)
   })
+
+  it("activates first tab with Home key", () => {
+    const { result, onActivate, onKeyboardNav } = setup({ activeTab: "actions" })
+    const actionsTab = document.createElement("button")
+    actionsTab.id = "key-detail-actions-tab"
+    document.body.appendChild(actionsTab)
+
+    const overviewTab = document.createElement("button")
+    overviewTab.id = "key-detail-overview-tab"
+    document.body.appendChild(overviewTab)
+
+    keyDown(actionsTab, "Home", result.current.getTabProps("actions"))
+
+    expect(onActivate).toHaveBeenCalledWith("overview")
+    expect(onKeyboardNav).toHaveBeenCalledWith({
+      from: "actions",
+      to: "overview",
+      direction: "first",
+    })
+
+    document.body.removeChild(actionsTab)
+    document.body.removeChild(overviewTab)
+  })
+
+  it("activates last tab with End key", () => {
+    const { result, onActivate, onKeyboardNav } = setup({ activeTab: "overview" })
+    const overviewTab = document.createElement("button")
+    overviewTab.id = "key-detail-overview-tab"
+    document.body.appendChild(overviewTab)
+
+    const actionsTab = document.createElement("button")
+    actionsTab.id = "key-detail-actions-tab"
+    document.body.appendChild(actionsTab)
+
+    keyDown(overviewTab, "End", result.current.getTabProps("overview"))
+
+    expect(onActivate).toHaveBeenCalledWith("actions")
+    expect(onKeyboardNav).toHaveBeenCalledWith({
+      from: "overview",
+      to: "actions",
+      direction: "last",
+    })
+
+    document.body.removeChild(overviewTab)
+    document.body.removeChild(actionsTab)
+  })
 })
+

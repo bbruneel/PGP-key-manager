@@ -1,6 +1,6 @@
 import { useCallback } from "react"
 
-export type TabDirection = "left" | "right"
+export type TabDirection = "left" | "right" | "first" | "last"
 
 export type RovingTablistKeyboardNavEvent<T extends string> = {
   from: T
@@ -19,7 +19,7 @@ export type UseRovingTablistOptions<T extends string> = {
 export function getNextTabIndex(
   currentIndex: number,
   tabCount: number,
-  direction: TabDirection,
+  direction: "left" | "right",
 ): number {
   if (tabCount <= 0) {
     return 0
@@ -41,11 +41,14 @@ export function useRovingTablist<T extends string>({
 }: UseRovingTablistOptions<T>) {
   const handleTabKeyDown = useCallback(
     (event: React.KeyboardEvent, tab: T) => {
-      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") {
+      if (
+        event.key !== "ArrowRight" &&
+        event.key !== "ArrowLeft" &&
+        event.key !== "Home" &&
+        event.key !== "End"
+      ) {
         return
       }
-
-      const direction: TabDirection = event.key === "ArrowRight" ? "right" : "left"
 
       event.preventDefault()
 
@@ -54,7 +57,23 @@ export function useRovingTablist<T extends string>({
         return
       }
 
-      const nextIndex = getNextTabIndex(currentIndex, tabs.length, direction)
+      let nextIndex = currentIndex
+      let direction: TabDirection = "right"
+
+      if (event.key === "ArrowRight") {
+        nextIndex = getNextTabIndex(currentIndex, tabs.length, "right")
+        direction = "right"
+      } else if (event.key === "ArrowLeft") {
+        nextIndex = getNextTabIndex(currentIndex, tabs.length, "left")
+        direction = "left"
+      } else if (event.key === "Home") {
+        nextIndex = 0
+        direction = "first"
+      } else if (event.key === "End") {
+        nextIndex = tabs.length - 1
+        direction = "last"
+      }
+
       const nextTab = tabs[nextIndex]
       if (!nextTab) {
         return
@@ -80,3 +99,4 @@ export function useRovingTablist<T extends string>({
 
   return { getTabProps }
 }
+

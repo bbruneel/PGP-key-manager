@@ -571,4 +571,44 @@ describe("KeyDetailPage", () => {
     })
     expect(screen.getByRole("region", { name: "Revoke key" })).toBeVisible()
   })
+
+  it("activates overview tab with Home key from actions tab", async () => {
+    const user = userEvent.setup()
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const actionsTab = screen.getByRole("tab", { name: /actions & lifecycle/i })
+    actionsTab.focus()
+    await user.click(actionsTab) // select it first to set state
+
+    await user.keyboard("{Home}")
+
+    const overviewTab = screen.getByRole("tab", { name: /^overview$/i })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(overviewTab)
+    })
+    expect(screen.getByRole("region", { name: "Key summary" })).toBeVisible()
+  })
+
+  it("activates actions tab with End key from overview tab", async () => {
+    const user = userEvent.setup()
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const overviewTab = screen.getByRole("tab", { name: /^overview$/i })
+    overviewTab.focus()
+
+    await user.keyboard("{End}")
+
+    const actionsTab = screen.getByRole("tab", { name: /actions & lifecycle/i })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(actionsTab)
+    })
+    expect(screen.getByRole("region", { name: "Revoke key" })).toBeVisible()
+  })
 })
+
