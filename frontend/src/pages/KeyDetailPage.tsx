@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -16,6 +16,7 @@ import { KeySshExportAction } from "@/components/keys/key-ssh-export-action"
 import { RevokeKeyForm } from "@/components/keys/revoke-key-form"
 import { RotateKeyForm } from "@/components/keys/rotate-key-form"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
+import { useRovingTablist } from "@/hooks/use-roving-tablist"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import {
   buildCreateSubkeyRequest,
@@ -74,6 +75,8 @@ function tabButtonClassName(isActive: boolean) {
   )
 }
 
+type KeyDetailTab = "overview" | "subkeys" | "actions"
+
 export function KeyDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -129,7 +132,7 @@ export function KeyDetailPage() {
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<"overview" | "subkeys" | "actions">("overview")
+  const [activeTab, setActiveTab] = useState<KeyDetailTab>("overview")
   const [prevId, setPrevId] = useState(id)
 
   if (id !== prevId) {
@@ -198,6 +201,27 @@ export function KeyDetailPage() {
   const showSshExport = Boolean(
     keyData && isSshExportableKey(keyData.capabilities, keyData.algorithm),
   )
+
+  const visibleTabs = useMemo<readonly KeyDetailTab[]>(
+    () => (isPrimary ? ["overview", "subkeys", "actions"] : ["overview", "actions"]),
+    [isPrimary],
+  )
+
+  const { getTabProps } = useRovingTablist<KeyDetailTab>({
+    tabs: visibleTabs,
+    activeTab,
+    onActivate: setActiveTab,
+    getTabElementId: (tab) => `key-detail-${tab}-tab`,
+    onKeyboardNav: ({ to, direction }) => {
+      logUiEvent("debug", {
+        eventId: "keyDetail.tabs.keyboardNav",
+        message: "Key detail tab focus moved via keyboard",
+        keyId: id,
+        tab: to,
+        direction,
+      })
+    },
+  })
 
   const handleRefresh = useCallback(() => {
     logUiEvent("info", {
@@ -819,6 +843,7 @@ export function KeyDetailPage() {
               aria-selected={activeTab === "overview"}
               aria-controls="key-detail-overview-panel"
               className={tabButtonClassName(activeTab === "overview")}
+              {...getTabProps("overview")}
               onClick={() => setActiveTab("overview")}
             >
               <Info className="size-4" />
@@ -832,6 +857,7 @@ export function KeyDetailPage() {
                 aria-selected={activeTab === "subkeys"}
                 aria-controls="key-detail-subkeys-panel"
                 className={tabButtonClassName(activeTab === "subkeys")}
+                {...getTabProps("subkeys")}
                 onClick={() => setActiveTab("subkeys")}
               >
                 <Layers className="size-4" />
@@ -845,6 +871,7 @@ export function KeyDetailPage() {
               aria-selected={activeTab === "actions"}
               aria-controls="key-detail-actions-panel"
               className={tabButtonClassName(activeTab === "actions")}
+              {...getTabProps("actions")}
               onClick={() => setActiveTab("actions")}
             >
               <ShieldAlert className="size-4" />
