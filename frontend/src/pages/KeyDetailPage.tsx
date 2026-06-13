@@ -79,6 +79,14 @@ type KeyDetailTab = "overview" | "subkeys" | "actions"
 
 export function KeyDetailPage() {
   const { id } = useParams<{ id: string }>()
+  if (!id) {
+    return null
+  }
+  return <KeyDetailPageContent key={id} />
+}
+
+function KeyDetailPageContent() {
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
 
@@ -133,12 +141,6 @@ export function KeyDetailPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
   const [activeTab, setActiveTab] = useState<KeyDetailTab>("overview")
-  const [prevId, setPrevId] = useState(id)
-
-  if (id !== prevId) {
-    setPrevId(id)
-    setActiveTab("overview")
-  }
 
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
@@ -181,6 +183,15 @@ export function KeyDetailPage() {
     })
   }, [id])
 
+  useEffect(() => {
+    return () => {
+      logUiEvent("debug", {
+        eventId: "keyDetail.unmount",
+        message: "Key detail unmounted; form state cleared",
+        keyId: id,
+      })
+    }
+  }, [id])
 
   useEffect(() => {
     queueMicrotask(() => {
