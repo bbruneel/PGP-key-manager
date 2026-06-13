@@ -1,5 +1,7 @@
 export type UiLogLevel = "debug" | "info" | "warn" | "error"
 
+export type TabDirection = "left" | "right"
+
 export type UiLogContext = {
   eventId: string
   message: string
@@ -16,6 +18,8 @@ export type UiLogContext = {
   view?: string
   keyStatus?: string
   filterCapability?: string
+  tab?: string
+  direction?: TabDirection
 }
 
 const LOG_PREFIX = "[pgp-ui]"
@@ -66,6 +70,8 @@ export function logUiEvent(
     view: context.view,
     keyStatus: context.keyStatus,
     filterCapability: context.filterCapability,
+    tab: context.tab,
+    direction: context.direction,
   }
 
   switch (level) {
