@@ -125,7 +125,7 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/keys` | List keys for the signed-in user | Current |
 | `/keys/new` | Create primary key (Ed25519 default; advanced RSA/ECDSA/Ed448, OpenPGP v4/v6) | Phase 1 + 6 (implemented) |
 | `/keys/import` | Import/register existing key (public or private armored blocks + fingerprint) | Phase 2 (implemented) |
-| `/keys/:id` | Key detail, subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, export) | Phase 3 + 4 + 6 (implemented) |
+| `/keys/:id` | Key detail (tabbed: Overview / Subkeys / Actions), subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, export) | Phase 3 + 4 + 6 + PR #33 (implemented) |
 
 **Recorded decision:** create primary key at **`/keys/new`** and import at **`/keys/import`**, not modals on `/keys`.
 

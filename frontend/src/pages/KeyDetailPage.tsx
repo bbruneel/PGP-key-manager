@@ -4,17 +4,9 @@ import { toast } from "sonner"
 
 import { notifyAlgorithmAdjusted } from "@/lib/algorithm-adjustment-toast"
 
-import { CreateSubkeyForm } from "@/components/keys/create-subkey-form"
-import { DeleteKeyForm } from "@/components/keys/delete-key-form"
-import { EditKeyLabelForm } from "@/components/keys/edit-key-label-form"
-import { ImportSubkeysForm } from "@/components/keys/import-subkeys-form"
-import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
-import { KeyDetailSubkeys } from "@/components/keys/key-detail-subkeys"
-import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
-import { KeyExportAction } from "@/components/keys/key-export-action"
-import { KeySshExportAction } from "@/components/keys/key-ssh-export-action"
-import { RevokeKeyForm } from "@/components/keys/revoke-key-form"
-import { RotateKeyForm } from "@/components/keys/rotate-key-form"
+import { ActionsTab } from "@/components/keys/actions-tab"
+import { OverviewTab } from "@/components/keys/overview-tab"
+import { SubkeysTab } from "@/components/keys/subkeys-tab"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { useRovingTablist } from "@/hooks/use-roving-tablist"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
@@ -891,234 +883,125 @@ function KeyDetailPageContent() {
           </div>
 
           {/* Overview Tab Content */}
-          <div
-            id="key-detail-overview-panel"
-            role="tabpanel"
-            aria-labelledby="key-detail-overview-tab"
-            className={cn("space-y-6", activeTab !== "overview" && "hidden")}
-          >
-            {isSubkey && keyData.parentKeyId ? (
-              <p className="text-sm text-muted-foreground">
-                Subkey of{" "}
-                <Link
-                  to={`/keys/${keyData.parentKeyId}`}
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  primary key
-                </Link>
-              </p>
-            ) : null}
-
-            <KeyDetailSummary keyData={keyData} />
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
-                <EditKeyLabelForm
-                  values={updateLabelValues}
-                  fieldErrors={updateLabelFieldErrors}
-                  apiError={updateLabelApiError}
-                  requestId={updateLabelRequestId}
-                  submitting={updateLabelSubmitting}
-                  disabled={false}
-                  onChange={(nextValues) => {
-                    setUpdateLabelValues(nextValues)
-                    setUpdateLabelFieldErrors({})
-                  }}
-                  onSubmit={() => void handleUpdateLabelSubmit()}
-                />
-              </div>
-
-              <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm flex flex-col justify-between">
-                <KeyExportAction
-                  keyId={keyData.id!}
-                  fingerprint={keyData.fingerprint}
-                  getAccessToken={getAccessToken}
-                  invalidateToken={subkeysRefreshToken}
-                />
-                {showSshExport ? (
-                  <div className="mt-5 pt-5 border-t border-border">
-                    <KeySshExportAction
-                      keyId={keyData.id!}
-                      fingerprint={keyData.fingerprint}
-                      keyIdHex={keyData.keyId}
-                      getAccessToken={getAccessToken}
-                      invalidateToken={subkeysRefreshToken}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
+          <OverviewTab
+            isActive={activeTab === "overview"}
+            keyData={keyData}
+            isSubkey={isSubkey}
+            showSshExport={showSshExport}
+            subkeysRefreshToken={subkeysRefreshToken}
+            getAccessToken={getAccessToken}
+            updateLabelValues={updateLabelValues}
+            updateLabelFieldErrors={updateLabelFieldErrors}
+            updateLabelApiError={updateLabelApiError}
+            updateLabelRequestId={updateLabelRequestId}
+            updateLabelSubmitting={updateLabelSubmitting}
+            onUpdateLabelChange={(nextValues) => {
+              setUpdateLabelValues(nextValues)
+              setUpdateLabelFieldErrors({})
+            }}
+            onUpdateLabelSubmit={() => void handleUpdateLabelSubmit()}
+          />
 
           {/* Subkeys Tab Content */}
           {isPrimary ? (
-            <div
-              id="key-detail-subkeys-panel"
-              role="tabpanel"
-              aria-labelledby="key-detail-subkeys-tab"
-              className={cn("space-y-6", activeTab !== "subkeys" && "hidden")}
-            >
-              {keyData.role === "primary" && keyData.id ? (
-                <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
-                  <KeyDetailSubkeys
-                    primaryKeyId={keyData.id}
-                    getAccessToken={getAccessToken}
-                    refreshToken={subkeysRefreshToken}
-                  />
-                </div>
-              ) : null}
-
-              {showMetadataOnlyHint ? (
-                <div className="rounded-xl border border-dashed border-border bg-muted/20 p-5 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Import or register private key material to add subkeys.
-                  </p>
-                </div>
-              ) : null}
-
-              {(canImportSubkeys || canCreateSubkey) ? (
-                <div className="grid gap-6 md:grid-cols-2">
-                  {canImportSubkeys ? (
-                    <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
-                      <ImportSubkeysForm
-                        apiError={importSubkeysApiError}
-                        requestId={importSubkeysRequestId}
-                        submitting={importSubkeysSubmitting}
-                        previewing={importSubkeysPreviewing}
-                        preview={importSubkeysPreview}
-                        disabled={false}
-                        onPreview={() => void handleImportSubkeysPreview()}
-                        onSubmit={() => void handleImportSubkeysSubmit()}
-                      />
-                    </div>
-                  ) : null}
-
-                  {canCreateSubkey ? (
-                    <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
-                      <CreateSubkeyForm
-                        values={createSubkeyValues}
-                        fieldErrors={createSubkeyFieldErrors}
-                        apiError={createSubkeyApiError}
-                        requestId={createSubkeyRequestId}
-                        submitting={createSubkeySubmitting}
-                        disabled={false}
-                        primaryOpenpgpVersion={primaryOpenpgpVersion}
-                        onChange={(nextValues) => {
-                          setCreateSubkeyValues(nextValues)
-                          setCreateSubkeyFieldErrors({})
-                        }}
-                        onAlgorithmAdjusted={(nextValues, previousValues) => {
-                          notifyAlgorithmAdjusted(previousValues, nextValues)
-                          logUiEvent("debug", {
-                            eventId: "keyDetail.createSubkey.algorithmAdjusted",
-                            message: "Create subkey algorithm adjusted for capabilities",
-                            keyId: id,
-                            algorithm: nextValues.algorithm,
-                            previousAlgorithm: previousValues.algorithm,
-                            capabilities: nextValues.capabilities,
-                            openpgpVersion: primaryOpenpgpVersion,
-                          })
-                        }}
-                        onSubmit={() => void handleCreateSubkeySubmit()}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+            <SubkeysTab
+              isActive={activeTab === "subkeys"}
+              keyData={keyData}
+              showMetadataOnlyHint={showMetadataOnlyHint}
+              canImportSubkeys={canImportSubkeys}
+              canCreateSubkey={canCreateSubkey}
+              primaryOpenpgpVersion={primaryOpenpgpVersion}
+              subkeysRefreshToken={subkeysRefreshToken}
+              getAccessToken={getAccessToken}
+              importSubkeysApiError={importSubkeysApiError}
+              importSubkeysRequestId={importSubkeysRequestId}
+              importSubkeysSubmitting={importSubkeysSubmitting}
+              importSubkeysPreviewing={importSubkeysPreviewing}
+              importSubkeysPreview={importSubkeysPreview}
+              onImportSubkeysPreview={() => void handleImportSubkeysPreview()}
+              onImportSubkeysSubmit={() => void handleImportSubkeysSubmit()}
+              createSubkeyValues={createSubkeyValues}
+              createSubkeyFieldErrors={createSubkeyFieldErrors}
+              createSubkeyApiError={createSubkeyApiError}
+              createSubkeyRequestId={createSubkeyRequestId}
+              createSubkeySubmitting={createSubkeySubmitting}
+              onCreateSubkeyChange={(nextValues) => {
+                setCreateSubkeyValues(nextValues)
+                setCreateSubkeyFieldErrors({})
+              }}
+              onCreateSubkeyAlgorithmAdjusted={(nextValues, previousValues) => {
+                notifyAlgorithmAdjusted(previousValues, nextValues)
+                logUiEvent("debug", {
+                  eventId: "keyDetail.createSubkey.algorithmAdjusted",
+                  message: "Create subkey algorithm adjusted for capabilities",
+                  keyId: id,
+                  algorithm: nextValues.algorithm,
+                  previousAlgorithm: previousValues.algorithm,
+                  capabilities: nextValues.capabilities,
+                  openpgpVersion: primaryOpenpgpVersion,
+                })
+              }}
+              onCreateSubkeySubmit={() => void handleCreateSubkeySubmit()}
+            />
           ) : null}
 
           {/* Actions Tab Content */}
-          <div
-            id="key-detail-actions-panel"
-            role="tabpanel"
-            aria-labelledby="key-detail-actions-tab"
-            className={cn("space-y-6", activeTab !== "actions" && "hidden")}
-          >
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
-                <RevokeKeyForm
-                  values={revokeValues}
-                  fieldErrors={revokeFieldErrors}
-                  apiError={revokeApiError}
-                  requestId={revokeRequestId}
-                  submitting={revokeSubmitting}
-                  disabled={isRevoked}
-                  requiresPassphrase={requiresPassphrase}
-                  onChange={(nextValues) => {
-                    setRevokeValues(nextValues)
-                    setRevokeFieldErrors({})
-                  }}
-                  onSubmit={() => void handleRevokeSubmit()}
-                />
-              </div>
-
-              <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
-                <ExtendExpiryForm
-                  values={extendValues}
-                  fieldErrors={extendFieldErrors}
-                  apiError={extendApiError}
-                  requestId={extendRequestId}
-                  submitting={extendSubmitting}
-                  disabled={!canExtend}
-                  requiresPassphrase={canExtend}
-                  onChange={(nextValues) => {
-                    setExtendValues(nextValues)
-                    setExtendFieldErrors({})
-                  }}
-                  onSubmit={() => void handleExtendSubmit()}
-                />
-              </div>
-            </div>
-
-            {isSubkey ? (
-              <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
-                <RotateKeyForm
-                  values={rotateValues}
-                  fieldErrors={rotateFieldErrors}
-                  apiError={rotateApiError}
-                  requestId={rotateRequestId}
-                  submitting={rotateSubmitting}
-                  disabled={!canRotate}
-                  primaryOpenpgpVersion={primaryOpenpgpVersion}
-                  onChange={(nextValues) => {
-                    setRotateValues(nextValues)
-                    setRotateFieldErrors({})
-                  }}
-                  onAlgorithmAdjusted={(nextValues, previousValues) => {
-                    notifyAlgorithmAdjusted(previousValues, nextValues)
-                    logUiEvent("debug", {
-                      eventId: "keyDetail.rotate.algorithmAdjusted",
-                      message: "Rotate subkey algorithm adjusted for capabilities",
-                      keyId: id,
-                      algorithm: nextValues.algorithm,
-                      previousAlgorithm: previousValues.algorithm,
-                      capabilities: nextValues.capabilities,
-                      openpgpVersion: primaryOpenpgpVersion,
-                    })
-                  }}
-                  onSubmit={() => void handleRotateSubmit()}
-                />
-              </div>
-            ) : null}
-
-            {/* Danger Zone */}
-            <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-destructive mb-1">Danger Zone</h3>
-              <p className="text-xs text-muted-foreground mb-4">
-                Deleting a key is permanent and removes it from the vault database. It does not perform cryptographic revocation.
-              </p>
-              <DeleteKeyForm
-                role={keyData.role ?? "primary"}
-                fingerprint={keyData.fingerprint}
-                apiError={deleteApiError}
-                requestId={deleteRequestId}
-                submitting={deleteSubmitting}
-                disabled={false}
-                onSubmit={() => void handleDeleteSubmit()}
-              />
-            </div>
-          </div>
+          <ActionsTab
+            isActive={activeTab === "actions"}
+            keyData={keyData}
+            isSubkey={isSubkey}
+            isRevoked={isRevoked}
+            requiresPassphrase={requiresPassphrase}
+            canExtend={canExtend}
+            canRotate={canRotate}
+            primaryOpenpgpVersion={primaryOpenpgpVersion}
+            revokeValues={revokeValues}
+            revokeFieldErrors={revokeFieldErrors}
+            revokeApiError={revokeApiError}
+            revokeRequestId={revokeRequestId}
+            revokeSubmitting={revokeSubmitting}
+            onRevokeChange={(nextValues) => {
+              setRevokeValues(nextValues)
+              setRevokeFieldErrors({})
+            }}
+            onRevokeSubmit={() => void handleRevokeSubmit()}
+            extendValues={extendValues}
+            extendFieldErrors={extendFieldErrors}
+            extendApiError={extendApiError}
+            extendRequestId={extendRequestId}
+            extendSubmitting={extendSubmitting}
+            onExtendChange={(nextValues) => {
+              setExtendValues(nextValues)
+              setExtendFieldErrors({})
+            }}
+            onExtendSubmit={() => void handleExtendSubmit()}
+            rotateValues={rotateValues}
+            rotateFieldErrors={rotateFieldErrors}
+            rotateApiError={rotateApiError}
+            rotateRequestId={rotateRequestId}
+            rotateSubmitting={rotateSubmitting}
+            onRotateChange={(nextValues) => {
+              setRotateValues(nextValues)
+              setRotateFieldErrors({})
+            }}
+            onRotateAlgorithmAdjusted={(nextValues, previousValues) => {
+              notifyAlgorithmAdjusted(previousValues, nextValues)
+              logUiEvent("debug", {
+                eventId: "keyDetail.rotate.algorithmAdjusted",
+                message: "Rotate subkey algorithm adjusted for capabilities",
+                keyId: id,
+                algorithm: nextValues.algorithm,
+                previousAlgorithm: previousValues.algorithm,
+                capabilities: nextValues.capabilities,
+                openpgpVersion: primaryOpenpgpVersion,
+              })
+            }}
+            onRotateSubmit={() => void handleRotateSubmit()}
+            deleteApiError={deleteApiError}
+            deleteRequestId={deleteRequestId}
+            deleteSubmitting={deleteSubmitting}
+            onDeleteSubmit={() => void handleDeleteSubmit()}
+          />
         </div>
       ) : null}
     </section>
