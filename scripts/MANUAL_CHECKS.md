@@ -169,6 +169,16 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 
 ---
 
+## Phase 11 — Passphrase reset on key navigation
+
+1. Open a primary key with private material (`/keys/:id`).
+2. Go to **Actions & Lifecycle**, type a passphrase in **Revoke key** (do not submit).
+3. Navigate to another key (subkey **View** link, keys list, or change the URL).
+4. Confirm passphrase fields are empty on the new key detail.
+5. DevTools console: verify `[pgp-ui] keyDetail.unmount` for the previous key and `keyDetail.pageView` for the new key.
+
+---
+
 ## PR sign-off template
 
 Copy into the PR test plan when complete:

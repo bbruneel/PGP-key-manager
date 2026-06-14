@@ -463,6 +463,52 @@ describe("KeyDetailPage", () => {
     expect(screen.getByRole("region", { name: "Export SSH public key" })).toBeInTheDocument()
   })
 
+  it("clears passphrase fields when navigating to another key", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.get).mockImplementation(async ({ keyId }) => {
+      if (keyId === "sub-1") {
+        return subkey
+      }
+      return primaryKey
+    })
+    vi.mocked(keysApi.listSubkeys).mockResolvedValue([subkey])
+
+    const router = createMemoryRouter(
+      [{ path: "/keys/:id", element: <KeyDetailPage /> }],
+      { initialEntries: ["/keys/primary-1"] },
+    )
+    render(<RouterProvider router={router} />)
+
+    await screen.findByRole("heading", { name: "Work key" })
+    await user.click(screen.getByRole("tab", { name: /actions & lifecycle/i }))
+
+    const revokeSection = screen.getByRole("region", { name: "Revoke key" })
+    await user.type(within(revokeSection).getByLabelText(/^passphrase$/i), "secret-passphrase")
+
+    await router.navigate("/keys/sub-1")
+    await screen.findByText(/subkey of/i)
+
+    await user.click(screen.getByRole("tab", { name: /actions & lifecycle/i }))
+    const rotateSection = screen.getByRole("region", { name: "Rotate subkey" })
+    expect(within(rotateSection).getByLabelText(/^passphrase$/i)).toHaveValue("")
+
+    await router.navigate("/keys/primary-1")
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: /^subkeys$/i })).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole("tab", { name: /actions & lifecycle/i }))
+    const revokeSectionAfterReturn = screen.getByRole("region", { name: "Revoke key" })
+    expect(within(revokeSectionAfterReturn).getByLabelText(/^passphrase$/i)).toHaveValue("")
+
+    expect(logUiEvent).toHaveBeenCalledWith(
+      "debug",
+      expect.objectContaining({
+        eventId: "keyDetail.unmount",
+        keyId: "primary-1",
+      }),
+    )
+  })
+
   it("resets active tab to overview when navigating to a different key", async () => {
     const user = userEvent.setup()
     vi.mocked(keysApi.get).mockImplementation(async ({ keyId }) => {
