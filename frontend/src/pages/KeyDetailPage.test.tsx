@@ -154,6 +154,30 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.listSubkeys).mockResolvedValue([])
   })
 
+  it("keeps inactive tab panels in the DOM with hidden class", async () => {
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const overviewPanel = document.getElementById("key-detail-overview-panel")
+    const subkeysPanel = document.getElementById("key-detail-subkeys-panel")
+    const actionsPanel = document.getElementById("key-detail-actions-panel")
+
+    expect(overviewPanel).toBeInTheDocument()
+    expect(subkeysPanel).toBeInTheDocument()
+    expect(actionsPanel).toBeInTheDocument()
+
+    expect(overviewPanel).not.toHaveClass("hidden")
+    expect(subkeysPanel).toHaveClass("hidden")
+    expect(actionsPanel).toHaveClass("hidden")
+
+    expect(overviewPanel).toHaveAttribute("data-pgp-ui", "keyDetail.tab.overview")
+    expect(subkeysPanel).toHaveAttribute("data-pgp-ui", "keyDetail.tab.subkeys")
+    expect(actionsPanel).toHaveAttribute("data-pgp-ui", "keyDetail.tab.actions")
+
+    expect(screen.getByRole("region", { name: "Revoke key" })).toBeInTheDocument()
+  })
+
   it("loads and renders key detail", async () => {
     renderDetail()
 

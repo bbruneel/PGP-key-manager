@@ -179,6 +179,16 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 
 ---
 
+## Phase 12 — Tab panel extraction
+
+1. Open a primary key detail (`/keys/:id`).
+2. Confirm **Overview**, **Subkeys**, and **Actions & Lifecycle** tabs render and switch correctly.
+3. Use ArrowLeft/ArrowRight on the tab bar — focus and panel content should update.
+4. In DevTools Elements, confirm inactive panels have class `hidden` but remain in the DOM (`data-pgp-ui="keyDetail.tab.overview|subkeys|actions"`).
+5. Lifecycle forms (revoke, add subkey, delete) still work from their respective tabs.
+
+---
+
 ## PR sign-off template
 
 Copy into the PR test plan when complete:
