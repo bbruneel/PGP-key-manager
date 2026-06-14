@@ -113,7 +113,7 @@ sequenceDiagram
 
 **Transactional boundaries:** `PgpKeyService` mutations run in a single database transaction so keyring updates and row inserts succeed or roll back together.
 
-**Passphrase handling:** passphrases are converted to `char[]`, used for Bouncy Castle decrypt/sign operations, then zeroed via `PassphraseUtil`.
+**Passphrase handling:** REST request DTOs deserialize passphrases into wipeable `char[]` via `PassphraseCharArrayDeserializer` and `@JsonPassphrase` (Phase 14). `PassphraseUtil` uses those arrays for Bouncy Castle decrypt/sign operations, logs `passphrase_memory_cleared operation=...` at DEBUG, then zeroes memory. Rotate clones passphrases before nested revoke/create-subkey calls so each operation can wipe independently.
 
 ## Frontend navigation and UX
 
