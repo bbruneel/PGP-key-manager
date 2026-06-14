@@ -132,11 +132,10 @@ export interface paths {
          * Import subkey rows from stored keyring
          * @description Parses non-master keys from the primary's stored armored keyring and registers metadata-only
          *     subkey rows for any fingerprints not already registered under this primary. Idempotent —
-         *     existing subkey rows that are already up to date are skipped. Active subkey rows whose
-         *     fingerprints are revoked in the stored keyring are synced to revoked (`updated` /
-         *     `updatedCount`). Primary revocation is detected on initial register only; this endpoint
-         *     does not update the primary row. Returns `201` when new rows are registered, `200` when
-         *     `registered` is empty (all skipped/synced or no subkeys in the keyring).
+         *     existing subkey rows that are already up to date are skipped. Active primary and subkey rows
+         *     whose fingerprints are revoked in the stored keyring are synced to revoked (`updated` /
+         *     `updatedCount`, including `role: primary` for the primary row). Returns `201` when new rows
+         *     are registered, `200` when only sync or skip occurred.
          */
         post: operations["importSubkeysFromKeyring"];
         delete?: never;
@@ -401,9 +400,9 @@ export interface components {
             registered: components["schemas"]["PgpKeySummary"][];
             /** @description Subkeys already registered under this primary that were skipped. */
             skippedCount: number;
-            /** @description Existing subkey rows synced to revoked status from the keyring. */
+            /** @description Existing primary or subkey rows synced to revoked status from the keyring. */
             updated: components["schemas"]["PgpKeySummary"][];
-            /** @description Number of existing subkey rows updated (revocation sync). */
+            /** @description Number of existing rows updated (revocation sync, including primary). */
             updatedCount: number;
         };
         PreviewKeyEntry: {
@@ -565,6 +564,18 @@ export interface operations {
             };
         };
         responses: {
+            /**
+             * @description Existing primary key with the same fingerprint was found. Stored armored material was
+             *     updated and keyring metadata synced (primary/subkey revocation, missing subkey rows).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PgpKey"];
+                };
+            };
             /** @description Primary key created */
             201: {
                 headers: {

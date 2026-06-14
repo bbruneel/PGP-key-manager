@@ -117,6 +117,29 @@ class PgpKeyControllerTest {
     }
 
     @Test
+    void createReturns200WhenReRegistered() throws Exception {
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.create(eq(USER), any(CreatePgpKeyRequest.class)))
+                .thenReturn(new CreateKeyOutcome(key, 0, true));
+
+        mockMvc.perform(post("/api/keys")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "fingerprint": "A1B2C3D4E5F6789012345678ABCDEF0123456789",
+                                  "keyType": "public",
+                                  "armoredPublic": "-----BEGIN PGP PUBLIC KEY BLOCK-----"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(key.id().toString()));
+
+        verify(pgpKeyService).create(eq(USER), any(CreatePgpKeyRequest.class));
+    }
+
+    @Test
     void previewKeyringReturnsParsedMetadata() throws Exception {
         PreviewKeyEntry primary =
                 new PreviewKeyEntry(

@@ -302,6 +302,34 @@ describe("ImportKeyPage", () => {
     expect(keysApi.register).not.toHaveBeenCalled()
   })
 
+  it("redirects to key detail when re-importing an existing fingerprint syncs keyring", async () => {
+    const user = userEvent.setup()
+    const { toast } = await import("sonner")
+
+    vi.mocked(keysApi.register).mockResolvedValue({
+      id: "existing-primary",
+      fingerprint: "DEADBEEF0123456789ABCDEF0123456789ABCD",
+      role: "primary",
+      status: "revoked",
+      registeredSubkeyCount: 0,
+    })
+
+    renderImportKeyPage()
+
+    await user.type(screen.getByLabelText(/armored public key/i), SAMPLE_PUBLIC_ARMOR)
+    await user.click(getSubmitButton())
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("/keys/existing-primary")
+      expect(toast.success).toHaveBeenCalledWith(
+        "Key imported",
+        expect.objectContaining({
+          description: expect.stringContaining("DEADBEEF0123456789ABCDEF0123456789ABCD"),
+        }),
+      )
+    })
+  })
+
   it("shows ApiError detail and request id on failure", async () => {
     const user = userEvent.setup()
     vi.mocked(keysApi.register).mockRejectedValue(

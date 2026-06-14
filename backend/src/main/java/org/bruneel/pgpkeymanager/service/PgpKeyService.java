@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -176,9 +177,8 @@ public class PgpKeyService {
     }
 
     /**
-     * Registers missing subkey rows and syncs revocation for existing subkeys from the stored
-     * keyring. Does not update the primary row — primary revocation is applied on initial
-     * register when armored material is parsed.
+     * Registers missing subkey rows and syncs revocation for existing subkeys and the primary from
+     * the stored keyring.
      */
     public ImportSubkeysResult importSubkeysFromKeyring(AppUser user, UUID primaryKeyId) {
         long start = System.currentTimeMillis();
@@ -194,8 +194,7 @@ public class PgpKeyService {
             }
 
             ImportedKeyringMetadata keyring = metadataParser.parseKeyring(armoredPublic, armoredPrivate);
-            ImportSubkeysResult result =
-                    registerImportedSubkeys(user, primary, keyring.subkeys(), primary.keyType());
+            ImportSubkeysResult result = importSubkeysFromParsedKeyring(user, primary, keyring);
             log.info(
                     "import_subkeys_from_keyring_completed parentKeyId={} registeredCount={} skippedCount={} updatedCount={} fingerprints={}",
                     primaryKeyId,
@@ -518,6 +517,12 @@ public class PgpKeyService {
         ImportedKeyMetadata metadata = keyring.primary();
         metadataParser.validateFingerprintMatch(metadata, request.fingerprint());
 
+        Optional<PgpKey> existing =
+                pgpKeyRepository.findPrimaryByUserIdAndFingerprint(user.id(), metadata.fingerprint());
+        if (existing.isPresent()) {
+            return syncKeyringOnReRegister(user, existing.get(), request, keyring, keyType);
+        }
+
         PgpKey primary;
         try {
             primary =
@@ -551,6 +556,80 @@ public class PgpKeyService {
             registeredSubkeyCount = importResult.registered().size();
         }
         return new CreateKeyOutcome(primary, registeredSubkeyCount);
+    }
+
+    private CreateKeyOutcome syncKeyringOnReRegister(
+            AppUser user,
+            PgpKey existing,
+            CreatePgpKeyRequest request,
+            ImportedKeyringMetadata keyring,
+            KeyType keyType) {
+        pgpKeyRepository
+                .updateKeyringMaterial(
+                        existing.id(),
+                        user.id(),
+                        request.armoredPublic(),
+                        request.encryptedPrivateArmored(),
+                        null,
+                        null,
+                        null)
+                .orElseThrow(() -> new KeyNotFoundException(existing.id()));
+
+        PgpKey refreshed =
+                pgpKeyRepository
+                        .findByIdAndUserId(existing.id(), user.id())
+                        .orElseThrow(() -> new KeyNotFoundException(existing.id()));
+
+        ImportSubkeysResult importResult = importSubkeysFromParsedKeyring(user, refreshed, keyring);
+        PgpKey resultKey =
+                importResult.updated().stream()
+                        .filter(key -> key.id().equals(refreshed.id()))
+                        .findFirst()
+                        .orElse(refreshed);
+
+        log.info(
+                "register_key_reimport_sync parentKeyId={} fingerprint={} primaryRevocationSynced={} subkeysRegistered={} subkeysUpdated={}",
+                resultKey.id(),
+                resultKey.fingerprint(),
+                importResult.updated().stream().anyMatch(key -> key.id().equals(resultKey.id())),
+                importResult.registered().size(),
+                importResult.updated().stream().filter(key -> !key.id().equals(resultKey.id())).count());
+
+        return new CreateKeyOutcome(resultKey, importResult.registered().size(), true);
+    }
+
+    private ImportSubkeysResult importSubkeysFromParsedKeyring(
+            AppUser user, PgpKey primary, ImportedKeyringMetadata keyring) {
+        List<PgpKey> updated = new ArrayList<>();
+        syncPrimaryRevocationFromKeyring(user, primary, keyring.primary()).ifPresent(updated::add);
+
+        ImportSubkeysResult subkeyResult =
+                registerImportedSubkeys(user, primary, keyring.subkeys(), primary.keyType());
+        updated.addAll(subkeyResult.updated());
+        return new ImportSubkeysResult(subkeyResult.registered(), subkeyResult.skippedCount(), List.copyOf(updated));
+    }
+
+    private Optional<PgpKey> syncPrimaryRevocationFromKeyring(
+            AppUser user, PgpKey primary, ImportedKeyMetadata keyringPrimary) {
+        if (!primary.fingerprint().equalsIgnoreCase(keyringPrimary.fingerprint())) {
+            return Optional.empty();
+        }
+        if (primary.revokedAt() != null || keyringPrimary.revokedAt() == null) {
+            return Optional.empty();
+        }
+        RevocationReason reason =
+                keyringPrimary.revocationReason() != null
+                        ? keyringPrimary.revocationReason()
+                        : RevocationReason.NO_REASON;
+        PgpKey synced =
+                pgpKeyRepository
+                        .markRevoked(primary.id(), user.id(), keyringPrimary.revokedAt(), reason)
+                        .orElseThrow(() -> new KeyNotFoundException(primary.id()));
+        log.info(
+                "import_subkeys_from_keyring_primary_revocation_synced parentKeyId={} fingerprint={}",
+                primary.id(),
+                primary.fingerprint());
+        return Optional.of(synced);
     }
 
     private ImportSubkeysResult registerImportedSubkeys(
@@ -869,6 +948,9 @@ public class PgpKeyService {
         List<PreviewKeyEntry> wouldRegister = new ArrayList<>();
         List<PreviewKeyEntry> wouldUpdate = new ArrayList<>();
         int wouldSkipCount = 0;
+        if (primary.revokedAt() == null && keyring.primary().revokedAt() != null) {
+            wouldUpdate.add(PreviewKeyEntry.from(keyring.primary(), KeyRole.PRIMARY));
+        }
         for (ImportedKeyMetadata subkey : keyring.subkeys()) {
             PgpKey existing = existingByFingerprint.get(subkey.fingerprint().toUpperCase());
             if (existing == null) {

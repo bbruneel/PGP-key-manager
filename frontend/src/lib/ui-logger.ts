@@ -11,6 +11,9 @@ export type UiLogContext = {
   keyId?: string
   fingerprint?: string
   count?: number
+  succeededCount?: number
+  failedCount?: number
+  failedKeyIds?: string[]
   algorithm?: string
   previousAlgorithm?: string
   capabilities?: string[]
@@ -63,6 +66,9 @@ export function logUiEvent(
     keyId: context.keyId,
     fingerprint: context.fingerprint,
     count: context.count,
+    succeededCount: context.succeededCount,
+    failedCount: context.failedCount,
+    failedKeyIds: context.failedKeyIds,
     algorithm: context.algorithm,
     previousAlgorithm: context.previousAlgorithm,
     capabilities: context.capabilities,
