@@ -177,6 +177,70 @@ class PgpKeyPreviewIntegrationTest {
                 .andExpect(jsonPath("$.wouldSkipCount").value(0));
     }
 
+    @Test
+    void previewImportSubkeysFromKeyringShowsWouldUpdateForPrimaryRevocationSync() throws Exception {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Preview Primary Revoke", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-06-01T00:00:00Z"),
+                        PASSPHRASE.toCharArray());
+        String armoredPrivate = jsonEscape(primary.armoredPrivate());
+
+        MvcResult register =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "preview-primary-revoke",
+                                          "keyType": "private",
+                                          "encryptedPrivateArmored": "%s"
+                                        }
+                                        """
+                                                .formatted(armoredPrivate)))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+
+        String primaryId = readJsonField(register.getResponse().getContentAsString(), "id");
+
+        long primaryKeyId = PgpCryptoSupport.parseKeyIdHex(primary.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        primary.armoredPrivate(),
+                        PASSPHRASE.toCharArray(),
+                        primaryKeyId,
+                        2);
+
+        AppUser user = appUserRepository.upsertByAuth0Sub("user");
+        var updatedPrimary =
+                transactionTemplate.execute(
+                        status ->
+                                pgpKeyRepository.updateKeyringMaterial(
+                                        UUID.fromString(primaryId),
+                                        user.id(),
+                                        revoked.armoredPublic(),
+                                        revoked.armoredPrivate(),
+                                        null,
+                                        null,
+                                        null));
+        assertThat(updatedPrimary).isPresent();
+
+        mockMvc.perform(
+                        post("/api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview", primaryId)
+                                .with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.wouldRegister", hasSize(0)))
+                .andExpect(jsonPath("$.wouldUpdate", hasSize(1)))
+                .andExpect(jsonPath("$.wouldUpdate[0].role").value("primary"))
+                .andExpect(jsonPath("$.wouldUpdate[0].status").value("revoked"))
+                .andExpect(jsonPath("$.wouldUpdate[0].fingerprint").value(primary.fingerprint()))
+                .andExpect(jsonPath("$.wouldSkipCount").value(0));
+    }
+
     private SubkeyMaterial buildKeyringWithEncryptSubkey() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(

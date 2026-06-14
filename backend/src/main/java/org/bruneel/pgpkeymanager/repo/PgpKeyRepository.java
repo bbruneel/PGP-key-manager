@@ -84,6 +84,22 @@ public class PgpKeyRepository {
                 .optional();
     }
 
+    public Optional<PgpKey> findPrimaryByUserIdAndFingerprint(UUID userId, String fingerprint) {
+        return jdbc.sql(
+                        "SELECT "
+                                + SELECT_COLUMNS
+                                + """
+                                 FROM pgp_keys
+                                 WHERE user_id = :userId
+                                   AND UPPER(fingerprint) = UPPER(:fingerprint)
+                                   AND role = 'primary'
+                                """)
+                .param("userId", userId)
+                .param("fingerprint", fingerprint)
+                .query((rs, rowNum) -> mapRow(rs))
+                .optional();
+    }
+
     public Optional<PgpKey> findSubkeyByIdAndParentId(UUID subkeyId, UUID parentKeyId, UUID userId) {
         return jdbc.sql(
                         "SELECT "

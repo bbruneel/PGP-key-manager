@@ -32,6 +32,16 @@ vi.mock("@/lib/keys-api", () => ({
   },
 }))
 
+const downloadArmoredBundle = vi.fn()
+
+vi.mock("@/lib/bulk-export-keys", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/bulk-export-keys")>()
+  return {
+    ...actual,
+    downloadArmoredBundle: (...args: unknown[]) => downloadArmoredBundle(...args),
+  }
+})
+
 import { toast } from "sonner"
 
 import { HomeKeysPanel } from "@/pages/HomeKeysPanel"
@@ -55,6 +65,7 @@ describe("HomeKeysPanel", () => {
     vi.mocked(keysApi.exportPublic).mockReset()
     vi.mocked(toast.success).mockReset()
     vi.mocked(toast.error).mockReset()
+    downloadArmoredBundle.mockReset()
     getAccessToken.mockResolvedValue("access-token")
   })
 
@@ -190,6 +201,54 @@ describe("HomeKeysPanel", () => {
     await waitFor(() => {
       expect(keysApi.exportPublic).toHaveBeenCalledTimes(2)
       expect(toast.success).toHaveBeenCalledWith("Exported 2 public keys")
+    })
+  })
+
+  it("bulk export partial success downloads valid keys and shows failure details", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.list).mockResolvedValue([
+      { id: "key-1", label: "Key one", fingerprint: "FP1", keyType: "private" },
+      { id: "key-2", label: "Key two", fingerprint: "FP2", keyType: "private" },
+    ])
+    vi.mocked(keysApi.exportPublic)
+      .mockResolvedValueOnce("-----BEGIN PGP PUBLIC KEY BLOCK-----\nA")
+      .mockRejectedValueOnce(new Error("export failed"))
+
+    renderPanel()
+
+    await screen.findByText("Key one")
+    await user.click(screen.getByLabelText(/^select all keys$/i))
+    await user.click(screen.getByRole("button", { name: /export selected \(2\)/i }))
+
+    await waitFor(() => {
+      expect(keysApi.exportPublic).toHaveBeenCalledTimes(2)
+      expect(downloadArmoredBundle).toHaveBeenCalledWith(
+        expect.stringMatching(/^keys-export-\d{8}\.asc$/),
+        "-----BEGIN PGP PUBLIC KEY BLOCK-----\nA",
+      )
+      expect(toast.success).toHaveBeenCalledWith("Exported 1 public key", {
+        description: "1 failed: Key two",
+      })
+    })
+  })
+
+  it("bulk export total failure shows error toast without download", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.list).mockResolvedValue([
+      { id: "key-1", label: "Key one", fingerprint: "FP1", keyType: "private" },
+    ])
+    vi.mocked(keysApi.exportPublic).mockRejectedValue(new Error("export failed"))
+
+    renderPanel()
+
+    await screen.findByText("Key one")
+    await user.click(screen.getByLabelText(/^select all keys$/i))
+    await user.click(screen.getByRole("button", { name: /export selected \(1\)/i }))
+
+    await waitFor(() => {
+      expect(keysApi.exportPublic).toHaveBeenCalledTimes(1)
+      expect(downloadArmoredBundle).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledWith("Export failed for 1 key: Key one")
     })
   })
 })

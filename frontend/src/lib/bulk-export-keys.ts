@@ -1,3 +1,4 @@
+import { getApiErrorMessage } from "@/lib/api-error"
 import { keysApi } from "@/lib/keys-api"
 
 export type BulkExportPublicKeysOptions = {
@@ -5,20 +6,44 @@ export type BulkExportPublicKeysOptions = {
   getAccessToken: () => Promise<string>
 }
 
+export type BulkExportFailure = {
+  keyId: string
+  message: string
+}
+
+export type BulkExportResult = {
+  armored: string
+  succeeded: string[]
+  failed: BulkExportFailure[]
+}
+
 export function joinArmoredBlocks(blocks: string[]): string {
   return blocks.join("\n\n")
 }
 
-export async function bulkExportPublicKeys(options: BulkExportPublicKeysOptions): Promise<string> {
+export async function bulkExportPublicKeys(
+  options: BulkExportPublicKeysOptions,
+): Promise<BulkExportResult> {
   const token = await options.getAccessToken()
   const blocks: string[] = []
+  const succeeded: string[] = []
+  const failed: BulkExportFailure[] = []
 
   for (const keyId of options.keyIds) {
-    const armored = await keysApi.exportPublic({ accessToken: token, keyId })
-    blocks.push(armored)
+    try {
+      const armored = await keysApi.exportPublic({ accessToken: token, keyId })
+      blocks.push(armored)
+      succeeded.push(keyId)
+    } catch (error) {
+      failed.push({ keyId, message: getApiErrorMessage(error) })
+    }
   }
 
-  return joinArmoredBlocks(blocks)
+  return {
+    armored: joinArmoredBlocks(blocks),
+    succeeded,
+    failed,
+  }
 }
 
 export function downloadArmoredBundle(filename: string, armored: string): void {

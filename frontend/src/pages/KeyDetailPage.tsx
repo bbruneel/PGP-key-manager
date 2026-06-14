@@ -516,13 +516,16 @@ function KeyDetailPageContent() {
 
       const registeredCount = result.registered.length
       const skippedCount = result.skippedCount
-      const updatedCount = result.updatedCount ?? result.updated?.length ?? 0
+      const updatedEntries = result.updated ?? []
+      const primaryUpdated = updatedEntries.some((entry) => entry.role === "primary")
+      const subkeyUpdatedCount = updatedEntries.filter((entry) => entry.role !== "primary").length
       const descriptionParts = [
         registeredCount > 0
           ? `${registeredCount} subkey${registeredCount === 1 ? "" : "s"} registered`
           : null,
-        updatedCount > 0
-          ? `${updatedCount} revocation sync${updatedCount === 1 ? "" : "s"}`
+        primaryUpdated ? "primary revocation synced" : null,
+        subkeyUpdatedCount > 0
+          ? `${subkeyUpdatedCount} subkey revocation sync${subkeyUpdatedCount === 1 ? "" : "s"}`
           : null,
         skippedCount > 0
           ? `${skippedCount} already up to date`

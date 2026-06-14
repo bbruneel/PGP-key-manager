@@ -309,6 +309,31 @@ describe("KeyDetailPage", () => {
     )
   })
 
+  it("mentions primary revocation sync in import subkeys toast", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.importSubkeysFromKeyring).mockResolvedValue({
+      registered: [],
+      skippedCount: 0,
+      updated: [{ id: "primary-1", fingerprint: "PRIMARYFP", role: "primary", status: "revoked" }],
+      updatedCount: 1,
+    })
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const importSection = screen.getByRole("region", { name: "Import subkeys from keyring" })
+    await user.click(
+      within(importSection).getByRole("button", { name: /^import subkeys from keyring$/i }),
+    )
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith("Subkeys imported", {
+        description: "primary revocation synced",
+      })
+    })
+  })
+
   it("does not render create subkey form for metadata-only primary", async () => {
     vi.mocked(keysApi.get).mockResolvedValue(metadataOnlyPrimary)
 

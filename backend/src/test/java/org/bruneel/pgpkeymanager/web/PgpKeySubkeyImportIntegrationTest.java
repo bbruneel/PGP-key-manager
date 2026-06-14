@@ -267,6 +267,82 @@ class PgpKeySubkeyImportIntegrationTest {
     }
 
     @Test
+    void importFromKeyringSyncsRevokedPrimaryStatus() throws Exception {
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Primary Revoke Sync", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-06-01T00:00:00Z"),
+                        PASSPHRASE.toCharArray());
+        String armoredPrivate = jsonEscape(primary.armoredPrivate());
+
+        MvcResult register =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "primary-revoke-sync",
+                                          "keyType": "private",
+                                          "encryptedPrivateArmored": "%s"
+                                        }
+                                        """
+                                                .formatted(armoredPrivate)))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.status").value("active"))
+                        .andReturn();
+
+        String primaryId = readJsonField(register.getResponse().getContentAsString(), "id");
+
+        long primaryKeyId = PgpCryptoSupport.parseKeyIdHex(primary.keyId());
+        PgpCryptoService.KeyRingUpdate revoked =
+                crypto.revokeKeyInRing(
+                        primary.armoredPrivate(),
+                        PASSPHRASE.toCharArray(),
+                        primaryKeyId,
+                        2);
+
+        AppUser user = appUserRepository.upsertByAuth0Sub("user");
+        var updatedPrimary =
+                transactionTemplate.execute(
+                        status ->
+                                pgpKeyRepository.updateKeyringMaterial(
+                                        UUID.fromString(primaryId),
+                                        user.id(),
+                                        revoked.armoredPublic(),
+                                        revoked.armoredPrivate(),
+                                        null,
+                                        null,
+                                        null));
+        assertThat(updatedPrimary).isPresent();
+        assertThat(metadataParser.parseKeyring(
+                        updatedPrimary.get().armoredPublic(),
+                        updatedPrimary.get().encryptedPrivateArmored())
+                .primary()
+                .revokedAt())
+                .isNotNull();
+
+        mockMvc.perform(
+                        post("/api/keys/{primaryKeyId}/subkeys/import-from-keyring", primaryId)
+                                .with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.registered", hasSize(0)))
+                .andExpect(jsonPath("$.updated", hasSize(1)))
+                .andExpect(jsonPath("$.updatedCount").value(1))
+                .andExpect(jsonPath("$.updated[0].id").value(primaryId))
+                .andExpect(jsonPath("$.updated[0].role").value("primary"))
+                .andExpect(jsonPath("$.updated[0].status").value("revoked"));
+
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"))
+                .andExpect(jsonPath("$.revokedAt").exists());
+    }
+
+    @Test
     void importFromKeyringBackfillsMissingSubkeyRows() throws Exception {
         SubkeyMaterial keyring = buildKeyringWithEncryptSubkey();
         String armoredPublic = jsonEscape(keyring.updatedArmoredPublic());

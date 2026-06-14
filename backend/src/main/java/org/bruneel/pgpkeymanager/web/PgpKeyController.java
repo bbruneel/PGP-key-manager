@@ -79,12 +79,13 @@ public class PgpKeyController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @ResponseStatus(HttpStatus.CREATED)
-    public PgpKeyResponse create(
+    public ResponseEntity<PgpKeyResponse> create(
             @Valid @RequestBody CreatePgpKeyRequest request, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         var outcome = pgpKeyService.create(user, request);
-        return PgpKeyResponse.from(outcome.key(), true, outcome.registeredSubkeyCount());
+        HttpStatus status = outcome.reRegistered() ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status)
+                .body(PgpKeyResponse.from(outcome.key(), true, outcome.registeredSubkeyCount()));
     }
 
     @PatchMapping(path = "/{keyId}", consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -24,6 +24,31 @@ import { logUiEvent } from "@/lib/ui-logger"
 import { cn } from "@/lib/utils"
 import type { PgpKeySummary } from "@/types/api"
 
+function shortFingerprint(fingerprint: string): string {
+  if (fingerprint.length <= 16) {
+    return fingerprint
+  }
+  return `${fingerprint.slice(0, 8)}…${fingerprint.slice(-8)}`
+}
+
+function formatBulkExportFailureLabels(
+  failedKeyIds: string[],
+  keysById: Map<string, PgpKeySummary>,
+): string {
+  return failedKeyIds
+    .map((keyId) => {
+      const key = keysById.get(keyId)
+      if (key?.label) {
+        return key.label
+      }
+      if (key?.fingerprint) {
+        return shortFingerprint(key.fingerprint)
+      }
+      return keyId
+    })
+    .join(", ")
+}
+
 function statusBadgeClass(status: string | null | undefined): string {
   switch (status) {
     case "revoked":
@@ -141,14 +166,54 @@ export function HomeKeysPanel() {
 
     setBulkExporting(true)
     try {
-      const armored = await bulkExportPublicKeys({ keyIds, getAccessToken })
-      downloadArmoredBundle(bulkExportFilename(), armored)
-      toast.success(`Exported ${keyIds.length} public key${keyIds.length === 1 ? "" : "s"}`)
-      logUiEvent("info", {
-        eventId: "keysList.bulkExport.success",
-        message: "Bulk export completed",
-        count: keyIds.length,
-      })
+      const keysById = new Map(keys.filter((key) => key.id).map((key) => [key.id!, key]))
+      const result = await bulkExportPublicKeys({ keyIds, getAccessToken })
+
+      if (result.succeeded.length > 0) {
+        downloadArmoredBundle(bulkExportFilename(), result.armored)
+      }
+
+      if (result.failed.length === 0) {
+        toast.success(
+          `Exported ${result.succeeded.length} public key${result.succeeded.length === 1 ? "" : "s"}`,
+        )
+        logUiEvent("info", {
+          eventId: "keysList.bulkExport.success",
+          message: "Bulk export completed",
+          count: result.succeeded.length,
+        })
+      } else if (result.succeeded.length > 0) {
+        const failedLabels = formatBulkExportFailureLabels(
+          result.failed.map((failure) => failure.keyId),
+          keysById,
+        )
+        toast.success(
+          `Exported ${result.succeeded.length} public key${result.succeeded.length === 1 ? "" : "s"}`,
+          {
+            description: `${result.failed.length} failed: ${failedLabels}`,
+          },
+        )
+        logUiEvent("warn", {
+          eventId: "keysList.bulkExport.partial",
+          message: "Bulk export completed with failures",
+          succeededCount: result.succeeded.length,
+          failedCount: result.failed.length,
+          failedKeyIds: result.failed.map((failure) => failure.keyId),
+        })
+      } else {
+        const failedLabels = formatBulkExportFailureLabels(
+          result.failed.map((failure) => failure.keyId),
+          keysById,
+        )
+        toast.error(`Export failed for ${result.failed.length} key${result.failed.length === 1 ? "" : "s"}: ${failedLabels}`)
+        logUiEvent("error", {
+          eventId: "keysList.bulkExport.error",
+          message: "Bulk export failed for all selected keys",
+          operationId: "exportPublicKey",
+          failedCount: result.failed.length,
+          failedKeyIds: result.failed.map((failure) => failure.keyId),
+        })
+      }
     } catch (e) {
       const message = getApiErrorMessage(e)
       toast.error(message)

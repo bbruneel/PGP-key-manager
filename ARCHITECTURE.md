@@ -215,7 +215,12 @@ Shared frontend rules live in `algorithm-spec.ts` (capability ↔ algorithm filt
 2. **Revocation detection:** `PgpKeyMetadataParser` reads revocation certifications from armored keyrings; register and import-from-keyring set `revokedAt` / `revocationReason` on new rows. Logs `register_key_revocation_detected`, `register_subkey_revocation_detected`.
 3. **Private-preferred ring:** when both public and private blocks are pasted, the private-derived keyring is authoritative; mismatched subkey sets produce warnings (`register_keyring_public_private_subkey_mismatch`).
 4. **Register response:** `registeredSubkeyCount` on `POST /api/keys` register responses removes the extra `listSubkeys` round-trip after import.
-5. **Import-from-keyring sync:** existing subkey rows can be updated to revoked when the stored keyring shows revocation (`ImportSubkeysResponse.updated`). Detail preview via `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview`. `[pgp-ui]` `keyDetail.importSubkeys.preview.*`.
+5. **Import-from-keyring sync:** existing primary and subkey rows can be updated to revoked when the stored keyring shows revocation (`ImportSubkeysResponse.updated`, including `role: primary`). Detail preview via `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview`. `[pgp-ui]` `keyDetail.importSubkeys.preview.*`.
+
+## Re-import resilience (Phase 13)
+
+1. **Primary revocation sync:** `importSubkeysFromKeyring` and register fingerprint upsert (`POST /api/keys` `200`) sync active DB rows to revoked when parsed keyring shows revocation. Logs `import_subkeys_from_keyring_primary_revocation_synced`, `register_key_reimport_sync`.
+2. **Bulk export partial success:** keys list bulk export (`bulk-export-keys.ts`) collects per-key failures, downloads successful exports, and shows a partial-success toast with failed key labels. `[pgp-ui]` `keysList.bulkExport.partial`.
 
 ## Repository layout
 
