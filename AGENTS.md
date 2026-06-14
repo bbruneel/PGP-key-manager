@@ -83,6 +83,7 @@ Changes that break these checks should not be merged.
 - **Request ID:** `RequestIdFilter` reads or generates `X-Request-Id`, stores it in MDC (`requestId`), echoes on the response. Preserve this pattern for new filters/endpoints.
 - **CORS:** `CORS_ALLOWED_ORIGINS` (comma-separated); default allows `http://localhost:5173`.
 - **Logging:** default profile uses readable console logs with `%X{requestId}`; `prod` profile uses JSON (`logstash-logback-encoder`).
+- **Phase 15 (implemented):** dependency security maintenance — Spring Boot **4.1.0** parent BOM, Flyway **12.8.1** override, CVE-monitored postgresql/logback versions documented in [`backend/pom.xml`](backend/pom.xml); startup `build_dependencies_audit` log line; regression guards in `ResolvedDependencyVersionsTest` and `./mvnw dependency:tree`. Spring Boot 4.1 uses Jackson 3 (`tools.jackson` packages; `com.fasterxml.jackson.annotation` unchanged).
 - **Tests:** prefer TDD. Use `@WebMvcTest` for controller slices and `@SpringBootTest` + `MockMvc` for integration (e.g. filter behavior). JUnit 5.
 
 #### API endpoint test coverage (required)

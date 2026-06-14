@@ -42,7 +42,7 @@ import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.UserIdSpecDto;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 @Service

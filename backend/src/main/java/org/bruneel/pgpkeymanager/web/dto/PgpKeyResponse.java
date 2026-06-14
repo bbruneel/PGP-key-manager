@@ -38,7 +38,7 @@ public record PgpKeyResponse(
         AlgorithmSpecDto spec = null;
         if (key.algorithmSpecJson() != null && !key.algorithmSpecJson().isBlank()) {
             try {
-                spec = new com.fasterxml.jackson.databind.ObjectMapper()
+                spec = new tools.jackson.databind.ObjectMapper()
                         .readValue(key.algorithmSpecJson(), AlgorithmSpecDto.class);
             } catch (Exception ignored) {
                 // omit malformed spec

@@ -236,6 +236,6 @@ flowchart LR
 Quick reference:
 
 ```text
-backend/          Maven, Spring Boot 4.0.x, Java 25 (org.bruneel.pgpkeymanager)
+backend/          Maven, Spring Boot 4.1.x, Java 25 (org.bruneel.pgpkeymanager)
 frontend/         Vite, React 19, TypeScript, Tailwind v4, shadcn-style UI, Auth0 SPA
 ```
