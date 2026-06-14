@@ -277,6 +277,23 @@ class PgpKeyControllerTest {
     }
 
     @Test
+    void createSubkeyRejectsShortPassphrase() throws Exception {
+        UUID primaryId = UUID.fromString("00000000-0000-0000-0000-000000000003");
+
+        mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys", primaryId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "capabilities": ["encrypt"],
+                                  "algorithm": { "algorithm": "cv25519" },
+                                  "passphrase": "short"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void deleteReturns204() throws Exception {
         UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);

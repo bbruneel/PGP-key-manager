@@ -238,7 +238,7 @@ public class PgpKeyService {
                                 request.algorithm(),
                                 expiresAt);
             } finally {
-                PassphraseUtil.wipe(passphrase);
+                PassphraseUtil.wipe(passphrase, "create_subkey");
             }
 
             pgpKeyRepository.updateKeyringMaterial(
@@ -305,9 +305,9 @@ public class PgpKeyService {
                             key.isPrimary() ? revokedAt : null,
                             key.isPrimary() ? reason : null);
                 } finally {
-                    PassphraseUtil.wipe(passphrase);
+                    PassphraseUtil.wipe(passphrase, "revoke_key");
                 }
-            } else if (request.passphrase() != null && !request.passphrase().isBlank()) {
+            } else if (PassphraseUtil.isPresent(request.passphrase())) {
                 throw new BadRequestException(
                         "Passphrase was provided but no primary private key material is stored; "
                                 + "revocation is recorded as metadata only");
@@ -350,7 +350,7 @@ public class PgpKeyService {
                                 targetKeyId,
                                 request.expiresAt());
             } finally {
-                PassphraseUtil.wipe(passphrase);
+                PassphraseUtil.wipe(passphrase, "extend_expiry");
             }
 
             pgpKeyRepository.updateKeyringMaterial(
@@ -389,26 +389,32 @@ public class PgpKeyService {
             ensureNotRevoked(previous);
 
             boolean revokePrevious = request.revokePrevious() == null || request.revokePrevious();
-            if (revokePrevious && (request.passphrase() == null || request.passphrase().isBlank())) {
-                throw new BadRequestException("passphrase is required when revokePrevious is true");
-            }
-            if (revokePrevious) {
-                revoke(
-                        user,
-                        keyId,
-                        new RevokeKeyRequest("key_superseded", "rotated", request.passphrase()));
-            }
+            char[] passphrase = request.passphrase();
+            try {
+                if (revokePrevious && PassphraseUtil.isBlank(passphrase)) {
+                    throw new BadRequestException("passphrase is required when revokePrevious is true");
+                }
+                if (revokePrevious) {
+                    revoke(
+                            user,
+                            keyId,
+                            new RevokeKeyRequest(
+                                    "key_superseded", "rotated", PassphraseUtil.clone(passphrase)));
+                }
 
-            CreateSubkeyRequest subRequest =
-                    new CreateSubkeyRequest(
-                            request.capabilities(),
-                            request.algorithm(),
-                            request.validity(),
-                            request.passphrase());
-            PgpKey newKey = createSubkey(user, previous.parentKeyId(), subRequest);
-            PgpKey previousUpdated = getForUser(user, keyId);
-            completeSuccess("rotate_key", user.id(), newKey.id(), openpgpVersion, start);
-            return new RotateResult(newKey, previousUpdated);
+                CreateSubkeyRequest subRequest =
+                        new CreateSubkeyRequest(
+                                request.capabilities(),
+                                request.algorithm(),
+                                request.validity(),
+                                PassphraseUtil.clone(passphrase));
+                PgpKey newKey = createSubkey(user, previous.parentKeyId(), subRequest);
+                PgpKey previousUpdated = getForUser(user, keyId);
+                completeSuccess("rotate_key", user.id(), newKey.id(), openpgpVersion, start);
+                return new RotateResult(newKey, previousUpdated);
+            } finally {
+                PassphraseUtil.wipe(passphrase, "rotate_key");
+            }
         } catch (RuntimeException ex) {
             completeFailure("rotate_key", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
@@ -445,7 +451,7 @@ public class PgpKeyService {
     public record RotateResult(PgpKey newKey, PgpKey previousKey) {}
 
     private PgpKey generatePrimary(AppUser user, CreatePgpKeyRequest request) {
-        if (request.passphrase() == null || request.passphrase().isBlank()) {
+        if (PassphraseUtil.isBlank(request.passphrase())) {
             throw new BadRequestException("passphrase is required for key generation");
         }
         if (request.algorithmSpec() == null) {
@@ -478,7 +484,7 @@ public class PgpKeyService {
                             expiresAt,
                             passphrase);
         } finally {
-            PassphraseUtil.wipe(passphrase);
+            PassphraseUtil.wipe(passphrase, "create_key");
         }
 
         return insertKey(
@@ -866,8 +872,7 @@ public class PgpKeyService {
     }
 
     private boolean isGenerateRequest(CreatePgpKeyRequest request) {
-        return request.algorithmSpec() != null
-                || (request.passphrase() != null && !request.passphrase().isBlank());
+        return request.algorithmSpec() != null || PassphraseUtil.isPresent(request.passphrase());
     }
 
     private PgpKey requirePrimary(AppUser user, UUID primaryKeyId) {

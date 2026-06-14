@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import org.bruneel.pgpkeymanager.web.json.JsonPassphrase;
+
 public record CreatePgpKeyRequest(
         @Size(max = 128) String label,
         @Pattern(regexp = "^[0-9A-Fa-f]{16,40}$", message = "fingerprint must be hex") String fingerprint,
@@ -25,5 +27,5 @@ public record CreatePgpKeyRequest(
         @Valid AlgorithmSpecDto algorithmSpec,
         @Valid ValiditySpecDto validity,
         List<@Valid UserIdSpecDto> userIds,
-        @Size(min = 8, max = 256) String passphrase,
+        @JsonPassphrase @Size(min = 8, max = 256) char[] passphrase,
         Integer openpgpVersion) {}

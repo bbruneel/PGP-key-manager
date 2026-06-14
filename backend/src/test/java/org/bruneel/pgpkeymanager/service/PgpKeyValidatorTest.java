@@ -28,7 +28,7 @@ class PgpKeyValidatorTest {
                                                 List.of("encrypt", "authenticate"),
                                                 new AlgorithmSpecDto("rsa", 4096, null),
                                                 null,
-                                                "passphrase"),
+                                                "passphrase".toCharArray()),
                                         4))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("separate subkeys");
@@ -43,7 +43,7 @@ class PgpKeyValidatorTest {
                                                 List.of("certify", "encrypt"),
                                                 new AlgorithmSpecDto("cv25519", null, null),
                                                 new ValiditySpecDto(null, java.time.Instant.parse("2030-01-01T00:00:00Z")),
-                                                "passphrase-12345678"),
+                                                "passphrase-12345678".toCharArray()),
                                         4))
                 .isInstanceOf(BadRequestException.class);
     }
@@ -57,7 +57,7 @@ class PgpKeyValidatorTest {
                                                 List.of("sign"),
                                                 new AlgorithmSpecDto("ecdsa", null, null),
                                                 new ValiditySpecDto(null, java.time.Instant.parse("2030-01-01T00:00:00Z")),
-                                                "passphrase-12345678"),
+                                                "passphrase-12345678".toCharArray()),
                                         4))
                 .isInstanceOf(BadRequestException.class);
     }
@@ -154,7 +154,7 @@ class PgpKeyValidatorTest {
                                                 List.of("encrypt"),
                                                 new AlgorithmSpecDto("x448", null, null),
                                                 new ValiditySpecDto(null, java.time.Instant.parse("2030-01-01T00:00:00Z")),
-                                                "passphrase-12345678"),
+                                                "passphrase-12345678".toCharArray()),
                                         4))
                 .isInstanceOf(BadRequestException.class);
     }
@@ -183,7 +183,7 @@ class PgpKeyValidatorTest {
                                                 List.of("sign"),
                                                 new AlgorithmSpecDto("ed448", null, null),
                                                 new ValiditySpecDto(null, java.time.Instant.parse("2030-01-01T00:00:00Z")),
-                                                "passphrase-12345678"),
+                                                "passphrase-12345678".toCharArray()),
                                         4))
                 .isInstanceOf(BadRequestException.class);
     }
@@ -195,7 +195,7 @@ class PgpKeyValidatorTest {
                         List.of("sign"),
                         new AlgorithmSpecDto("ed448", null, null),
                         new ValiditySpecDto(null, java.time.Instant.parse("2030-01-01T00:00:00Z")),
-                        "passphrase-12345678"),
+                        "passphrase-12345678".toCharArray()),
                 6);
     }
 

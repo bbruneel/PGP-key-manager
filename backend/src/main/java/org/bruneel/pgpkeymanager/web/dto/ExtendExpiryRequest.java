@@ -4,4 +4,6 @@ import java.time.Instant;
 
 import jakarta.validation.constraints.NotNull;
 
-public record ExtendExpiryRequest(@NotNull Instant expiresAt, String passphrase) {}
+import org.bruneel.pgpkeymanager.web.json.JsonPassphrase;
+
+public record ExtendExpiryRequest(@NotNull Instant expiresAt, @JsonPassphrase char[] passphrase) {}

@@ -505,6 +505,12 @@ components:
     MaterialKind:
       type: string
       enum: [public, private]
+    PassphraseField:
+      type: string
+      writeOnly: true
+      description: |
+        JSON string on the wire. The server deserializes passphrases into wipeable in-memory
+        char arrays and clears them after cryptographic use (Phase 14 heap-level protection).
     AlgorithmSpec:
       type: object
       required: [algorithm]
@@ -573,8 +579,7 @@ components:
           items:
             $ref: '#/components/schemas/UserIdSpec'
         passphrase:
-          type: string
-          writeOnly: true
+          $ref: '#/components/schemas/PassphraseField'
         openpgpVersion:
           type: integer
           enum: [4, 6]
@@ -601,8 +606,7 @@ components:
         validity:
           $ref: '#/components/schemas/ValiditySpec'
         passphrase:
-          type: string
-          writeOnly: true
+          $ref: '#/components/schemas/PassphraseField'
     UpdatePgpKeyRequest:
       type: object
       properties:
@@ -625,8 +629,7 @@ components:
         description:
           type: string
         passphrase:
-          type: string
-          writeOnly: true
+          $ref: '#/components/schemas/PassphraseField'
     ExtendExpiryRequest:
       type: object
       required: [expiresAt]
@@ -635,8 +638,7 @@ components:
           type: string
           format: date-time
         passphrase:
-          type: string
-          writeOnly: true
+          $ref: '#/components/schemas/PassphraseField'
     RotateKeyRequest:
       type: object
       required: [capabilities, algorithm]
@@ -650,8 +652,8 @@ components:
         validity:
           $ref: '#/components/schemas/ValiditySpec'
         passphrase:
-          type: string
-          writeOnly: true
+          allOf:
+            - $ref: '#/components/schemas/PassphraseField'
           description: |
             Required for rotate. Unlocks the primary keyring for new subkey creation (and for
             revoking the previous subkey when `revokePrevious` is true).
