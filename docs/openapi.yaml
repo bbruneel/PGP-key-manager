@@ -235,7 +235,8 @@ paths:
       description: |
         Parse the primary's stored armored keyring and show which subkey rows would be
         registered, updated (revocation sync), or skipped without writing to the database.
-        Primary revocation state is not part of this preview — only subkey rows are considered.
+        Active primary rows whose stored keyring shows revocation appear in `wouldUpdate`
+        with `role: primary`.
       parameters:
         - $ref: '#/components/parameters/PrimaryKeyId'
       responses:
