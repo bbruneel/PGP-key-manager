@@ -62,12 +62,13 @@ public class PgpCryptoService {
             Instant expiresAt,
             char[] passphrase) {
         try {
-            Date creationTime = new Date();
+            Instant creationInstant = Instant.now();
+            Date creationTime = Date.from(creationInstant);
             PGPKeyPair primaryPair = generateKeyPair(openpgpVersion, algorithm, creationTime);
             PGPDigestCalculator sha1Calc = sha1Calculator();
             JcaPGPContentSignerBuilder signerBuilder = contentSigner(primaryPair);
             PBESecretKeyEncryptor encryptor = secretKeyEncryptor(sha1Calc, passphrase);
-            PGPSignatureSubpacketVector hashed = hashedSubpackets(capabilities, expiresAt);
+            PGPSignatureSubpacketVector hashed = hashedSubpackets(capabilities, expiresAt, creationInstant);
 
             PGPKeyRingGenerator generator = new PGPKeyRingGenerator(
                     PGPSignature.POSITIVE_CERTIFICATION,
@@ -117,7 +118,10 @@ public class PgpCryptoService {
             PGPDigestCalculator sha1Calc = sha1Calculator();
             JcaPGPContentSignerBuilder signerBuilder = contentSignerFromRing(existing);
             PBESecretKeyEncryptor encryptor = secretKeyEncryptor(sha1Calc, passphrase);
-            PGPSignatureSubpacketVector subHashed = hashedSubpackets(capabilities, expiresAt);
+            Instant subCreationInstant = Instant.now();
+            Date subCreationTime = Date.from(subCreationInstant);
+            PGPSignatureSubpacketVector subHashed =
+                    hashedSubpackets(capabilities, expiresAt, subCreationInstant);
 
             PGPKeyRingGenerator generator =
                     new PGPKeyRingGenerator(
@@ -127,7 +131,7 @@ public class PgpCryptoService {
                             signerBuilder,
                             encryptor);
 
-            PGPKeyPair subPair = generateKeyPair(openpgpVersion, algorithm, new Date());
+            PGPKeyPair subPair = generateKeyPair(openpgpVersion, algorithm, subCreationTime);
             generator.addSubKey(subPair, subHashed, null);
 
             PGPSecretKeyRing updatedSecret = generator.generateSecretKeyRing();
@@ -210,7 +214,8 @@ public class PgpCryptoService {
             sigGen.init(signatureType, unlockSecret(masterSecret, passphrase));
 
             PGPSignatureSubpacketGenerator spGen = new PGPSignatureSubpacketGenerator();
-            spGen.setKeyExpirationTime(false, expirySeconds(newExpiresAt));
+            Instant creationInstant = target.getCreationTime().toInstant();
+            spGen.setKeyExpirationTime(false, expirySeconds(newExpiresAt, creationInstant));
             sigGen.setHashedSubpackets(spGen.generate());
 
             PGPSignature sig =
@@ -433,12 +438,13 @@ public class PgpCryptoService {
                 .build(passphrase);
     }
 
-    private PGPSignatureSubpacketVector hashedSubpackets(List<PgpCapability> capabilities, Instant expiresAt)
+    private PGPSignatureSubpacketVector hashedSubpackets(
+            List<PgpCapability> capabilities, Instant expiresAt, Instant creationInstant)
             throws PGPException {
         PGPSignatureSubpacketGenerator gen = new PGPSignatureSubpacketGenerator();
         gen.setKeyFlags(false, capabilityFlags(capabilities));
         if (expiresAt != null) {
-            gen.setKeyExpirationTime(false, expirySeconds(expiresAt));
+            gen.setKeyExpirationTime(false, expirySeconds(expiresAt, creationInstant));
         }
         return gen.generate();
     }
@@ -456,8 +462,8 @@ public class PgpCryptoService {
         return flags;
     }
 
-    private long expirySeconds(Instant expiresAt) {
-        long seconds = expiresAt.getEpochSecond() - Instant.now().getEpochSecond();
+    private long expirySeconds(Instant expiresAt, Instant referenceInstant) {
+        long seconds = expiresAt.getEpochSecond() - referenceInstant.getEpochSecond();
         if (seconds <= 0) {
             throw new CryptoException("Expiry must be in the future");
         }
