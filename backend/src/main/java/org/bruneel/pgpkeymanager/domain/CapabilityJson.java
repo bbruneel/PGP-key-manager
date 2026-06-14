@@ -4,9 +4,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 public final class CapabilityJson {
 
@@ -22,8 +22,8 @@ public final class CapabilityJson {
         try {
             return MAPPER.writeValueAsString(
                     capabilities.stream().map(PgpCapability::toApi).toList());
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Failed to serialize capabilities", e);
+        } catch (JacksonException exception) {
+            throw new IllegalArgumentException("Failed to serialize capabilities", exception);
         }
     }
 
@@ -34,8 +34,8 @@ public final class CapabilityJson {
         try {
             List<String> raw = MAPPER.readValue(json, STRING_LIST);
             return raw.stream().map(PgpCapability::fromApi).toList();
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Failed to parse capabilities", e);
+        } catch (JacksonException exception) {
+            throw new IllegalArgumentException("Failed to parse capabilities", exception);
         }
     }
 

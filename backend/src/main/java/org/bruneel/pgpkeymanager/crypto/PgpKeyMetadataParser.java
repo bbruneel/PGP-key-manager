@@ -32,8 +32,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class PgpKeyMetadataParser {
@@ -421,8 +421,8 @@ public class PgpKeyMetadataParser {
     private String writeAlgorithmSpecJson(AlgorithmSpecDto spec) {
         try {
             return MAPPER.writeValueAsString(spec);
-        } catch (JsonProcessingException e) {
-            throw new CryptoException("Failed to serialize algorithm spec", e);
+        } catch (JacksonException exception) {
+            throw new CryptoException("Failed to serialize algorithm spec", exception);
         }
     }
 
