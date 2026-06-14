@@ -589,7 +589,7 @@ describe("KeyDetailPage", () => {
     expect(actionsTab).toHaveAttribute("tabindex", "-1")
   })
 
-  it("moves focus and activates subkeys tab with ArrowRight on primary key", async () => {
+  it("moves focus and activates subkeys tab with ArrowRight after clicking overview tab", async () => {
     const user = userEvent.setup()
 
     renderDetail()
@@ -597,7 +597,7 @@ describe("KeyDetailPage", () => {
     await screen.findByRole("heading", { name: "Work key" })
 
     const overviewTab = screen.getByRole("tab", { name: /^overview$/i })
-    overviewTab.focus()
+    await user.click(overviewTab)
     await user.keyboard("{ArrowRight}")
 
     const subkeysTab = screen.getByRole("tab", { name: /^subkeys$/i })
@@ -614,6 +614,23 @@ describe("KeyDetailPage", () => {
         direction: "right",
       }),
     )
+  })
+
+  it("does not switch tabs when Tab is pressed on the active tab button", async () => {
+    const user = userEvent.setup()
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const overviewTab = screen.getByRole("tab", { name: /^overview$/i })
+    const subkeysTab = screen.getByRole("tab", { name: /^subkeys$/i })
+    await user.click(overviewTab)
+    await user.keyboard("{Tab}")
+
+    expect(overviewTab).toHaveAttribute("aria-selected", "true")
+    expect(subkeysTab).toHaveAttribute("aria-selected", "false")
+    expect(document.activeElement).not.toBe(subkeysTab)
   })
 
   it("skips subkeys tab with ArrowRight on subkey detail", async () => {

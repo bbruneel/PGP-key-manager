@@ -183,7 +183,13 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 
 1. Open a primary key detail (`/keys/:id`).
 2. Confirm **Overview**, **Subkeys**, and **Actions & Lifecycle** tabs render and switch correctly.
-3. Use ArrowLeft/ArrowRight on the tab bar — focus and panel content should update.
+3. **Tab bar keyboard navigation** (ARIA roving tabindex — focus must be on a tab *button*, not inside a form field):
+   - Click **Overview** so the tab button has focus (visible focus ring on the tab bar).
+   - Press **ArrowRight** → **Subkeys** tab is selected, Subkeys panel content is visible.
+   - Press **ArrowLeft** → back to **Overview**.
+   - Press **End** from Overview → **Actions & Lifecycle** is selected.
+   - Press **Home** from Actions → back to **Overview**.
+   - **Tab / Shift+Tab do not switch tabs** — they move focus through page content (form fields, buttons). That is expected. If focus is inside a passphrase field, arrow keys move the text cursor instead of changing tabs.
 4. In DevTools Elements, confirm inactive panels have class `hidden` but remain in the DOM (`data-pgp-ui="keyDetail.tab.overview|subkeys|actions"`).
 5. Lifecycle forms (revoke, add subkey, delete) still work from their respective tabs.
 
