@@ -222,6 +222,30 @@ Shared frontend rules live in `algorithm-spec.ts` (capability ↔ algorithm filt
 1. **Primary revocation sync:** `importSubkeysFromKeyring` and register fingerprint upsert (`POST /api/keys` `200`) sync active DB rows to revoked when parsed keyring shows revocation. Logs `import_subkeys_from_keyring_primary_revocation_synced`, `register_key_reimport_sync`.
 2. **Bulk export partial success:** keys list bulk export (`bulk-export-keys.ts`) collects per-key failures, downloads successful exports, and shows a partial-success toast with failed key labels. `[pgp-ui]` `keysList.bulkExport.partial`.
 
+## Deployment options
+
+The app uses **PostgreSQL + Flyway** for persistence and **Auth0** for identity. Auth0 is external in all deployments.
+
+| Aspect | Default (Supabase) | Docker Compose |
+|--------|-------------------|----------------|
+| Database | Supabase hosted Postgres | Container Postgres 16 (`docker/compose.yml`) |
+| Config | `application-secret.yaml` or env vars | `docker/.env` + env vars in compose |
+| Flyway | `baseline-on-migrate: true` (pre-existing tables) | `docker` profile: baseline off (fresh DB) |
+| Frontend | Vite dev server `:5173` or static `dist/` | nginx `:80` proxies `/api/` to backend |
+| API URL | `VITE_API_BASE_URL=http://localhost:8080` | Empty base URL → same-origin `/api/...` |
+
+```mermaid
+flowchart TB
+  Browser --> Nginx["frontend nginx :80"]
+  Nginx -->|"static /"| SPA["frontend/dist"]
+  Nginx -->|"/api/* proxy"| API["backend :8080"]
+  API --> PG["postgres :5432"]
+  Browser -.->|"OAuth"| Auth0["Auth0 external"]
+  API -.->|"JWT"| Auth0
+```
+
+Docker files live under [`docker/`](docker/) (`compose.yml`, `backend.Dockerfile`, `frontend.Dockerfile`, `nginx.conf`). See [README.md](README.md#docker-alternative-deployment) for quick start.
+
 ## Repository layout
 
 ```mermaid

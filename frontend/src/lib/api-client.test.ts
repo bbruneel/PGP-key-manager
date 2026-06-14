@@ -116,13 +116,22 @@ describe("requestJson", () => {
     )
   })
 
-  it("propagates missing VITE_API_BASE_URL error", async () => {
+  it("uses same-origin relative paths when VITE_API_BASE_URL is empty", async () => {
     vi.unstubAllEnvs()
     vi.stubEnv("VITE_API_BASE_URL", "")
 
-    await expect(requestJson("/api/hello", { operationId: "getHello" })).rejects.toThrow(
-      "VITE_API_BASE_URL is not set",
-    )
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "x-request-id": "server-rid-relative" }),
+      json: async () => ({ message: "ok" }),
+    } as Response)
+    vi.stubGlobal("fetch", fetchMock)
+
+    await requestJson("/api/hello", { operationId: "getHello" })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/hello")
   })
 })
 

@@ -14,7 +14,7 @@ For system diagrams, request flows, and component layout, see **[ARCHITECTURE.md
 
 Tailwind for the SPA uses the official **`@tailwindcss/vite`** plugin (Tailwind v4).
 
-**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `backend` Maven tests, `frontend` `npm ci` (lint, test, build), and OpenAPI lint (`npm run docs:lint`) on every push/PR to `main`. Pushes to `main` also publish API docs to GitHub Pages via [`.github/workflows/docs.yml`](.github/workflows/docs.yml).
+**CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `backend` Maven tests, `frontend` `npm ci` (lint, test, build), OpenAPI lint (`npm run docs:lint`), and a Docker build + smoke test on every push/PR to `main`. Pushes to `main` also publish API docs to GitHub Pages via [`.github/workflows/docs.yml`](.github/workflows/docs.yml).
 
 ## Backend (`backend/`)
 
@@ -65,6 +65,40 @@ Environment variables (backend):
 | `FLYWAY_URL` / `FLYWAY_USER` / `FLYWAY_PASSWORD` | Direct connection for migrations (optional if same as datasource) |
 | `AUTH0_ISSUER_URI` | Auth0 issuer for JWT validation |
 | `AUTH0_AUDIENCE` | API audience (optional) |
+
+### Docker (alternative deployment)
+
+Run the full stack locally with **container Postgres** (no Supabase). Supabase + `application-secret.yaml` remain the default for non-Docker workflows.
+
+**Prerequisites:** Docker Engine and Compose v2.
+
+```bash
+cp docker/.env.example docker/.env   # optional: fill Auth0 vars for key management
+docker compose -f docker/compose.yml up --build
+```
+
+Open **http://localhost** — the nginx frontend proxies `/api/*` to the Spring Boot backend. The Overview page health check calls `GET /api/hello`.
+
+| Service | Role |
+|---------|------|
+| `postgres` | PostgreSQL 16 with a named volume (`postgres_data`) |
+| `backend` | Spring Boot API (`SPRING_PROFILES_ACTIVE=docker`) |
+| `frontend` | nginx serving the Vite build; exposes port **80** |
+
+The **`docker`** Spring profile ([`application-docker.yaml`](backend/src/main/resources/application-docker.yaml)) disables Flyway baseline-on-migrate so migrations `V1`–`V4` run on a fresh Postgres volume. Supabase databases keep using the default baseline settings.
+
+**Auth0:** still required for `/api/keys/**`. Set `AUTH0_ISSUER_URI`, `AUTH0_AUDIENCE`, and the `VITE_AUTH0_*` build args in `docker/.env`. Add **http://localhost** to your Auth0 application's Allowed Callback URLs, Logout URLs, and Web Origins.
+
+**Frontend API URL:** leave `VITE_API_BASE_URL` empty in `docker/.env` so the SPA uses same-origin relative `/api/...` paths through nginx.
+
+**Tear down:**
+
+```bash
+docker compose -f docker/compose.yml down      # keep database volume
+docker compose -f docker/compose.yml down -v   # wipe postgres_data
+```
+
+Production hardening (TLS, secrets management, resource limits) is not included in this compose file.
 
 ### API contract
 
