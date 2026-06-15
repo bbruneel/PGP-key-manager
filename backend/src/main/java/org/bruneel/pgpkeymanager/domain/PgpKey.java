@@ -24,6 +24,9 @@ public record PgpKey(
         String storageProvider,
         String storageRef,
         int openpgpVersion,
+        KeyOwnerType ownerType,
+        UUID ownerGroupId,
+        UUID createdByUserId,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -33,6 +36,14 @@ public record PgpKey(
 
     public boolean isPrimary() {
         return role == KeyRole.PRIMARY;
+    }
+
+    public boolean isGroupOwned() {
+        return ownerType == KeyOwnerType.GROUP;
+    }
+
+    public boolean hasPrivateMaterial() {
+        return encryptedPrivateArmored != null && !encryptedPrivateArmored.isBlank();
     }
 
     public enum KeyType {

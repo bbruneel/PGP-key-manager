@@ -27,7 +27,15 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info")
                         .permitAll()
-                        .requestMatchers("/api/keys", "/api/keys/**")
+                        .requestMatchers(
+                                "/api/keys",
+                                "/api/keys/**",
+                                "/api/groups",
+                                "/api/groups/**",
+                                "/api/invites",
+                                "/api/invites/**",
+                                "/api/admin",
+                                "/api/admin/**")
                         .authenticated()
                         // Allow Spring Boot error dispatch; otherwise SQL failures become misleading 403s.
                         .requestMatchers("/error")

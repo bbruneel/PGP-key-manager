@@ -11,7 +11,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 @Profile("test")
 public class TestJwtConfiguration {
 
-    public static final String TEST_SUBJECT = "auth0|test-user";
+    public static final String TEST_SUBJECT = TestJwtSupport.PRIMARY_SUBJECT;
 
     @Bean
     @Primary

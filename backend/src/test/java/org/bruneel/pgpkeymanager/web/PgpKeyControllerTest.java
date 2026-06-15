@@ -42,6 +42,7 @@ import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyEntry;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
 import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.TransferOwnershipRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
 @WebMvcTest(controllers = {PgpKeyController.class})
@@ -50,7 +51,13 @@ import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 class PgpKeyControllerTest {
 
     private static final AppUser USER =
-            new AppUser(UUID.fromString("00000000-0000-0000-0000-000000000001"), "auth0|test", Instant.EPOCH);
+            new AppUser(
+                    UUID.fromString("00000000-0000-0000-0000-000000000001"),
+                    "auth0|test",
+                    "test@example.test",
+                    "Test User",
+                    "user",
+                    Instant.EPOCH);
 
     @Autowired
     private MockMvc mockMvc;
@@ -66,7 +73,7 @@ class PgpKeyControllerTest {
         UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
         PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
-        when(pgpKeyService.getForUser(USER, keyId)).thenReturn(key);
+        when(pgpKeyService.getAccessibleKey(USER, keyId)).thenReturn(key);
 
         mockMvc.perform(get("/api/keys/{keyId}", keyId).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -74,14 +81,15 @@ class PgpKeyControllerTest {
                 .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"))
                 .andExpect(jsonPath("$.role").value("primary"));
 
-        verify(pgpKeyService).getForUser(USER, keyId);
+        verify(pgpKeyService).getAccessibleKey(USER, keyId);
     }
 
     @Test
     void listReturnsKeys() throws Exception {
         PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
-        when(pgpKeyService.listForUser(eq(USER), isNull(), isNull(), isNull())).thenReturn(List.of(key));
+        when(pgpKeyService.listAccessibleKeys(eq(USER), isNull(), isNull(), isNull(), isNull(), isNull()))
+                .thenReturn(List.of(key));
 
         mockMvc.perform(get("/api/keys").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -89,7 +97,7 @@ class PgpKeyControllerTest {
                 .andExpect(jsonPath("$[0].role").value("primary"))
                 .andExpect(jsonPath("$[0].encryptedPrivateArmored").doesNotExist());
 
-        verify(pgpKeyService).listForUser(USER, null, null, null);
+        verify(pgpKeyService).listAccessibleKeys(USER, null, null, null, null, null);
     }
 
     @Test
@@ -405,5 +413,22 @@ class PgpKeyControllerTest {
                 .andExpect(jsonPath("$.previousKey").exists());
 
         verify(pgpKeyService).rotate(eq(USER), eq(subkeyId), any());
+    }
+
+    @Test
+    void transferOwnershipReturnsUpdatedKey() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID groupId = UUID.fromString("00000000-0000-0000-0000-00000000000a");
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.transferOwnership(eq(USER), eq(keyId), eq(groupId))).thenReturn(key);
+
+        mockMvc.perform(post("/api/keys/{keyId}/transfer-ownership", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ownerGroupId\":\"" + groupId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(key.id().toString()));
+
+        verify(pgpKeyService).transferOwnership(eq(USER), eq(keyId), eq(groupId));
     }
 }

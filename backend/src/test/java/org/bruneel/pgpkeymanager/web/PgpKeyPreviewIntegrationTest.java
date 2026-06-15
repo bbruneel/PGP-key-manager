@@ -158,7 +158,6 @@ class PgpKeyPreviewIntegrationTest {
                         status ->
                                 pgpKeyRepository.updateKeyringMaterial(
                                         UUID.fromString(primaryId),
-                                        user.id(),
                                         revoked.armoredPublic(),
                                         revoked.armoredPrivate(),
                                         null,
@@ -221,7 +220,6 @@ class PgpKeyPreviewIntegrationTest {
                         status ->
                                 pgpKeyRepository.updateKeyringMaterial(
                                         UUID.fromString(primaryId),
-                                        user.id(),
                                         revoked.armoredPublic(),
                                         revoked.armoredPrivate(),
                                         null,
