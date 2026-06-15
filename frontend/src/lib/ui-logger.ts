@@ -9,6 +9,7 @@ export type UiLogContext = {
   requestId?: string
   status?: number
   keyId?: string
+  groupId?: string
   fingerprint?: string
   count?: number
   succeededCount?: number
@@ -64,6 +65,7 @@ export function logUiEvent(
     requestId: context.requestId,
     status: context.status,
     keyId: context.keyId,
+    groupId: context.groupId,
     fingerprint: context.fingerprint,
     count: context.count,
     succeededCount: context.succeededCount,

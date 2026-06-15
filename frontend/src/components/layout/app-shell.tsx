@@ -11,7 +11,9 @@ import {
   X,
 } from "lucide-react"
 
+import { GroupSwitcher } from "@/components/groups/group-switcher"
 import { Button } from "@/components/ui/button"
+import { useGroupContext } from "@/hooks/use-group-context"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -33,7 +35,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
   {
-    label: "Keys",
+    label: "Personal vault",
     to: "/keys",
     icon: KeyRound,
     children: [
@@ -54,6 +56,7 @@ type AppShellProps = {
 
 export function AppShell({ children, footerStatus = "unknown", pageTitle = "Overview" }: AppShellProps) {
   const isMobile = useIsMobile()
+  const { activeGroup } = useGroupContext()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const statusLabel =
@@ -107,6 +110,44 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
           {navItems.map((item) => (
             <NavRow key={item.label} item={item} onNavigate={isMobile ? closeMobileNav : undefined} />
           ))}
+          {activeGroup ? (
+            <div className="mt-4 space-y-1 border-t border-sidebar-border pt-3">
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Team vault
+              </p>
+              <p className="px-3 pb-1 text-xs text-sidebar-foreground">{activeGroup.name}</p>
+              <NavLink
+                to={`/groups/${activeGroup.id}/keys`}
+                onClick={isMobile ? closeMobileNav : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    "flex min-w-0 items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                  )
+                }
+              >
+                <KeyRound className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
+                <span className="flex-1 text-left">Group keys</span>
+              </NavLink>
+              <NavLink
+                to={`/groups/${activeGroup.id}/members`}
+                onClick={isMobile ? closeMobileNav : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    "flex min-w-0 items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                  )
+                }
+              >
+                <Shield className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
+                <span className="flex-1 text-left">Members</span>
+              </NavLink>
+            </div>
+          ) : null}
         </nav>
       </aside>
 
@@ -132,6 +173,10 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <GroupSwitcher />
+            <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" asChild>
+              <Link to="/groups/new">New group</Link>
+            </Button>
             <Button
               type="button"
               size="sm"

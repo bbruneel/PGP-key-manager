@@ -92,7 +92,14 @@ export function shouldClearImportPreview(
   )
 }
 
-export function buildImportKeyRequest(values: ImportKeyFormValues): RegisterPgpKeyRequest {
+export type BuildImportKeyRequestOptions = {
+  ownerGroupId?: string
+}
+
+export function buildImportKeyRequest(
+  values: ImportKeyFormValues,
+  options: BuildImportKeyRequestOptions = {},
+): RegisterPgpKeyRequest {
   const request: RegisterPgpKeyRequest = {
     keyType: values.importMode,
   }
@@ -114,6 +121,10 @@ export function buildImportKeyRequest(values: ImportKeyFormValues): RegisterPgpK
 
   if (values.importMode === "private") {
     request.encryptedPrivateArmored = values.encryptedPrivateArmored.trim()
+  }
+
+  if (options.ownerGroupId) {
+    request.ownerGroupId = options.ownerGroupId
   }
 
   return request

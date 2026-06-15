@@ -250,4 +250,11 @@ describe("buildImportKeyRequest", () => {
     expect(request.keyType).toBe("public")
     expect(request.armoredPublic).toBe(SAMPLE_PUBLIC_ARMOR)
   })
+
+  it("includes ownerGroupId when provided", () => {
+    const request = buildImportKeyRequest(validValues(), {
+      ownerGroupId: "2cfb1f20-10c9-4de0-b8dc-d89bbf3ab5d9",
+    })
+    expect(request.ownerGroupId).toBe("2cfb1f20-10c9-4de0-b8dc-d89bbf3ab5d9")
+  })
 })

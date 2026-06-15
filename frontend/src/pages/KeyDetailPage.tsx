@@ -8,6 +8,7 @@ import { ActionsTab } from "@/components/keys/actions-tab"
 import { OverviewTab } from "@/components/keys/overview-tab"
 import { SubkeysTab } from "@/components/keys/subkeys-tab"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
+import { useGroupContext } from "@/hooks/use-group-context"
 import { useRovingTablist } from "@/hooks/use-roving-tablist"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import {
@@ -81,6 +82,7 @@ function KeyDetailPageContent() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
+  const { groups, setActiveGroupId } = useGroupContext()
 
   const [keyData, setKeyData] = useState<PgpKey | null>(null)
   const [primaryKey, setPrimaryKey] = useState<PgpKey | null>(null)
@@ -148,6 +150,9 @@ function KeyDetailPageContent() {
       const loaded = await keysApi.get({ accessToken: token, keyId: id })
       setKeyData(loaded)
       setUpdateLabelValues({ label: loaded.label ?? "" })
+      if (loaded.ownerType === "group" && loaded.ownerGroupId) {
+        setActiveGroupId(loaded.ownerGroupId)
+      }
 
       if (loaded.role === "subkey" && loaded.parentKeyId) {
         const parent = await keysApi.get({ accessToken: token, keyId: loaded.parentKeyId })
@@ -165,7 +170,7 @@ function KeyDetailPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [getAccessToken, id, isAuthenticated, isConfigured])
+  }, [getAccessToken, id, isAuthenticated, isConfigured, setActiveGroupId])
 
   useEffect(() => {
     logUiEvent("debug", {
@@ -204,6 +209,12 @@ function KeyDetailPageContent() {
   const showSshExport = Boolean(
     keyData && isSshExportableKey(keyData.capabilities, keyData.algorithm),
   )
+  const ownerGroupName = useMemo(() => {
+    if (!keyData || keyData.ownerType !== "group" || !keyData.ownerGroupId) {
+      return null
+    }
+    return groups.find((group) => group.id === keyData.ownerGroupId)?.name ?? null
+  }, [groups, keyData])
 
   const visibleTabs = useMemo<readonly KeyDetailTab[]>(
     () => (isPrimary ? ["overview", "subkeys", "actions"] : ["overview", "actions"]),
@@ -889,6 +900,7 @@ function KeyDetailPageContent() {
           <OverviewTab
             isActive={activeTab === "overview"}
             keyData={keyData}
+            ownerGroupName={ownerGroupName}
             isSubkey={isSubkey}
             showSshExport={showSshExport}
             subkeysRefreshToken={subkeysRefreshToken}

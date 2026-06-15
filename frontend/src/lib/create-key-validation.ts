@@ -119,7 +119,14 @@ export function validateCreateKeyForm(values: CreateKeyFormValues): CreateKeyVal
   }
 }
 
-export function buildCreateKeyRequest(values: CreateKeyFormValues): CreatePgpKeyRequest {
+export type BuildCreateKeyRequestOptions = {
+  ownerGroupId?: string
+}
+
+export function buildCreateKeyRequest(
+  values: CreateKeyFormValues,
+  options: BuildCreateKeyRequestOptions = {},
+): CreatePgpKeyRequest {
   const expiry = parseExpiryInstant(values.expiresAt)
   const request: CreatePgpKeyRequest = {
     algorithmSpec: buildAlgorithmSpec(values),
@@ -137,6 +144,10 @@ export function buildCreateKeyRequest(values: CreateKeyFormValues): CreatePgpKey
   const label = values.label.trim()
   if (label) {
     request.label = label
+  }
+
+  if (options.ownerGroupId) {
+    request.ownerGroupId = options.ownerGroupId
   }
 
   return request

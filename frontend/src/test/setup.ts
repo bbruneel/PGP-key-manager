@@ -1,6 +1,29 @@
 import "@testing-library/jest-dom/vitest"
 import { vi } from "vitest"
 
+const mockRefreshGroups = vi.fn(async () => {})
+const mockSetActiveGroupId = vi.fn()
+const mockedGroupContext = {
+  groups: [],
+  activeGroup: null,
+  activeGroupId: null,
+  isLoading: false,
+  error: null,
+  requestId: null,
+  refreshGroups: mockRefreshGroups,
+  setActiveGroupId: mockSetActiveGroupId,
+}
+
+vi.mock("@/hooks/use-group-context", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/use-group-context")>(
+    "@/hooks/use-group-context",
+  )
+  return {
+    ...actual,
+    useGroupContext: vi.fn(() => mockedGroupContext),
+  }
+})
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({

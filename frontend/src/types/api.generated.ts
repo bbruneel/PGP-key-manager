@@ -351,6 +351,8 @@ export interface components {
             armoredPublic?: string;
             /** @description Required for private register/import when `armoredPublic` is omitted. */
             encryptedPrivateArmored?: string;
+            /** Format: uuid */
+            ownerGroupId?: string;
         };
         CreateSubkeyRequest: {
             capabilities: components["schemas"]["PgpCapability"][];
@@ -455,6 +457,10 @@ export interface components {
             role?: components["schemas"]["KeyRole"];
             /** Format: uuid */
             parentKeyId?: string | null;
+            /** @enum {string} */
+            ownerType?: "user" | "group";
+            /** Format: uuid */
+            ownerGroupId?: string | null;
             /** @description Always present in responses; empty array when no capabilities are stored. */
             capabilities?: components["schemas"]["PgpCapability"][];
             status?: components["schemas"]["KeyStatus"];
@@ -470,6 +476,7 @@ export interface components {
              * @enum {integer}
              */
             openpgpVersion?: 4 | 6;
+            hasPrivateMaterial?: boolean;
         };
         PgpKey: components["schemas"]["PgpKeySummary"] & {
             /** @description Present on primary keys; omitted on subkey list/detail responses. */
@@ -529,6 +536,10 @@ export interface operations {
     listKeys: {
         parameters: {
             query?: {
+                /** Format: uuid */
+                groupId?: string;
+                /** @enum {string} */
+                scope?: "all" | "personal" | "group";
                 role?: components["schemas"]["KeyRole"];
                 status?: components["schemas"]["KeyStatus"];
                 capability?: components["schemas"]["PgpCapability"];

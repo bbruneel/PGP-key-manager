@@ -9,18 +9,28 @@ import type { PgpKey } from "@/types/api"
 
 type KeyDetailSummaryProps = {
   keyData: PgpKey
+  ownerGroupName?: string | null
 }
 
-export function KeyDetailSummary({ keyData }: KeyDetailSummaryProps) {
+export function KeyDetailSummary({ keyData, ownerGroupName }: KeyDetailSummaryProps) {
   const revokedLabel = formatRevokedAt(keyData.revokedAt)
   const privateMaterial = hasPrivateMaterial(keyData)
+  const ownershipLabel =
+    keyData.ownerType === "group"
+      ? `Owned by ${ownerGroupName ?? "team vault"}`
+      : "Personal vault"
 
   return (
     <section role="region" aria-label="Key summary" className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">
-          {keyData.label ?? "Unlabeled key"}
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {keyData.label ?? "Unlabeled key"}
+          </h2>
+          <span className="rounded-md border border-border bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            {ownershipLabel}
+          </span>
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">
           {keyData.role === "primary" ? "Primary key" : "Subkey"}
           {keyData.openpgpVersion ? ` · OpenPGP v${keyData.openpgpVersion}` : ""}
