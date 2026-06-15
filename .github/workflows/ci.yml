@@ -86,3 +86,28 @@ jobs:
 
       - name: Lint OpenAPI
         run: npm run docs:lint
+
+  docker:
+    name: Docker (build + smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build images
+        run: docker compose -f docker/compose.yml build
+
+      - name: Smoke test
+        run: |
+          docker compose -f docker/compose.yml up -d
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost/api/hello | grep -q '"ok"'; then
+              echo "Smoke test passed"
+              docker compose -f docker/compose.yml down -v
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for /api/hello"
+          docker compose -f docker/compose.yml logs
+          docker compose -f docker/compose.yml down -v
+          exit 1

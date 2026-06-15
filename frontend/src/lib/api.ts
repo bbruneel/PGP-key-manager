@@ -9,6 +9,16 @@ function joinUrl(base: string, path: string): string {
   return `${b}${p}`
 }
 
+function resolveApiUrl(path: string, base: string | undefined): string {
+  if (path.startsWith("http")) {
+    return path
+  }
+  if (!base) {
+    return path.startsWith("/") ? path : `/${path}`
+  }
+  return joinUrl(base, path)
+}
+
 export function newRequestId(): string {
   return crypto.randomUUID()
 }
@@ -24,9 +34,6 @@ export type ApiFetchOptions = RequestInit & {
  */
 export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promise<Response> {
   const base = import.meta.env.VITE_API_BASE_URL
-  if (!base) {
-    throw new Error("VITE_API_BASE_URL is not set")
-  }
   const { accessToken, requestId, headers, ...rest } = init
   const h = new Headers(headers)
   if (!h.has("Accept")) {
@@ -38,6 +45,6 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promis
   if (!h.has("X-Request-Id")) {
     h.set("X-Request-Id", requestId ?? newRequestId())
   }
-  const url = path.startsWith("http") ? path : joinUrl(base, path)
+  const url = resolveApiUrl(path, base)
   return fetch(url, { ...rest, headers: h })
 }

@@ -57,6 +57,15 @@ npm run docs:preview   # http://127.0.0.1:8081 (must run via npm script; starts 
 
 Published reference: **https://bbruneel.github.io/PGP-key-manager/** (updated on push to `main`).
 
+### Docker (full stack)
+
+```bash
+cp docker/.env.example docker/.env
+docker compose -f docker/compose.yml up --build   # http://localhost
+```
+
+Uses `SPRING_PROFILES_ACTIVE=docker` for fresh Postgres Flyway migrations. Auth0 vars in `docker/.env` are optional for `/api/hello` only.
+
 ### Full local stack
 
 1. Start backend: `cd backend && ./mvnw spring-boot:run`

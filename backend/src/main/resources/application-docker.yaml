@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    baseline-on-migrate: false
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost}

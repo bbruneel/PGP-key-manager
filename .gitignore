@@ -49,6 +49,9 @@ frontend/test-results/
 tmp/pgp-km-test-exports/
 tmp/pgp-km-legacy-exports/
 
+# Docker local env
+docker/.env
+
 # OS / IDE
 .DS_Store
 .idea/
