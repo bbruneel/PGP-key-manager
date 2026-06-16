@@ -10,6 +10,19 @@ vi.mock("@/lib/api-client", () => ({
   requestJson: vi.fn().mockResolvedValue({ message: "ok" }),
 }))
 
+vi.mock("@/hooks/use-group-context", () => ({
+  useGroupContext: () => ({
+    groups: [],
+    activeGroup: null,
+    activeGroupId: null,
+    isLoading: false,
+    error: null,
+    requestId: null,
+    refreshGroups: vi.fn(),
+    setActiveGroupId: vi.fn(),
+  }),
+}))
+
 describe("HomePage", () => {
   it("renders connectivity card and actions inside the shell", async () => {
     render(

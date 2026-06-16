@@ -12,7 +12,7 @@ info:
     Versioned JSON API for OpenPGP key management.
 
     **Versioning:** `Accept: application/json; version=1`
-    **Auth:** Bearer JWT (Auth0) on `/api/keys/**`
+    **Auth:** Bearer JWT (Auth0) on `/api/keys/**`, `/api/groups/**`, `/api/invites/**`, and `/api/admin/**`
     **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.84). Primary generation supports `openpgpVersion` 4 (default) or 6.
     **Errors:** RFC 7807 `application/problem+json`
 
@@ -404,6 +404,8 @@ paths:
       description: |
         Transfers ownership between personal and team vault scopes. When `ownerGroupId` is provided,
         the key becomes group-owned. When omitted, ownership returns to the current user.
+        Authorization parity with other key operations: any current key operator may transfer ownership,
+        and transfer to a group requires membership in the target group.
       parameters:
         - $ref: '#/components/parameters/KeyId'
       requestBody:

@@ -151,6 +151,7 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 - Keys listing now supports `GET /api/keys?groupId={uuid}&scope=personal|group|all`.
 - Create/import requests can include `ownerGroupId` so new keys are written directly to a team vault.
 - Key detail resolves ownership (`ownerType`, `ownerGroupId`) and shows badge context (`Personal vault` or `Owned by {group}`).
+- Ownership transfer has parity with other key operations: any current key operator can transfer, and destination team transfer requires membership in the target group.
 
 ### Auth0 organization mapping note
 

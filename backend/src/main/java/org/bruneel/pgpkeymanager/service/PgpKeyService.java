@@ -464,9 +464,8 @@ public class PgpKeyService {
 
     public PgpKey transferOwnership(AppUser user, UUID keyId, UUID ownerGroupId) {
         PgpKey key = getAccessibleKey(user, keyId);
-        if (key.isGroupOwned()) {
-            groupAuthorizationService.requireGroupOwner(user, key.ownerGroupId());
-        }
+        // Authorization parity: any current key operator can transfer ownership.
+        // For team targets, caller must be a member of the destination group.
         Ownership targetOwnership = resolveOwnershipForTransfer(user, ownerGroupId);
         if (key.ownerType() == targetOwnership.ownerType()
                 && java.util.Objects.equals(key.ownerGroupId(), targetOwnership.ownerGroupId())
@@ -950,7 +949,7 @@ public class PgpKeyService {
         if (ownerGroupId == null) {
             return new Ownership(KeyOwnerType.USER, user.id(), null);
         }
-        groupAuthorizationService.requireGroupOwner(user, ownerGroupId);
+        groupAuthorizationService.requireGroupMember(user, ownerGroupId);
         return new Ownership(KeyOwnerType.GROUP, null, ownerGroupId);
     }
 
