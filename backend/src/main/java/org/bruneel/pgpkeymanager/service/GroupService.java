@@ -187,15 +187,62 @@ public class GroupService {
     }
 
     public void removeMember(AppUser user, UUID groupId, UUID memberUserId) {
-        groupAuthorizationService.requireGroupOwner(user, groupId);
-        GroupMember member =
-                groupMemberRepository
-                        .findByGroupIdAndUserId(groupId, memberUserId)
-                        .orElseThrow(() -> new BadRequestException("Member does not belong to this group"));
-        if (member.role() == GroupMembershipRole.OWNER && groupMemberRepository.countOwnersByGroupId(groupId) <= 1) {
-            throw new ConflictException("Group must keep at least one owner");
+        long start = System.currentTimeMillis();
+        operationLogger.started("remove_group_member", user.id(), groupId);
+        try {
+            groupAuthorizationService.requireGroupOwner(user, groupId);
+            GroupMember member =
+                    groupMemberRepository
+                            .findByGroupIdAndUserId(groupId, memberUserId)
+                            .orElseThrow(() -> new BadRequestException("Member does not belong to this group"));
+            if (member.role() == GroupMembershipRole.OWNER && groupMemberRepository.countOwnersByGroupId(groupId) <= 1) {
+                throw new ConflictException("Group must keep at least one owner");
+            }
+            groupMemberRepository.deleteByGroupIdAndUserId(groupId, memberUserId);
+            operationLogger.succeeded("remove_group_member", user.id(), groupId, duration(start));
+        } catch (RuntimeException ex) {
+            operationLogger.failed("remove_group_member", user.id(), groupId, ex);
+            throw ex;
         }
-        groupMemberRepository.deleteByGroupIdAndUserId(groupId, memberUserId);
+    }
+
+    public void leaveGroup(AppUser user, UUID groupId) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("leave_group", user.id(), groupId);
+        try {
+            GroupMember member =
+                    groupAuthorizationService.requireGroupMember(user, groupId);
+            if (member.role() == GroupMembershipRole.OWNER && groupMemberRepository.countOwnersByGroupId(groupId) <= 1) {
+                throw new ConflictException("Group must keep at least one owner");
+            }
+            if (!groupMemberRepository.deleteByGroupIdAndUserId(groupId, user.id())) {
+                throw new BadRequestException("Current user does not belong to this group");
+            }
+            operationLogger.succeeded("leave_group", user.id(), groupId, duration(start));
+        } catch (RuntimeException ex) {
+            operationLogger.failed("leave_group", user.id(), groupId, ex);
+            throw ex;
+        }
+    }
+
+    public void revokeInvite(AppUser user, UUID groupId, UUID inviteId) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("revoke_group_invite", user.id(), groupId);
+        try {
+            groupAuthorizationService.requireGroupOwner(user, groupId);
+            GroupInvite invite =
+                    groupInviteRepository.findById(inviteId).orElseThrow(() -> new BadRequestException("Invite not found"));
+            if (!invite.groupId().equals(groupId)) {
+                throw new BadRequestException("Invite does not belong to this group");
+            }
+            if (!groupInviteRepository.deletePendingById(inviteId)) {
+                throw new ConflictException("Invite has already been accepted");
+            }
+            operationLogger.succeeded("revoke_group_invite", user.id(), groupId, duration(start));
+        } catch (RuntimeException ex) {
+            operationLogger.failed("revoke_group_invite", user.id(), groupId, ex);
+            throw ex;
+        }
     }
 
     public GroupSummary getSummary(AppUser user, UUID groupId) {

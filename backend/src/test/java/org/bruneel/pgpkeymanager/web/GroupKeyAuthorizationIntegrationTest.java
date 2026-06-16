@@ -37,7 +37,7 @@ class GroupKeyAuthorizationIntegrationTest {
         String keyId = createGroupOwnedPublicKey(groupId);
 
         mockMvc.perform(get("/api/keys/{keyId}", keyId).with(jwtForSubject(SECONDARY_SUBJECT)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
 
         String token = inviteSecondaryUser(groupId);
         mockMvc.perform(post("/api/invites/{token}/accept", token).with(jwtForSubject(SECONDARY_SUBJECT)))

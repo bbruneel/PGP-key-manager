@@ -144,6 +144,16 @@ class GroupControllerTest {
     }
 
     @Test
+    void leaveGroupReturnsNoContent() throws Exception {
+        UUID groupId = group().id();
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+
+        mockMvc.perform(delete("/api/groups/{groupId}/members/me", groupId)).andExpect(status().isNoContent());
+
+        verify(groupService).leaveGroup(USER, groupId);
+    }
+
+    @Test
     void inviteReturnsCreated() throws Exception {
         UUID groupId = group().id();
         GroupInvite invite =
@@ -190,6 +200,18 @@ class GroupControllerTest {
         mockMvc.perform(get("/api/groups/{groupId}/invites", groupId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].token").value("token"));
+    }
+
+    @Test
+    void revokeInviteReturnsNoContent() throws Exception {
+        UUID groupId = group().id();
+        UUID inviteId = UUID.randomUUID();
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+
+        mockMvc.perform(delete("/api/groups/{groupId}/invites/{inviteId}", groupId, inviteId))
+                .andExpect(status().isNoContent());
+
+        verify(groupService).revokeInvite(USER, groupId, inviteId);
     }
 
     @Test

@@ -123,6 +123,18 @@ public class GroupInviteRepository {
         return findById(inviteId);
     }
 
+    public boolean deletePendingById(UUID inviteId) {
+        return jdbc.sql(
+                        """
+                        DELETE FROM group_invites
+                        WHERE id = :inviteId
+                          AND accepted_at IS NULL
+                        """)
+                .param("inviteId", inviteId)
+                .update()
+                > 0;
+    }
+
     private static GroupInvite mapRow(ResultSet rs) throws SQLException {
         Timestamp acceptedAt = rs.getTimestamp("accepted_at");
         return new GroupInvite(

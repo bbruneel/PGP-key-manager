@@ -76,7 +76,6 @@ class GroupAuthorizationServiceTest {
         AppUser user = appUser();
         UUID groupId = UUID.randomUUID();
         PgpKey key = groupOwnedKey(groupId);
-        when(groupRepository.findById(groupId)).thenReturn(Optional.of(group(groupId, user.id())));
         when(groupMemberRepository.findByGroupIdAndUserId(groupId, user.id()))
                 .thenReturn(Optional.of(new GroupMember(groupId, user.id(), GroupMembershipRole.MEMBER, null, Instant.now())));
 
@@ -114,7 +113,7 @@ class GroupAuthorizationServiceTest {
                         Instant.now());
 
         assertThatThrownBy(() -> service.requireKeyAccess(user, foreignKey))
-                .isInstanceOf(ForbiddenGroupActionException.class);
+                .isInstanceOf(KeyNotFoundException.class);
     }
 
     private static AppUser appUser() {

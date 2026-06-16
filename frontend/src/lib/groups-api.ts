@@ -40,6 +40,12 @@ export type RemoveGroupMemberOptions = {
   memberUserId: string
 }
 
+export type RevokeGroupInviteOptions = {
+  accessToken: string
+  groupId: string
+  inviteId: string
+}
+
 export type AcceptInviteOptions = {
   accessToken: string
   token: string
@@ -104,6 +110,14 @@ export const groupsApi = {
     })
   },
 
+  leave(options: GroupIdOptions): Promise<void> {
+    return requestJson<void>(`/api/groups/${options.groupId}/members/me`, {
+      operationId: "leaveGroup",
+      accessToken: options.accessToken,
+      method: "DELETE",
+    })
+  },
+
   invite(options: InviteGroupMemberOptions): Promise<GroupInvite> {
     return requestJson<GroupInvite>(`/api/groups/${options.groupId}/invites`, {
       operationId: "inviteGroupMember",
@@ -118,6 +132,14 @@ export const groupsApi = {
       operationId: "listGroupInvites",
       accessToken: options.accessToken,
       method: "GET",
+    })
+  },
+
+  revokeInvite(options: RevokeGroupInviteOptions): Promise<void> {
+    return requestJson<void>(`/api/groups/${options.groupId}/invites/${options.inviteId}`, {
+      operationId: "revokeGroupInvite",
+      accessToken: options.accessToken,
+      method: "DELETE",
     })
   },
 

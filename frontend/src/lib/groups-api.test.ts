@@ -64,6 +64,42 @@ describe("groupsApi", () => {
     expect(result).toEqual([{ groupId: "group-1", userId: "user-1", role: "owner" }])
   })
 
+  it("removes a group member", async () => {
+    vi.mocked(requestJson).mockResolvedValue(undefined)
+
+    await groupsApi.removeMember({ accessToken: "token-abc", groupId: "group-1", memberUserId: "user-2" })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/groups/group-1/members/user-2", {
+      operationId: "removeGroupMember",
+      accessToken: "token-abc",
+      method: "DELETE",
+    })
+  })
+
+  it("leaves a group", async () => {
+    vi.mocked(requestJson).mockResolvedValue(undefined)
+
+    await groupsApi.leave({ accessToken: "token-abc", groupId: "group-1" })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/groups/group-1/members/me", {
+      operationId: "leaveGroup",
+      accessToken: "token-abc",
+      method: "DELETE",
+    })
+  })
+
+  it("revokes a pending invite", async () => {
+    vi.mocked(requestJson).mockResolvedValue(undefined)
+
+    await groupsApi.revokeInvite({ accessToken: "token-abc", groupId: "group-1", inviteId: "invite-1" })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/groups/group-1/invites/invite-1", {
+      operationId: "revokeGroupInvite",
+      accessToken: "token-abc",
+      method: "DELETE",
+    })
+  })
+
   it("loads group summary", async () => {
     vi.mocked(requestJson).mockResolvedValue({
       group,

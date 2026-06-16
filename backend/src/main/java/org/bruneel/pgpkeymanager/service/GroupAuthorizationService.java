@@ -27,7 +27,7 @@ public class GroupAuthorizationService {
         ensureGroupExists(groupId);
         return groupMemberRepository
                 .findByGroupIdAndUserId(groupId, user.id())
-                .orElseThrow(() -> new ForbiddenGroupActionException("Group membership required"));
+                .orElseThrow(() -> new GroupNotFoundException(groupId));
     }
 
     public GroupMember requireGroupOwner(AppUser user, UUID groupId) {
@@ -48,15 +48,17 @@ public class GroupAuthorizationService {
     public void requireKeyAccess(AppUser user, PgpKey key) {
         if (key.ownerType() == KeyOwnerType.USER) {
             if (key.userId() == null || !key.userId().equals(user.id())) {
-                throw new ForbiddenGroupActionException("No access to this key");
+                throw new KeyNotFoundException(key.id());
             }
             return;
         }
         UUID groupId = key.ownerGroupId();
         if (groupId == null) {
-            throw new ForbiddenGroupActionException("Invalid key ownership metadata");
+            throw new KeyNotFoundException(key.id());
         }
-        requireGroupMember(user, groupId);
+        if (groupMemberRepository.findByGroupIdAndUserId(groupId, user.id()).isEmpty()) {
+            throw new KeyNotFoundException(key.id());
+        }
     }
 
     private void ensureGroupExists(UUID groupId) {

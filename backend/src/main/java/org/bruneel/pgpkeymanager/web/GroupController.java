@@ -92,6 +92,13 @@ public class GroupController {
         groupService.removeMember(user, groupId, memberUserId);
     }
 
+    @DeleteMapping("/{groupId}/members/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void leaveGroup(@PathVariable UUID groupId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        groupService.leaveGroup(user, groupId);
+    }
+
     @PostMapping(path = "/{groupId}/invites", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public GroupInviteResponse invite(
@@ -108,6 +115,13 @@ public class GroupController {
     public List<GroupInviteResponse> listInvites(@PathVariable UUID groupId, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         return groupService.listInvites(user, groupId).stream().map(GroupInviteResponse::from).toList();
+    }
+
+    @DeleteMapping("/{groupId}/invites/{inviteId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeInvite(@PathVariable UUID groupId, @PathVariable UUID inviteId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        groupService.revokeInvite(user, groupId, inviteId);
     }
 
     @GetMapping("/{groupId}/summary")

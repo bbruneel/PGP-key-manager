@@ -153,6 +153,58 @@ class GroupServiceTest {
         assertThat(csv).contains("owner");
     }
 
+    @Test
+    void leaveGroupRemovesCurrentMemberWhenNotLastOwner() {
+        AppUser user = user();
+        UUID groupId = UUID.randomUUID();
+        when(groupAuthorizationService.requireGroupMember(user, groupId))
+                .thenReturn(new GroupMember(groupId, user.id(), GroupMembershipRole.MEMBER, null, Instant.now()));
+        when(groupMemberRepository.deleteByGroupIdAndUserId(groupId, user.id())).thenReturn(true);
+
+        groupService.leaveGroup(user, groupId);
+
+        verify(groupMemberRepository).deleteByGroupIdAndUserId(groupId, user.id());
+    }
+
+    @Test
+    void leaveGroupRejectsWhenCurrentUserIsLastOwner() {
+        AppUser user = user();
+        UUID groupId = UUID.randomUUID();
+        when(groupAuthorizationService.requireGroupMember(user, groupId))
+                .thenReturn(new GroupMember(groupId, user.id(), GroupMembershipRole.OWNER, null, Instant.now()));
+        when(groupMemberRepository.countOwnersByGroupId(groupId)).thenReturn(1);
+
+        assertThatThrownBy(() -> groupService.leaveGroup(user, groupId))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("at least one owner");
+    }
+
+    @Test
+    void revokeInviteDeletesPendingInviteForGroup() {
+        AppUser user = user();
+        UUID groupId = UUID.randomUUID();
+        UUID inviteId = UUID.randomUUID();
+        GroupInvite invite =
+                new GroupInvite(
+                        inviteId,
+                        groupId,
+                        "token",
+                        "invitee@example.test",
+                        null,
+                        GroupMembershipRole.MEMBER,
+                        user.id(),
+                        Instant.now().plusSeconds(3600),
+                        null,
+                        Instant.now());
+        when(groupInviteRepository.findById(inviteId)).thenReturn(Optional.of(invite));
+        when(groupInviteRepository.deletePendingById(inviteId)).thenReturn(true);
+
+        groupService.revokeInvite(user, groupId, inviteId);
+
+        verify(groupAuthorizationService).requireGroupOwner(user, groupId);
+        verify(groupInviteRepository).deletePendingById(inviteId);
+    }
+
     private static AppUser user() {
         return new AppUser(UUID.randomUUID(), "auth0|primary", "primary@example.test", "Primary", "user", Instant.now());
     }

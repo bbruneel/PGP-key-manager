@@ -590,6 +590,20 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/groups/{groupId}/members/me:
+    delete:
+      tags: [Groups]
+      summary: Leave group
+      operationId: leaveGroup
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '204':
+          description: Current user removed from group
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/groups/{groupId}/invites:
     get:
       tags: [Groups]
@@ -629,6 +643,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GroupInviteResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/invites/{inviteId}:
+    delete:
+      tags: [Groups]
+      summary: Revoke pending invite
+      operationId: revokeGroupInvite
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/InviteId'
+      responses:
+        '204':
+          description: Invite revoked
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
@@ -779,6 +808,13 @@ components:
       required: true
       schema:
         type: string
+    InviteId:
+      name: inviteId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 
   schemas:
     ProblemDetail:
