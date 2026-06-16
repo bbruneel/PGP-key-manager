@@ -22,6 +22,7 @@ import {
 } from "@/lib/keys-list-params"
 import { logUiEvent } from "@/lib/ui-logger"
 import { cn } from "@/lib/utils"
+import type { ListKeysScope } from "@/lib/keys-api"
 import type { PgpKeySummary } from "@/types/api"
 
 function shortFingerprint(fingerprint: string): string {
@@ -60,7 +61,19 @@ function statusBadgeClass(status: string | null | undefined): string {
   }
 }
 
-export function HomeKeysPanel() {
+type HomeKeysPanelProps = {
+  groupId?: string
+  scope?: ListKeysScope
+  title?: string
+  description?: string
+}
+
+export function HomeKeysPanel({
+  groupId,
+  scope,
+  title = "PGP keys",
+  description = "Keys stored in Supabase for your account.",
+}: HomeKeysPanelProps = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const listParams = useMemo(() => parseKeysListParams(searchParams), [searchParams])
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
@@ -96,7 +109,12 @@ export function HomeKeysPanel() {
     try {
       const token = await getAccessToken()
       const listOptions = listOptionsFromParams(listParams)
-      const data = await keysApi.list({ accessToken: token, ...listOptions })
+      const data = await keysApi.list({
+        accessToken: token,
+        ...listOptions,
+        ...(groupId ? { groupId } : {}),
+        ...(scope ? { scope } : {}),
+      })
       const filtered = applyMaterialViewFilter(data, listParams.view)
       setKeys(filtered)
       setSelectedIds(new Set())
@@ -117,7 +135,7 @@ export function HomeKeysPanel() {
     } finally {
       setLoading(false)
     }
-  }, [getAccessToken, isAuthenticated, isConfigured, listParams])
+  }, [getAccessToken, groupId, isAuthenticated, isConfigured, listParams, scope])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -232,7 +250,7 @@ export function HomeKeysPanel() {
   if (!isConfigured) {
     return (
       <section className="rounded-lg border border-dashed border-border bg-card/50 p-6 text-sm md:p-8">
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">PGP keys</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
         <p className="mt-2 text-muted-foreground">
           Configure Auth0 to list and manage keys stored in Supabase via the API.
         </p>
@@ -243,7 +261,7 @@ export function HomeKeysPanel() {
   if (!isAuthenticated) {
     return (
       <section className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm md:p-8">
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">PGP keys</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground">Sign in to view keys synced to your account.</p>
         {authError ? <p className="mt-2 text-sm text-destructive">{authError}</p> : null}
       </section>
@@ -254,8 +272,8 @@ export function HomeKeysPanel() {
     <section className="rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm md:p-8">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-foreground">PGP keys</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Keys stored in Supabase for your account.</p>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="default" className="transition-colors duration-200" asChild>

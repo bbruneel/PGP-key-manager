@@ -126,6 +126,9 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/keys/new` | Create primary key (Ed25519 default; advanced RSA/ECDSA/Ed448, OpenPGP v4/v6) | Phase 1 + 6 (implemented) |
 | `/keys/import` | Import/register existing key (public or private armored blocks + fingerprint) | Phase 2 (implemented) |
 | `/keys/:id` | Key detail (tabbed: Overview / Subkeys / Actions), subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, export) | Phase 3 + 4 + 6 + PR #33 (implemented) |
+| `/groups/new` | Create a team vault group | Phase 16 (implemented) |
+| `/groups/:groupId/keys` | List keys scoped to a team vault (`scope=group`) | Phase 16 (implemented) |
+| `/groups/:groupId/members` | View group members and summary metrics | Phase 16 (implemented) |
 
 **Recorded decision:** create primary key at **`/keys/new`** and import at **`/keys/import`**, not modals on `/keys`.
 
@@ -140,6 +143,19 @@ Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `ap
 - **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
 
 Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`; Phase 4 adds `keysApi.createSubkey()`. Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text.
+
+## Team vault architecture (Phase 16)
+
+- `GroupProvider` loads `/api/groups` and stores the active group context for routing and ownership defaults.
+- `GroupSwitcher` in the app header toggles between personal vault and group vault views.
+- Keys listing now supports `GET /api/keys?groupId={uuid}&scope=personal|group|all`.
+- Create/import requests can include `ownerGroupId` so new keys are written directly to a team vault.
+- Key detail resolves ownership (`ownerType`, `ownerGroupId`) and shows badge context (`Personal vault` or `Owned by {group}`).
+- Ownership transfer has parity with other key operations: any current key operator can transfer, and destination team transfer requires membership in the target group.
+
+### Auth0 organization mapping note
+
+Group membership and authorization are currently enforced from application data (`group_members`), not direct Auth0 Organization role claims. Auth0 org metadata can still be used upstream for UX hints, but backend authorization remains source-of-truth in repository-managed group membership tables.
 
 ## Create primary key flow (Phase 1)
 

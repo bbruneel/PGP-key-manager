@@ -11,6 +11,7 @@ import type { PgpKey } from "@/types/api"
 export type OverviewTabProps = {
   isActive: boolean
   keyData: PgpKey
+  ownerGroupName?: string | null
   isSubkey: boolean
   showSshExport: boolean
   subkeysRefreshToken: number
@@ -27,6 +28,7 @@ export type OverviewTabProps = {
 export function OverviewTab({
   isActive,
   keyData,
+  ownerGroupName,
   isSubkey,
   showSshExport,
   subkeysRefreshToken,
@@ -58,7 +60,7 @@ export function OverviewTab({
         </p>
       ) : null}
 
-      <KeyDetailSummary keyData={keyData} />
+      <KeyDetailSummary keyData={keyData} ownerGroupName={ownerGroupName} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">

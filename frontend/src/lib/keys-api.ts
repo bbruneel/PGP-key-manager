@@ -20,10 +20,14 @@ import type {
 
 export type ListKeysOptions = {
   accessToken: string
+  groupId?: string
+  scope?: ListKeysScope
   role?: KeyRole
   status?: KeyStatus
   capability?: PgpCapability
 }
+
+export type ListKeysScope = "all" | "personal" | "group"
 
 export type CreateKeyOptions = {
   accessToken: string
@@ -116,6 +120,12 @@ export const keysApi = {
     const params = new URLSearchParams()
     if (options.role) {
       params.set("role", options.role)
+    }
+    if (options.groupId) {
+      params.set("groupId", options.groupId)
+    }
+    if (options.scope) {
+      params.set("scope", options.scope)
     }
     if (options.status) {
       params.set("status", options.status)

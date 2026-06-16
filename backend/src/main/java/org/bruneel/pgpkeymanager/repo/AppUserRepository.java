@@ -43,10 +43,33 @@ public class AppUserRepository {
         return findByAuth0Sub(auth0Sub).orElseThrow();
     }
 
+    public Optional<AppUser> findById(UUID id) {
+        return jdbc.sql(
+                        """
+                        SELECT id, auth0_sub, email, display_name, platform_role, created_at
+                        FROM app_users
+                        WHERE id = :id
+                        """)
+                .param("id", id)
+                .query((rs, rowNum) -> mapRow(rs))
+                .optional();
+    }
+
+    public java.util.List<AppUser> findAll() {
+        return jdbc.sql(
+                        """
+                        SELECT id, auth0_sub, email, display_name, platform_role, created_at
+                        FROM app_users
+                        ORDER BY created_at DESC
+                        """)
+                .query((rs, rowNum) -> mapRow(rs))
+                .list();
+    }
+
     public Optional<AppUser> findByAuth0Sub(String auth0Sub) {
         return jdbc.sql(
                         """
-                        SELECT id, auth0_sub, created_at
+                        SELECT id, auth0_sub, email, display_name, platform_role, created_at
                         FROM app_users
                         WHERE auth0_sub = :auth0Sub
                         """)
@@ -55,10 +78,36 @@ public class AppUserRepository {
                 .optional();
     }
 
+    public AppUser updateProfile(UUID userId, String email, String displayName) {
+        jdbc.sql(
+                        """
+                        UPDATE app_users
+                        SET email = :email,
+                            display_name = :displayName
+                        WHERE id = :id
+                        """)
+                .param("id", userId)
+                .param("email", emptyToNull(email))
+                .param("displayName", emptyToNull(displayName))
+                .update();
+        return findById(userId).orElseThrow();
+    }
+
+    private static String emptyToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private static AppUser mapRow(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new AppUser(
                 rs.getObject("id", UUID.class),
                 rs.getString("auth0_sub"),
+                rs.getString("email"),
+                rs.getString("display_name"),
+                rs.getString("platform_role"),
                 rs.getTimestamp("created_at").toInstant());
     }
 }

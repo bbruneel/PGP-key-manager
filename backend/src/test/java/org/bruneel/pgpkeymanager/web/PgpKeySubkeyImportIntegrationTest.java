@@ -236,7 +236,6 @@ class PgpKeySubkeyImportIntegrationTest {
                         status ->
                                 pgpKeyRepository.updateKeyringMaterial(
                                         UUID.fromString(primaryId),
-                                        user.id(),
                                         revoked.armoredPublic(),
                                         revoked.armoredPrivate(),
                                         null,
@@ -311,7 +310,6 @@ class PgpKeySubkeyImportIntegrationTest {
                         status ->
                                 pgpKeyRepository.updateKeyringMaterial(
                                         UUID.fromString(primaryId),
-                                        user.id(),
                                         revoked.armoredPublic(),
                                         revoked.armoredPrivate(),
                                         null,

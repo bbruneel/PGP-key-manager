@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import org.bruneel.pgpkeymanager.domain.CapabilityJson;
+import org.bruneel.pgpkeymanager.domain.KeyOwnerType;
 import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.domain.PgpKey;
@@ -24,10 +25,10 @@ public class PgpKeyRepository {
 
     private static final String SELECT_COLUMNS =
             """
-            id, user_id, label, fingerprint, key_id, key_type, role, parent_key_id,
-            capabilities, algorithm, algorithm_spec, expires_at, revoked_at, revocation_reason,
-            armored_public, encrypted_private_armored, storage_provider, storage_ref, openpgp_version,
-            created_at, updated_at
+            k.id, k.user_id, k.label, k.fingerprint, k.key_id, k.key_type, k.role, k.parent_key_id,
+            k.capabilities, k.algorithm, k.algorithm_spec, k.expires_at, k.revoked_at, k.revocation_reason,
+            k.armored_public, k.encrypted_private_armored, k.storage_provider, k.storage_ref, k.openpgp_version,
+            k.owner_type, k.owner_group_id, k.created_by_user_id, k.created_at, k.updated_at
             """;
 
     private final JdbcClient jdbc;
@@ -36,12 +37,63 @@ public class PgpKeyRepository {
         this.jdbc = jdbc;
     }
 
-    public List<PgpKey> findAllByUserId(UUID userId, KeyRole role, String status, PgpCapability capability) {
+    public Optional<PgpKey> findById(UUID id) {
+        return jdbc.sql("SELECT " + SELECT_COLUMNS + " FROM pgp_keys k WHERE k.id = :id")
+                .param("id", id)
+                .query((rs, rowNum) -> mapRow(rs))
+                .optional();
+    }
+
+    public List<PgpKey> findAllPersonalByUserId(UUID userId, KeyRole role, String status, PgpCapability capability) {
+        return queryOwned(
+                "k.owner_type = 'user' AND k.user_id = :userId", userId, null, null, role, status, capability);
+    }
+
+    public List<PgpKey> findAllByGroupId(UUID groupId, KeyRole role, String status, PgpCapability capability) {
+        return queryOwned(
+                "k.owner_type = 'group' AND k.owner_group_id = :groupId",
+                null,
+                null,
+                groupId,
+                role,
+                status,
+                capability);
+    }
+
+    public List<PgpKey> findAllAccessibleByUserId(
+            UUID userId, UUID groupId, String scope, KeyRole role, String status, PgpCapability capability) {
+        String normalizedScope = scope == null ? "all" : scope.toLowerCase();
+        String ownershipPredicate =
+                switch (normalizedScope) {
+                    case "personal" -> "k.owner_type = 'user' AND k.user_id = :userId";
+                    case "group" -> "k.owner_type = 'group' AND gm.user_id IS NOT NULL";
+                    default ->
+                            """
+                            (
+                              (k.owner_type = 'user' AND k.user_id = :userId)
+                              OR
+                              (k.owner_type = 'group' AND gm.user_id IS NOT NULL)
+                            )
+                            """;
+                };
         StringBuilder sql =
-                new StringBuilder("SELECT ").append(SELECT_COLUMNS).append(" FROM pgp_keys WHERE user_id = :userId");
+                new StringBuilder("SELECT DISTINCT ")
+                        .append(SELECT_COLUMNS)
+                        .append(
+                                """
+                                 FROM pgp_keys k
+                                 LEFT JOIN group_members gm
+                                   ON gm.group_id = k.owner_group_id
+                                  AND gm.user_id = :userId
+                                 WHERE
+                                """)
+                        .append(ownershipPredicate);
         List<String> clauses = new ArrayList<>();
+        if (groupId != null) {
+            clauses.add("k.owner_group_id = :groupId");
+        }
         if (role != null) {
-            clauses.add("role = :role");
+            clauses.add("k.role = :role");
         }
         if (status != null) {
             clauses.add(statusClause(status));
@@ -49,9 +101,11 @@ public class PgpKeyRepository {
         if (!clauses.isEmpty()) {
             sql.append(" AND ").append(String.join(" AND ", clauses));
         }
-        sql.append(" ORDER BY created_at DESC");
-
+        sql.append(" ORDER BY k.created_at DESC");
         var query = jdbc.sql(sql.toString()).param("userId", userId);
+        if (groupId != null) {
+            query = query.param("groupId", groupId);
+        }
         if (role != null) {
             query = query.param("role", role.toDb());
         }
@@ -59,40 +113,42 @@ public class PgpKeyRepository {
         if (capability == null) {
             return keys;
         }
-        return keys.stream().filter(k -> k.capabilities().contains(capability)).toList();
+        return keys.stream().filter(key -> key.capabilities().contains(capability)).toList();
     }
 
-    public List<PgpKey> findSubkeysByParentId(UUID parentKeyId, UUID userId) {
-        return jdbc.sql(
-                        "SELECT "
-                                + SELECT_COLUMNS
-                                + " FROM pgp_keys WHERE parent_key_id = :parentKeyId AND user_id = :userId ORDER BY created_at DESC")
+    public List<PgpKey> findSubkeysByParentId(UUID parentKeyId) {
+        return jdbc.sql("SELECT " + SELECT_COLUMNS + " FROM pgp_keys k WHERE k.parent_key_id = :parentKeyId ORDER BY k.created_at DESC")
                 .param("parentKeyId", parentKeyId)
-                .param("userId", userId)
                 .query((rs, rowNum) -> mapRow(rs))
                 .list();
     }
 
-    public Optional<PgpKey> findByIdAndUserId(UUID id, UUID userId) {
-        return jdbc.sql(
-                        "SELECT "
-                                + SELECT_COLUMNS
-                                + " FROM pgp_keys WHERE id = :id AND user_id = :userId")
-                .param("id", id)
-                .param("userId", userId)
-                .query((rs, rowNum) -> mapRow(rs))
-                .optional();
-    }
-
-    public Optional<PgpKey> findPrimaryByUserIdAndFingerprint(UUID userId, String fingerprint) {
+    public Optional<PgpKey> findPrimaryByOwnerAndFingerprint(UUID userId, UUID ownerGroupId, String fingerprint) {
+        if (ownerGroupId != null) {
+            return jdbc.sql(
+                            "SELECT "
+                                    + SELECT_COLUMNS
+                                    + """
+                                     FROM pgp_keys k
+                                     WHERE k.owner_type = 'group'
+                                       AND k.owner_group_id = :ownerGroupId
+                                       AND UPPER(k.fingerprint) = UPPER(:fingerprint)
+                                       AND k.role = 'primary'
+                                    """)
+                    .param("ownerGroupId", ownerGroupId)
+                    .param("fingerprint", fingerprint)
+                    .query((rs, rowNum) -> mapRow(rs))
+                    .optional();
+        }
         return jdbc.sql(
                         "SELECT "
                                 + SELECT_COLUMNS
                                 + """
-                                 FROM pgp_keys
-                                 WHERE user_id = :userId
-                                   AND UPPER(fingerprint) = UPPER(:fingerprint)
-                                   AND role = 'primary'
+                                 FROM pgp_keys k
+                                 WHERE k.owner_type = 'user'
+                                   AND k.user_id = :userId
+                                   AND UPPER(k.fingerprint) = UPPER(:fingerprint)
+                                   AND k.role = 'primary'
                                 """)
                 .param("userId", userId)
                 .param("fingerprint", fingerprint)
@@ -100,17 +156,17 @@ public class PgpKeyRepository {
                 .optional();
     }
 
-    public Optional<PgpKey> findSubkeyByIdAndParentId(UUID subkeyId, UUID parentKeyId, UUID userId) {
+    public Optional<PgpKey> findSubkeyByIdAndParentId(UUID subkeyId, UUID parentKeyId) {
         return jdbc.sql(
                         "SELECT "
                                 + SELECT_COLUMNS
                                 + """
-                                 FROM pgp_keys
-                                 WHERE id = :subkeyId AND parent_key_id = :parentKeyId AND user_id = :userId
+                                 FROM pgp_keys k
+                                 WHERE k.id = :subkeyId
+                                   AND k.parent_key_id = :parentKeyId
                                 """)
                 .param("subkeyId", subkeyId)
                 .param("parentKeyId", parentKeyId)
-                .param("userId", userId)
                 .query((rs, rowNum) -> mapRow(rs))
                 .optional();
     }
@@ -122,12 +178,14 @@ public class PgpKeyRepository {
                         INSERT INTO pgp_keys (
                             id, user_id, label, fingerprint, key_id, key_type, role, parent_key_id,
                             capabilities, algorithm, algorithm_spec, expires_at, revoked_at, revocation_reason,
-                            armored_public, encrypted_private_armored, storage_provider, storage_ref, openpgp_version
+                            armored_public, encrypted_private_armored, storage_provider, storage_ref, openpgp_version,
+                            owner_type, owner_group_id, created_by_user_id
                         )
                         VALUES (
                             :id, :userId, :label, :fingerprint, :keyId, :keyType, :role, :parentKeyId,
                             :capabilities, :algorithm, :algorithmSpec, :expiresAt, :revokedAt, :revocationReason,
-                            :armoredPublic, :encryptedPrivateArmored, :storageProvider, :storageRef, :openpgpVersion
+                            :armoredPublic, :encryptedPrivateArmored, :storageProvider, :storageRef, :openpgpVersion,
+                            :ownerType, :ownerGroupId, :createdByUserId
                         )
                         """)
                 .param("id", id)
@@ -149,12 +207,14 @@ public class PgpKeyRepository {
                 .param("storageProvider", insert.storageProvider())
                 .param("storageRef", insert.storageRef())
                 .param("openpgpVersion", insert.openpgpVersion())
+                .param("ownerType", insert.ownerType().toDb())
+                .param("ownerGroupId", insert.ownerGroupId())
+                .param("createdByUserId", insert.createdByUserId())
                 .update();
-        return findByIdAndUserId(id, insert.userId()).orElseThrow();
+        return findById(id).orElseThrow();
     }
 
-    public Optional<PgpKey> updateMetadata(
-            UUID id, UUID userId, String label, Instant expiresAt, String storageProvider, String storageRef) {
+    public Optional<PgpKey> updateMetadata(UUID id, String label, Instant expiresAt, String storageProvider, String storageRef) {
         int updated =
                 jdbc.sql(
                                 """
@@ -164,10 +224,9 @@ public class PgpKeyRepository {
                                     storage_provider = COALESCE(:storageProvider, storage_provider),
                                     storage_ref = COALESCE(:storageRef, storage_ref),
                                     updated_at = CURRENT_TIMESTAMP
-                                WHERE id = :id AND user_id = :userId
+                                WHERE id = :id
                                 """)
                         .param("id", id)
-                        .param("userId", userId)
                         .param("label", label)
                         .param("expiresAt", toTimestamp(expiresAt))
                         .param("storageProvider", storageProvider)
@@ -176,12 +235,11 @@ public class PgpKeyRepository {
         if (updated == 0) {
             return Optional.empty();
         }
-        return findByIdAndUserId(id, userId);
+        return findById(id);
     }
 
     public Optional<PgpKey> updateKeyringMaterial(
             UUID id,
-            UUID userId,
             String armoredPublic,
             String encryptedPrivateArmored,
             Instant expiresAt,
@@ -197,10 +255,9 @@ public class PgpKeyRepository {
                                     revoked_at = COALESCE(:revokedAt, revoked_at),
                                     revocation_reason = COALESCE(:revocationReason, revocation_reason),
                                     updated_at = CURRENT_TIMESTAMP
-                                WHERE id = :id AND user_id = :userId
+                                WHERE id = :id
                                 """)
                         .param("id", id)
-                        .param("userId", userId)
                         .param("armoredPublic", armoredPublic)
                         .param("encryptedPrivateArmored", encryptedPrivateArmored)
                         .param("expiresAt", toTimestamp(expiresAt))
@@ -210,10 +267,10 @@ public class PgpKeyRepository {
         if (updated == 0) {
             return Optional.empty();
         }
-        return findByIdAndUserId(id, userId);
+        return findById(id);
     }
 
-    public Optional<PgpKey> markRevoked(UUID id, UUID userId, Instant revokedAt, RevocationReason reason) {
+    public Optional<PgpKey> markRevoked(UUID id, Instant revokedAt, RevocationReason reason) {
         int updated =
                 jdbc.sql(
                                 """
@@ -221,26 +278,57 @@ public class PgpKeyRepository {
                                 SET revoked_at = :revokedAt,
                                     revocation_reason = :reason,
                                     updated_at = CURRENT_TIMESTAMP
-                                WHERE id = :id AND user_id = :userId
+                                WHERE id = :id
                                 """)
                         .param("id", id)
-                        .param("userId", userId)
                         .param("revokedAt", Timestamp.from(revokedAt))
                         .param("reason", reason.toDb())
                         .update();
         if (updated == 0) {
             return Optional.empty();
         }
-        return findByIdAndUserId(id, userId);
+        return findById(id);
     }
 
-    public boolean deleteByIdAndUserId(UUID id, UUID userId) {
-        int rows =
-                jdbc.sql("DELETE FROM pgp_keys WHERE id = :id AND user_id = :userId")
-                        .param("id", id)
+    public boolean deleteById(UUID id) {
+        int rows = jdbc.sql("DELETE FROM pgp_keys WHERE id = :id").param("id", id).update();
+        return rows > 0;
+    }
+
+    public int countByOwnerGroupId(UUID ownerGroupId) {
+        Integer count =
+                jdbc.sql(
+                                """
+                                SELECT COUNT(*) FROM pgp_keys
+                                WHERE owner_type = 'group'
+                                  AND owner_group_id = :ownerGroupId
+                                """)
+                        .param("ownerGroupId", ownerGroupId)
+                        .query(Integer.class)
+                        .single();
+        return count == null ? 0 : count;
+    }
+
+    public Optional<PgpKey> updateOwnership(UUID keyId, KeyOwnerType ownerType, UUID ownerGroupId, UUID userId) {
+        int updated =
+                jdbc.sql(
+                                """
+                                UPDATE pgp_keys
+                                SET owner_type = :ownerType,
+                                    owner_group_id = :ownerGroupId,
+                                    user_id = :userId,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE id = :keyId
+                                """)
+                        .param("keyId", keyId)
+                        .param("ownerType", ownerType.toDb())
+                        .param("ownerGroupId", ownerGroupId)
                         .param("userId", userId)
                         .update();
-        return rows > 0;
+        if (updated == 0) {
+            return Optional.empty();
+        }
+        return findById(keyId);
     }
 
     public record PgpKeyInsert(
@@ -261,13 +349,59 @@ public class PgpKeyRepository {
             String encryptedPrivateArmored,
             String storageProvider,
             String storageRef,
-            int openpgpVersion) {}
+            int openpgpVersion,
+            KeyOwnerType ownerType,
+            UUID ownerGroupId,
+            UUID createdByUserId) {}
+
+    private List<PgpKey> queryOwned(
+            String ownershipPredicate,
+            UUID userId,
+            UUID memberUserId,
+            UUID groupId,
+            KeyRole role,
+            String status,
+            PgpCapability capability) {
+        StringBuilder sql = new StringBuilder("SELECT ").append(SELECT_COLUMNS).append(" FROM pgp_keys k WHERE ").append(ownershipPredicate);
+        List<String> clauses = new ArrayList<>();
+        if (groupId != null) {
+            clauses.add("k.owner_group_id = :groupId");
+        }
+        if (role != null) {
+            clauses.add("k.role = :role");
+        }
+        if (status != null) {
+            clauses.add(statusClause(status));
+        }
+        if (!clauses.isEmpty()) {
+            sql.append(" AND ").append(String.join(" AND ", clauses));
+        }
+        sql.append(" ORDER BY k.created_at DESC");
+        var query = jdbc.sql(sql.toString());
+        if (userId != null) {
+            query = query.param("userId", userId);
+        }
+        if (memberUserId != null) {
+            query = query.param("memberUserId", memberUserId);
+        }
+        if (groupId != null) {
+            query = query.param("groupId", groupId);
+        }
+        if (role != null) {
+            query = query.param("role", role.toDb());
+        }
+        List<PgpKey> keys = query.query((rs, rowNum) -> mapRow(rs)).list();
+        if (capability == null) {
+            return keys;
+        }
+        return keys.stream().filter(k -> k.capabilities().contains(capability)).toList();
+    }
 
     private static String statusClause(String status) {
         return switch (status.toLowerCase()) {
-            case "revoked" -> "revoked_at IS NOT NULL";
-            case "expired" -> "revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP";
-            case "active" -> "revoked_at IS NULL AND (expires_at IS NULL OR expires_at >= CURRENT_TIMESTAMP)";
+            case "revoked" -> "k.revoked_at IS NOT NULL";
+            case "expired" -> "k.revoked_at IS NULL AND k.expires_at IS NOT NULL AND k.expires_at < CURRENT_TIMESTAMP";
+            case "active" -> "k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at >= CURRENT_TIMESTAMP)";
             default -> "1=1";
         };
     }
@@ -310,6 +444,9 @@ public class PgpKeyRepository {
                 rs.getString("storage_provider"),
                 rs.getString("storage_ref"),
                 rs.getInt("openpgp_version"),
+                KeyOwnerType.fromDb(rs.getString("owner_type")),
+                toUuid(rs.getObject("owner_group_id")),
+                toUuid(rs.getObject("created_by_user_id")),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("updated_at").toInstant());
     }

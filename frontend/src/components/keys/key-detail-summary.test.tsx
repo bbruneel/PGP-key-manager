@@ -11,6 +11,7 @@ const sampleKey: PgpKey = {
   keyId: "EF567890",
   keyType: "private",
   role: "primary",
+  ownerType: "user",
   capabilities: ["certify", "sign"],
   algorithm: "ed25519",
   status: "active",
@@ -29,6 +30,7 @@ describe("KeyDetailSummary", () => {
     expect(screen.getByText("Active")).toBeInTheDocument()
     expect(screen.getByText(/certify, sign/)).toBeInTheDocument()
     expect(screen.getByText(/stored private material/i)).toBeInTheDocument()
+    expect(screen.getByText("Personal vault")).toBeInTheDocument()
   })
 
   it("shows public-only hint when no private material", () => {
@@ -43,5 +45,20 @@ describe("KeyDetailSummary", () => {
     )
 
     expect(screen.getByText(/public-only key/i)).toBeInTheDocument()
+  })
+
+  it("shows group ownership badge when key is group-owned", () => {
+    render(
+      <KeyDetailSummary
+        keyData={{
+          ...sampleKey,
+          ownerType: "group",
+          ownerGroupId: "2cfb1f20-10c9-4de0-b8dc-d89bbf3ab5d9",
+        }}
+        ownerGroupName="Platform security"
+      />,
+    )
+
+    expect(screen.getByText("Owned by Platform security")).toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@ package org.bruneel.pgpkeymanager.web.dto;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -22,6 +23,7 @@ public record CreatePgpKeyRequest(
         String storageRef,
         @Pattern(regexp = "primary|subkey", flags = Pattern.Flag.CASE_INSENSITIVE) String role,
         String parentKeyId,
+        UUID ownerGroupId,
         List<@Pattern(regexp = "certify|sign|encrypt|authenticate", flags = Pattern.Flag.CASE_INSENSITIVE) String>
                 capabilities,
         @Valid AlgorithmSpecDto algorithmSpec,

@@ -64,6 +64,13 @@ describe("App auth gate", () => {
     vi.mocked(auth0Configured).mockReset()
     mockUseAuth0.mockReset()
     mockWithAuthenticationRequired.mockReset()
+    mockUseAuth0.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+      getAccessTokenSilently: vi.fn().mockResolvedValue("token"),
+      loginWithRedirect: vi.fn(),
+      error: null,
+    })
   })
 
   it("renders without auth gate when Auth0 is not configured", () => {

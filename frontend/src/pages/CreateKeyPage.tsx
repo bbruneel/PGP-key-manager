@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { CreateKeyForm } from "@/components/keys/create-key-form"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
+import { useGroupContext } from "@/hooks/use-group-context"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import {
   buildCreateKeyRequest,
@@ -27,7 +28,9 @@ function clearPassphraseFields(values: CreateKeyFormValues): CreateKeyFormValues
 export function CreateKeyPage() {
   const navigate = useNavigate()
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
+  const { activeGroup } = useGroupContext()
   const [values, setValues] = useState<CreateKeyFormValues>(defaultCreateKeyFormValues)
+  const [teamVaultOverride, setTeamVaultOverride] = useState<boolean | null>(null)
   const [fieldErrors, setFieldErrors] = useState<CreateKeyFieldErrors>({})
   const [apiError, setApiError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
@@ -39,6 +42,8 @@ export function CreateKeyPage() {
       message: "Create key page viewed",
     })
   }, [])
+
+  const useTeamVault = teamVaultOverride ?? Boolean(activeGroup)
 
   const handleSubmit = useCallback(async () => {
     logUiEvent("info", {
@@ -64,7 +69,9 @@ export function CreateKeyPage() {
 
     try {
       const token = await getAccessToken()
-      const body = buildCreateKeyRequest(values)
+      const body = buildCreateKeyRequest(values, {
+        ownerGroupId: useTeamVault ? activeGroup?.id : undefined,
+      })
       const created = await keysApi.create({ accessToken: token, body })
 
       logUiEvent("info", {
@@ -73,6 +80,7 @@ export function CreateKeyPage() {
         operationId: "createKey",
         keyId: created.id ?? undefined,
         fingerprint: created.fingerprint ?? undefined,
+        groupId: body.ownerGroupId,
       })
 
       toast.success("Primary key created", {
@@ -108,7 +116,7 @@ export function CreateKeyPage() {
       setSubmitting(false)
       setValues((current) => clearPassphraseFields(current))
     }
-  }, [getAccessToken, navigate, values])
+  }, [activeGroup, getAccessToken, navigate, useTeamVault, values])
 
   if (!isConfigured) {
     return (
@@ -139,6 +147,18 @@ export function CreateKeyPage() {
           Generate a new primary key. Ed25519 is recommended; advanced options support legacy algorithms.
         </p>
       </header>
+
+      {activeGroup ? (
+        <label className="mb-6 flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={useTeamVault}
+            onChange={(event) => setTeamVaultOverride(event.target.checked)}
+          />
+          Store key in team vault <span className="font-medium">{activeGroup.name}</span>
+        </label>
+      ) : null}
 
       <CreateKeyForm
         values={values}

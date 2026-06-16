@@ -37,12 +37,14 @@ describe("keysApi.list", () => {
     await keysApi.list({
       accessToken: "token-abc",
       role: "primary",
+      groupId: "2cfb1f20-10c9-4de0-b8dc-d89bbf3ab5d9",
+      scope: "group",
       status: "active",
       capability: "sign",
     })
 
     expect(requestJson).toHaveBeenCalledWith(
-      "/api/keys?role=primary&status=active&capability=sign",
+      "/api/keys?role=primary&groupId=2cfb1f20-10c9-4de0-b8dc-d89bbf3ab5d9&scope=group&status=active&capability=sign",
       expect.objectContaining({ operationId: "listKeys" }),
     )
   })

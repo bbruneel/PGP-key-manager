@@ -62,7 +62,7 @@ describe("App routes", () => {
 
   it("renders keys page at /keys", async () => {
     renderApp("/keys")
-    expect(await screen.findByRole("heading", { name: /^keys$/i, level: 1 })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: /^personal vault$/i, level: 1 })).toBeInTheDocument()
     expect(screen.getByText(/configure auth0 to list and manage keys/i)).toBeInTheDocument()
   })
 
@@ -101,8 +101,10 @@ describe("App routes", () => {
     renderApp("/")
 
     const nav = screen.getAllByRole("navigation", { name: /main/i })[0]!
-    await user.click(within(nav).getByRole("link", { name: /^keys$/i }))
-    expect(screen.getAllByRole("heading", { name: /^keys$/i, level: 1 }).length).toBeGreaterThanOrEqual(1)
+    await user.click(within(nav).getByRole("link", { name: /^personal vault$/i }))
+    expect(
+      screen.getAllByRole("heading", { name: /^personal vault$/i, level: 1 }).length,
+    ).toBeGreaterThanOrEqual(1)
 
     await user.click(within(nav).getByRole("link", { name: /^overview$/i }))
     expect(screen.getAllByRole("heading", { name: /^overview$/i, level: 1 }).length).toBeGreaterThanOrEqual(1)

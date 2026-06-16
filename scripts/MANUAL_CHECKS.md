@@ -42,6 +42,18 @@ Optional cleanup on any smoke: `SMOKE_CLEANUP=1`.
 
 ---
 
+## Phase 16 — Team vault manual QA
+
+1. Open `/groups/new`, create a group, and confirm redirect to `/groups/{groupId}/keys`.
+2. Verify the header **Vault** switcher defaults to the new group and sidebar shows the team section.
+3. From `/keys/new`, confirm **Store key in team vault** is checked when an active group exists; create a key and verify ownership badge shows `Owned by {group}` on detail.
+4. From `/keys/import`, confirm **Store imported key in team vault** is checked by default; import a key and verify it appears under `/groups/{groupId}/keys`.
+5. Open `/keys` (personal vault) and confirm only personal keys are listed (`scope=personal` behavior).
+6. Open `/groups/{groupId}/members` and verify member list + summary cards load without API errors.
+7. Use group switcher to return to **Personal vault**, then switch back to the group and confirm routes update accordingly.
+
+---
+
 ## Checklist A — Import legacy key → rotate subkey (UI)
 
 **Covers:** Phase 6A subkey rotate form (RSA / ECDSA / ECDH pickers on imported keyrings).

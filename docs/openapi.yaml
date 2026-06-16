@@ -12,7 +12,7 @@ info:
     Versioned JSON API for OpenPGP key management.
 
     **Versioning:** `Accept: application/json; version=1`
-    **Auth:** Bearer JWT (Auth0) on `/api/keys/**`
+    **Auth:** Bearer JWT (Auth0) on `/api/keys/**`, `/api/groups/**`, `/api/invites/**`, and `/api/admin/**`
     **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.84). Primary generation supports `openpgpVersion` 4 (default) or 6.
     **Errors:** RFC 7807 `application/problem+json`
 
@@ -29,6 +29,10 @@ tags:
     description: Subkeys bound to a primary key.
   - name: Key lifecycle
     description: Revoke, extend expiry, and rotate operations.
+  - name: Groups
+    description: Team vault group management, membership, invites, and summaries.
+  - name: Admin
+    description: Platform administration endpoints for groups and users.
 
 security:
   - bearerAuth: []
@@ -57,6 +61,16 @@ paths:
       operationId: listKeys
       x-implementation-status: implemented
       parameters:
+        - name: groupId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [all, personal, group]
         - name: role
           in: query
           schema:
@@ -381,6 +395,35 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/{keyId}/transfer-ownership:
+    post:
+      tags: [Key lifecycle]
+      summary: Transfer key ownership
+      operationId: transferOwnership
+      x-implementation-status: implemented
+      description: |
+        Transfers ownership between personal and team vault scopes. When `ownerGroupId` is provided,
+        the key becomes group-owned. When omitted, ownership returns to the current user.
+        Authorization parity with other key operations: any current key operator may transfer ownership,
+        and transfer to a group requires membership in the target group.
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferOwnershipRequest'
+      responses:
+        '200':
+          description: Updated key ownership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/keys/{keyId}/export-public:
     get:
       tags: [Keys]
@@ -422,6 +465,292 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/groups:
+    get:
+      tags: [Groups]
+      summary: List groups
+      operationId: listGroups
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Group list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags: [Groups]
+      summary: Create group
+      operationId: createGroup
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}:
+    get:
+      tags: [Groups]
+      summary: Get group
+      operationId: getGroup
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags: [Groups]
+      summary: Update group
+      operationId: updateGroup
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGroupRequest'
+      responses:
+        '200':
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Groups]
+      summary: Delete group
+      operationId: deleteGroup
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '204':
+          description: Group deleted
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/members:
+    get:
+      tags: [Groups]
+      summary: List group members
+      operationId: listGroupMembers
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Group member list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupMemberResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/members/{memberUserId}:
+    delete:
+      tags: [Groups]
+      summary: Remove group member
+      operationId: removeGroupMember
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/MemberUserId'
+      responses:
+        '204':
+          description: Member removed
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/members/me:
+    delete:
+      tags: [Groups]
+      summary: Leave group
+      operationId: leaveGroup
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '204':
+          description: Current user removed from group
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/invites:
+    get:
+      tags: [Groups]
+      summary: List group invites
+      operationId: listGroupInvites
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Pending invites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GroupInviteResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags: [Groups]
+      summary: Invite group member
+      operationId: inviteGroupMember
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupInviteRequest'
+      responses:
+        '201':
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupInviteResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/invites/{inviteId}:
+    delete:
+      tags: [Groups]
+      summary: Revoke pending invite
+      operationId: revokeGroupInvite
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - $ref: '#/components/parameters/InviteId'
+      responses:
+        '204':
+          description: Invite revoked
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/summary:
+    get:
+      tags: [Groups]
+      summary: Get group summary
+      operationId: getGroupSummary
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Group summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupSummaryResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/groups/{groupId}/members/audit.csv:
+    get:
+      tags: [Groups]
+      summary: Export group members audit CSV
+      operationId: exportGroupMembersAudit
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Group members audit CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/invites/{token}/accept:
+    post:
+      tags: [Groups]
+      summary: Accept invite
+      operationId: acceptInvite
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/InviteToken'
+      responses:
+        '200':
+          description: Invite accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptInviteResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/groups:
+    get:
+      tags: [Admin]
+      summary: List groups (admin)
+      operationId: listAdminGroups
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Group administration list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminGroupResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: List users (admin)
+      operationId: listAdminUsers
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: User administration list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminUserResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -454,6 +783,33 @@ components:
         format: uuid
     SubkeyId:
       name: subkeyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    GroupId:
+      name: groupId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MemberUserId:
+      name: memberUserId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InviteToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+    InviteId:
+      name: inviteId
       in: path
       required: true
       schema:
@@ -505,6 +861,9 @@ components:
     MaterialKind:
       type: string
       enum: [public, private]
+    GroupMembershipRole:
+      type: string
+      enum: [owner, member]
     PassphraseField:
       type: string
       writeOnly: true
@@ -593,6 +952,10 @@ components:
         encryptedPrivateArmored:
           type: string
           description: Required for private register/import when `armoredPublic` is omitted.
+        ownerGroupId:
+          type: string
+          format: uuid
+          description: Optional group owner for team vault keys. Omit for personal ownership.
     CreateSubkeyRequest:
       type: object
       required: [capabilities, algorithm]
@@ -619,6 +982,15 @@ components:
           type: string
         storageRef:
           type: string
+    TransferOwnershipRequest:
+      type: object
+      properties:
+        ownerGroupId:
+          type: [string, 'null']
+          format: uuid
+          description: |
+            Target group ID for team vault ownership. Set to `null` or omit to transfer the key
+            back to personal ownership.
     RevokeKeyRequest:
       type: object
       required: [reason]
@@ -758,6 +1130,178 @@ components:
         source:
           type: string
           enum: [public, private, both]
+    GroupResponse:
+      type: object
+      required: [id, name, ownerUserId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        ownerUserId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateGroupRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1024
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1024
+    GroupMemberResponse:
+      type: object
+      required: [groupId, userId, role, joinedAt]
+      properties:
+        groupId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/GroupMembershipRole'
+        invitedByUserId:
+          type: [string, 'null']
+          format: uuid
+        joinedAt:
+          type: string
+          format: date-time
+    CreateGroupInviteRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 255
+        inviteeUserId:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/GroupMembershipRole'
+        expiresAt:
+          type: string
+          format: date-time
+    GroupInviteResponse:
+      type: object
+      required: [id, groupId, token, role, invitedByUserId, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        groupId:
+          type: string
+          format: uuid
+        token:
+          type: string
+        email:
+          type: [string, 'null']
+        inviteeUserId:
+          type: [string, 'null']
+          format: uuid
+        role:
+          $ref: '#/components/schemas/GroupMembershipRole'
+        invitedByUserId:
+          type: string
+          format: uuid
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+        acceptedAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    GroupSummaryResponse:
+      type: object
+      required: [group, memberCount, pendingInviteCount, keyCount]
+      properties:
+        group:
+          $ref: '#/components/schemas/GroupResponse'
+        memberCount:
+          type: integer
+        pendingInviteCount:
+          type: integer
+        keyCount:
+          type: integer
+    AcceptInviteResponse:
+      type: object
+      required: [inviteId, groupId, role]
+      properties:
+        inviteId:
+          type: string
+          format: uuid
+        groupId:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/GroupMembershipRole'
+        acceptedAt:
+          type: [string, 'null']
+          format: date-time
+    AdminGroupResponse:
+      type: object
+      required: [id, name, ownerUserId, memberCount, keyCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        ownerUserId:
+          type: string
+          format: uuid
+        memberCount:
+          type: integer
+        keyCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AdminUserResponse:
+      type: object
+      required: [id, auth0Sub, email, platformRole, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        auth0Sub:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: [string, 'null']
+        platformRole:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     PgpKeySummary:
       type: object
       properties:
@@ -785,6 +1329,12 @@ components:
         parentKeyId:
           type: [string, 'null']
           format: uuid
+        ownerType:
+          type: string
+          enum: [user, group]
+        ownerGroupId:
+          type: [string, 'null']
+          format: uuid
         capabilities:
           type: array
           items:
@@ -804,6 +1354,9 @@ components:
           type: integer
           enum: [4, 6]
           description: OpenPGP packet version for this keyring (primary sets it; subkeys inherit).
+        hasPrivateMaterial:
+          type: boolean
+          description: True when this key row has private key material available for cryptographic actions.
     PgpKey:
       allOf:
         - $ref: '#/components/schemas/PgpKeySummary'

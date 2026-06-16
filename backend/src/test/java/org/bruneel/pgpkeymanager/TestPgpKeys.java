@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.domain.PgpKey;
+import org.bruneel.pgpkeymanager.domain.KeyOwnerType;
 import org.bruneel.pgpkeymanager.domain.PgpKey.KeyType;
 
 public final class TestPgpKeys {
@@ -35,6 +36,9 @@ public final class TestPgpKeys {
                 null,
                 null,
                 4,
+                KeyOwnerType.USER,
+                null,
+                userId,
                 Instant.parse("2026-01-01T00:00:00Z"),
                 Instant.parse("2026-01-01T00:00:00Z"));
     }

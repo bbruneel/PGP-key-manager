@@ -136,4 +136,11 @@ describe("buildCreateKeyRequest", () => {
     const request = buildCreateKeyRequest(validValues({ userEmail: "" }))
     expect(request.userIds?.[0]?.email).toBeUndefined()
   })
+
+  it("includes ownerGroupId when provided", () => {
+    const request = buildCreateKeyRequest(validValues(), {
+      ownerGroupId: "2cfb1f20-10c9-4de0-b8dc-d89bbf3ab5d9",
+    })
+    expect(request.ownerGroupId).toBe("2cfb1f20-10c9-4de0-b8dc-d89bbf3ab5d9")
+  })
 })

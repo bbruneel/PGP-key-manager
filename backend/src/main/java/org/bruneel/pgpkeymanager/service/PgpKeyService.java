@@ -22,6 +22,7 @@ import org.bruneel.pgpkeymanager.crypto.PgpKeyMetadataParser;
 import org.bruneel.pgpkeymanager.crypto.PgpCryptoService.KeyRingUpdate;
 import org.bruneel.pgpkeymanager.crypto.SubkeyMaterial;
 import org.bruneel.pgpkeymanager.domain.AppUser;
+import org.bruneel.pgpkeymanager.domain.KeyOwnerType;
 import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.domain.PgpKey;
@@ -52,6 +53,7 @@ public class PgpKeyService {
     private final PgpKeyRepository pgpKeyRepository;
     private final PgpCryptoService pgpCryptoService;
     private final PgpKeyMetadataParser metadataParser;
+    private final GroupAuthorizationService groupAuthorizationService;
     private final KeyOperationLogger operationLogger;
     private final KeyOperationMetrics operationMetrics;
 
@@ -59,23 +61,41 @@ public class PgpKeyService {
             PgpKeyRepository pgpKeyRepository,
             PgpCryptoService pgpCryptoService,
             PgpKeyMetadataParser metadataParser,
+            GroupAuthorizationService groupAuthorizationService,
             KeyOperationLogger operationLogger,
             KeyOperationMetrics operationMetrics) {
         this.pgpKeyRepository = pgpKeyRepository;
         this.pgpCryptoService = pgpCryptoService;
         this.metadataParser = metadataParser;
+        this.groupAuthorizationService = groupAuthorizationService;
         this.operationLogger = operationLogger;
         this.operationMetrics = operationMetrics;
     }
 
+    public List<PgpKey> listAccessibleKeys(
+            AppUser user, UUID groupId, String scope, KeyRole role, String status, PgpCapability capability) {
+        String normalizedScope = scope == null || scope.isBlank() ? "all" : scope.toLowerCase();
+        if (!Set.of("all", "personal", "group").contains(normalizedScope)) {
+            throw new BadRequestException("scope must be one of: all, personal, group");
+        }
+        if (groupId != null) {
+            groupAuthorizationService.requireGroupMember(user, groupId);
+        }
+        return pgpKeyRepository.findAllAccessibleByUserId(user.id(), groupId, normalizedScope, role, status, capability);
+    }
+
     public List<PgpKey> listForUser(AppUser user, KeyRole role, String status, PgpCapability capability) {
-        return pgpKeyRepository.findAllByUserId(user.id(), role, status, capability);
+        return listAccessibleKeys(user, null, "all", role, status, capability);
+    }
+
+    public PgpKey getAccessibleKey(AppUser user, UUID id) {
+        PgpKey key = pgpKeyRepository.findById(id).orElseThrow(() -> new KeyNotFoundException(id));
+        groupAuthorizationService.requireKeyAccess(user, key);
+        return key;
     }
 
     public PgpKey getForUser(AppUser user, UUID id) {
-        return pgpKeyRepository
-                .findByIdAndUserId(id, user.id())
-                .orElseThrow(() -> new KeyNotFoundException(id));
+        return getAccessibleKey(user, id);
     }
 
     public CreateKeyOutcome create(AppUser user, CreatePgpKeyRequest request) {
@@ -147,32 +167,28 @@ public class PgpKeyService {
     }
 
     public PgpKey update(AppUser user, UUID id, UpdatePgpKeyRequest request) {
+        getAccessibleKey(user, id);
         return pgpKeyRepository
-                .updateMetadata(
-                        id,
-                        user.id(),
-                        request.label(),
-                        request.expiresAt(),
-                        request.storageProvider(),
-                        request.storageRef())
+                .updateMetadata(id, request.label(), request.expiresAt(), request.storageProvider(), request.storageRef())
                 .orElseThrow(() -> new KeyNotFoundException(id));
     }
 
     public void delete(AppUser user, UUID id) {
-        if (!pgpKeyRepository.deleteByIdAndUserId(id, user.id())) {
+        getAccessibleKey(user, id);
+        if (!pgpKeyRepository.deleteById(id)) {
             throw new KeyNotFoundException(id);
         }
     }
 
     public List<PgpKey> listSubkeys(AppUser user, UUID primaryKeyId) {
         PgpKey primary = requirePrimary(user, primaryKeyId);
-        return pgpKeyRepository.findSubkeysByParentId(primary.id(), user.id());
+        return pgpKeyRepository.findSubkeysByParentId(primary.id());
     }
 
     public PgpKey getSubkey(AppUser user, UUID primaryKeyId, UUID subkeyId) {
         requirePrimary(user, primaryKeyId);
         return pgpKeyRepository
-                .findSubkeyByIdAndParentId(subkeyId, primaryKeyId, user.id())
+                .findSubkeyByIdAndParentId(subkeyId, primaryKeyId)
                 .orElseThrow(() -> new KeyNotFoundException(subkeyId));
     }
 
@@ -243,7 +259,6 @@ public class PgpKeyService {
 
             pgpKeyRepository.updateKeyringMaterial(
                     primary.id(),
-                    user.id(),
                     material.updatedArmoredPublic(),
                     material.updatedArmoredPrivate(),
                     null,
@@ -255,6 +270,7 @@ public class PgpKeyService {
                             user,
                             primary.label(),
                             material,
+                            primary,
                             primary.id(),
                             openpgpVersion,
                             primary.storageProvider(),
@@ -282,7 +298,7 @@ public class PgpKeyService {
             PgpKey primaryForRing =
                     key.isPrimary() ? key : (key.parentKeyId() != null ? getForUser(user, key.parentKeyId()) : null);
             boolean primaryHasPrivate =
-                    primaryForRing != null && hasPrivateMaterial(primaryForRing);
+                    primaryForRing != null && primaryForRing.hasPrivateMaterial();
 
             if (primaryHasPrivate) {
                 char[] passphrase = PassphraseUtil.require(request.passphrase());
@@ -298,7 +314,6 @@ public class PgpKeyService {
                                     revocationReasonCode(reason));
                     pgpKeyRepository.updateKeyringMaterial(
                             primary.id(),
-                            user.id(),
                             updated.armoredPublic(),
                             updated.armoredPrivate(),
                             null,
@@ -315,7 +330,7 @@ public class PgpKeyService {
 
             PgpKey revoked =
                     pgpKeyRepository
-                            .markRevoked(key.id(), user.id(), revokedAt, reason)
+                            .markRevoked(key.id(), revokedAt, reason)
                             .orElseThrow(() -> new KeyNotFoundException(keyId));
             completeSuccess("revoke_key", user.id(), keyId, openpgpVersion, start);
             return revoked;
@@ -355,7 +370,6 @@ public class PgpKeyService {
 
             pgpKeyRepository.updateKeyringMaterial(
                     primary.id(),
-                    user.id(),
                     updated.armoredPublic(),
                     updated.armoredPrivate(),
                     null,
@@ -364,7 +378,7 @@ public class PgpKeyService {
 
             PgpKey updatedKey =
                     pgpKeyRepository
-                            .updateMetadata(key.id(), user.id(), null, request.expiresAt(), null, null)
+                            .updateMetadata(key.id(), null, request.expiresAt(), null, null)
                             .orElseThrow(() -> new KeyNotFoundException(keyId));
             completeSuccess("extend_expiry", user.id(), keyId, openpgpVersion, start);
             return updatedKey;
@@ -448,9 +462,38 @@ public class PgpKeyService {
         }
     }
 
+    public PgpKey transferOwnership(AppUser user, UUID keyId, UUID ownerGroupId) {
+        PgpKey key = getAccessibleKey(user, keyId);
+        // Authorization parity: any current key operator can transfer ownership.
+        // For team targets, caller must be a member of the destination group.
+        Ownership targetOwnership = resolveOwnershipForTransfer(user, ownerGroupId);
+        if (key.ownerType() == targetOwnership.ownerType()
+                && java.util.Objects.equals(key.ownerGroupId(), targetOwnership.ownerGroupId())
+                && java.util.Objects.equals(key.userId(), targetOwnership.ownerUserId())) {
+            return key;
+        }
+
+        List<UUID> keyIds = new ArrayList<>();
+        keyIds.add(key.id());
+        if (key.isPrimary()) {
+            keyIds.addAll(pgpKeyRepository.findSubkeysByParentId(key.id()).stream().map(PgpKey::id).toList());
+        }
+        try {
+            for (UUID id : keyIds) {
+                pgpKeyRepository
+                        .updateOwnership(id, targetOwnership.ownerType(), targetOwnership.ownerGroupId(), targetOwnership.ownerUserId())
+                        .orElseThrow(() -> new KeyNotFoundException(id));
+            }
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException("A key with this fingerprint already exists for the target owner");
+        }
+        return pgpKeyRepository.findById(keyId).orElseThrow(() -> new KeyNotFoundException(keyId));
+    }
+
     public record RotateResult(PgpKey newKey, PgpKey previousKey) {}
 
     private PgpKey generatePrimary(AppUser user, CreatePgpKeyRequest request) {
+        Ownership ownership = resolveOwnership(user, request.ownerGroupId());
         if (PassphraseUtil.isBlank(request.passphrase())) {
             throw new BadRequestException("passphrase is required for key generation");
         }
@@ -496,7 +539,8 @@ public class PgpKeyService {
                 null,
                 openpgpVersion,
                 request.storageProvider(),
-                request.storageRef());
+                request.storageRef(),
+                ownership);
     }
 
     private CreateKeyOutcome registerKey(AppUser user, CreatePgpKeyRequest request) {
@@ -518,13 +562,15 @@ public class PgpKeyService {
     }
 
     private CreateKeyOutcome registerPrimaryKey(AppUser user, CreatePgpKeyRequest request, KeyType keyType) {
+        Ownership ownership = resolveOwnership(user, request.ownerGroupId());
         ImportedKeyringMetadata keyring =
                 metadataParser.parseKeyring(request.armoredPublic(), request.encryptedPrivateArmored());
         ImportedKeyMetadata metadata = keyring.primary();
         metadataParser.validateFingerprintMatch(metadata, request.fingerprint());
 
         Optional<PgpKey> existing =
-                pgpKeyRepository.findPrimaryByUserIdAndFingerprint(user.id(), metadata.fingerprint());
+                pgpKeyRepository.findPrimaryByOwnerAndFingerprint(
+                        ownership.ownerUserId(), ownership.ownerGroupId(), metadata.fingerprint());
         if (existing.isPresent()) {
             return syncKeyringOnReRegister(user, existing.get(), request, keyring, keyType);
         }
@@ -534,7 +580,7 @@ public class PgpKeyService {
             primary =
                     pgpKeyRepository.insert(
                             new PgpKeyInsert(
-                                    user.id(),
+                                    ownership.ownerUserId(),
                                     request.label(),
                                     metadata.fingerprint(),
                                     metadata.keyId(),
@@ -551,7 +597,10 @@ public class PgpKeyService {
                                     request.encryptedPrivateArmored(),
                                     request.storageProvider(),
                                     request.storageRef(),
-                                    metadata.openpgpVersion()));
+                                    metadata.openpgpVersion(),
+                                    ownership.ownerType(),
+                                    ownership.ownerGroupId(),
+                                    user.id()));
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("A key with this fingerprint already exists for your account");
         }
@@ -573,7 +622,6 @@ public class PgpKeyService {
         pgpKeyRepository
                 .updateKeyringMaterial(
                         existing.id(),
-                        user.id(),
                         request.armoredPublic(),
                         request.encryptedPrivateArmored(),
                         null,
@@ -583,7 +631,7 @@ public class PgpKeyService {
 
         PgpKey refreshed =
                 pgpKeyRepository
-                        .findByIdAndUserId(existing.id(), user.id())
+                        .findById(existing.id())
                         .orElseThrow(() -> new KeyNotFoundException(existing.id()));
 
         ImportSubkeysResult importResult = importSubkeysFromParsedKeyring(user, refreshed, keyring);
@@ -629,7 +677,7 @@ public class PgpKeyService {
                         : RevocationReason.NO_REASON;
         PgpKey synced =
                 pgpKeyRepository
-                        .markRevoked(primary.id(), user.id(), keyringPrimary.revokedAt(), reason)
+                        .markRevoked(primary.id(), keyringPrimary.revokedAt(), reason)
                         .orElseThrow(() -> new KeyNotFoundException(primary.id()));
         log.info(
                 "import_subkeys_from_keyring_primary_revocation_synced parentKeyId={} fingerprint={}",
@@ -641,7 +689,7 @@ public class PgpKeyService {
     private ImportSubkeysResult registerImportedSubkeys(
             AppUser user, PgpKey primary, List<ImportedKeyMetadata> subkeys, KeyType keyType) {
         Map<String, PgpKey> existingByFingerprint = new HashMap<>();
-        for (PgpKey existing : pgpKeyRepository.findSubkeysByParentId(primary.id(), user.id())) {
+        for (PgpKey existing : pgpKeyRepository.findSubkeysByParentId(primary.id())) {
             existingByFingerprint.put(existing.fingerprint().toUpperCase(), existing);
         }
 
@@ -660,7 +708,7 @@ public class PgpKeyService {
                                     : RevocationReason.NO_REASON;
                     PgpKey synced =
                             pgpKeyRepository
-                                    .markRevoked(existing.id(), user.id(), subkey.revokedAt(), reason)
+                                    .markRevoked(existing.id(), subkey.revokedAt(), reason)
                                     .orElseThrow(() -> new KeyNotFoundException(existing.id()));
                     updated.add(synced);
                     existingByFingerprint.put(fingerprint, synced);
@@ -691,6 +739,7 @@ public class PgpKeyService {
 
     private PgpKey insertImportedSubkeyRow(
             AppUser user, PgpKey primary, ImportedKeyMetadata metadata, KeyType keyType) {
+        Ownership ownership = Ownership.fromExisting(primary);
         return insertKey(
                 user,
                 primary.label(),
@@ -709,7 +758,8 @@ public class PgpKeyService {
                 primary.id(),
                 primary.openpgpVersion(),
                 primary.storageProvider(),
-                primary.storageRef());
+                primary.storageRef(),
+                ownership);
     }
 
     private PgpKey registerSubkey(
@@ -717,12 +767,13 @@ public class PgpKeyService {
         if (request.fingerprint() == null || request.fingerprint().isBlank()) {
             throw new BadRequestException("fingerprint is required when registering a subkey");
         }
-        int openpgpVersion = getForUser(user, parentKeyId).openpgpVersion();
+        PgpKey parent = getAccessibleKey(user, parentKeyId);
+        int openpgpVersion = parent.openpgpVersion();
 
         try {
             return pgpKeyRepository.insert(
                     new PgpKeyInsert(
-                            user.id(),
+                            parent.userId(),
                             request.label(),
                             request.fingerprint().toUpperCase(),
                             request.keyId(),
@@ -741,7 +792,10 @@ public class PgpKeyService {
                             request.encryptedPrivateArmored(),
                             request.storageProvider(),
                             request.storageRef(),
-                            openpgpVersion));
+                            openpgpVersion,
+                            parent.ownerType(),
+                            parent.ownerGroupId(),
+                            user.id()));
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("A key with this fingerprint already exists for your account");
         }
@@ -756,7 +810,8 @@ public class PgpKeyService {
             UUID parentKeyId,
             int openpgpVersion,
             String storageProvider,
-            String storageRef) {
+            String storageRef,
+            Ownership ownership) {
         return insertKey(
                 user,
                 label,
@@ -775,13 +830,15 @@ public class PgpKeyService {
                 parentKeyId,
                 openpgpVersion,
                 storageProvider,
-                storageRef);
+                storageRef,
+                ownership);
     }
 
     private PgpKey insertSubkeyRow(
             AppUser user,
             String label,
             SubkeyMaterial material,
+            PgpKey primary,
             UUID parentKeyId,
             int openpgpVersion,
             String storageProvider,
@@ -804,7 +861,8 @@ public class PgpKeyService {
                 parentKeyId,
                 openpgpVersion,
                 storageProvider,
-                storageRef);
+                storageRef,
+                Ownership.fromExisting(primary));
     }
 
     private PgpKey insertKey(
@@ -825,11 +883,12 @@ public class PgpKeyService {
             UUID parentKeyId,
             int openpgpVersion,
             String storageProvider,
-            String storageRef) {
+            String storageRef,
+            Ownership ownership) {
         try {
             return pgpKeyRepository.insert(
                     new PgpKeyInsert(
-                            user.id(),
+                            ownership.ownerUserId(),
                             label,
                             fingerprint,
                             keyId,
@@ -846,7 +905,10 @@ public class PgpKeyService {
                             armoredPrivate,
                             storageProvider,
                             storageRef,
-                            openpgpVersion));
+                            openpgpVersion,
+                            ownership.ownerType(),
+                            ownership.ownerGroupId(),
+                            user.id()));
         } catch (DataIntegrityViolationException ex) {
             throw new ConflictException("A key with this fingerprint already exists for your account");
         }
@@ -875,6 +937,22 @@ public class PgpKeyService {
         return request.algorithmSpec() != null || PassphraseUtil.isPresent(request.passphrase());
     }
 
+    private Ownership resolveOwnership(AppUser user, UUID ownerGroupId) {
+        if (ownerGroupId == null) {
+            return new Ownership(KeyOwnerType.USER, user.id(), null);
+        }
+        groupAuthorizationService.requireGroupMember(user, ownerGroupId);
+        return new Ownership(KeyOwnerType.GROUP, null, ownerGroupId);
+    }
+
+    private Ownership resolveOwnershipForTransfer(AppUser user, UUID ownerGroupId) {
+        if (ownerGroupId == null) {
+            return new Ownership(KeyOwnerType.USER, user.id(), null);
+        }
+        groupAuthorizationService.requireGroupMember(user, ownerGroupId);
+        return new Ownership(KeyOwnerType.GROUP, null, ownerGroupId);
+    }
+
     private PgpKey requirePrimary(AppUser user, UUID primaryKeyId) {
         PgpKey key = getForUser(user, primaryKeyId);
         if (key.role() != KeyRole.PRIMARY) {
@@ -885,7 +963,7 @@ public class PgpKeyService {
 
     private PgpKey requirePrimaryWithPrivate(AppUser user, UUID primaryKeyId) {
         PgpKey key = requirePrimary(user, primaryKeyId);
-        if (key.encryptedPrivateArmored() == null || key.encryptedPrivateArmored().isBlank()) {
+        if (!key.hasPrivateMaterial()) {
             throw new BadRequestException("Primary key has no private material for cryptographic operations");
         }
         return key;
@@ -903,10 +981,6 @@ public class PgpKeyService {
         } catch (IllegalArgumentException ex) {
             throw new BadRequestException(ex.getMessage());
         }
-    }
-
-    private boolean hasPrivateMaterial(PgpKey key) {
-        return key.encryptedPrivateArmored() != null && !key.encryptedPrivateArmored().isBlank();
     }
 
     private long parseKeyId(PgpKey key) {
@@ -946,7 +1020,7 @@ public class PgpKeyService {
 
         ImportedKeyringMetadata keyring = metadataParser.parseKeyring(armoredPublic, armoredPrivate);
         Map<String, PgpKey> existingByFingerprint = new HashMap<>();
-        for (PgpKey existing : pgpKeyRepository.findSubkeysByParentId(primary.id(), user.id())) {
+        for (PgpKey existing : pgpKeyRepository.findSubkeysByParentId(primary.id())) {
             existingByFingerprint.put(existing.fingerprint().toUpperCase(), existing);
         }
 
@@ -973,5 +1047,11 @@ public class PgpKeyService {
                 wouldSkipCount,
                 keyring.warnings(),
                 keyring.source());
+    }
+
+    private record Ownership(KeyOwnerType ownerType, UUID ownerUserId, UUID ownerGroupId) {
+        static Ownership fromExisting(PgpKey key) {
+            return new Ownership(key.ownerType(), key.userId(), key.ownerGroupId());
+        }
     }
 }

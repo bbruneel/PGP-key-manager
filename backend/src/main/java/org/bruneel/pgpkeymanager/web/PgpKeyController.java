@@ -37,6 +37,7 @@ import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
 import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyResponse;
+import org.bruneel.pgpkeymanager.web.dto.TransferOwnershipRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
 @RestController
@@ -53,6 +54,8 @@ public class PgpKeyController {
 
     @GetMapping
     public List<PgpKeyResponse> list(
+            @RequestParam(required = false) UUID groupId,
+            @RequestParam(required = false) String scope,
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String capability,
@@ -60,7 +63,7 @@ public class PgpKeyController {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         KeyRole keyRole = role != null ? KeyRole.fromDb(role) : null;
         PgpCapability cap = capability != null ? PgpKeyValidator.parseCapabilityParam(capability) : null;
-        return pgpKeyService.listForUser(user, keyRole, status, cap).stream()
+        return pgpKeyService.listAccessibleKeys(user, groupId, scope, keyRole, status, cap).stream()
                 .map(key -> PgpKeyResponse.from(key, false))
                 .toList();
     }
@@ -68,7 +71,7 @@ public class PgpKeyController {
     @GetMapping("/{keyId}")
     public PgpKeyResponse get(@PathVariable UUID keyId, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return PgpKeyResponse.from(pgpKeyService.getForUser(user, keyId), true);
+        return PgpKeyResponse.from(pgpKeyService.getAccessibleKey(user, keyId), true);
     }
 
     @PostMapping(path = "/preview", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -180,6 +183,15 @@ public class PgpKeyController {
         return new RotateKeyResponse(
                 PgpKeyResponse.from(result.newKey(), false),
                 PgpKeyResponse.from(result.previousKey(), false));
+    }
+
+    @PostMapping(path = "/{keyId}/transfer-ownership", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public PgpKeyResponse transferOwnership(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody TransferOwnershipRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return PgpKeyResponse.from(pgpKeyService.transferOwnership(user, keyId, request.ownerGroupId()), true);
     }
 
     @GetMapping(path = "/{keyId}/export-public", produces = {MediaType.TEXT_PLAIN_VALUE, "application/pgp-keys"})

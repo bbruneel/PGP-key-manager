@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { ImportKeyForm } from "@/components/keys/import-key-form"
 import { ImportKeyPreview } from "@/components/keys/import-key-preview"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
+import { useGroupContext } from "@/hooks/use-group-context"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import {
   buildImportKeyRequest,
@@ -29,7 +30,9 @@ function clearArmoredFields(values: ImportKeyFormValues): ImportKeyFormValues {
 export function ImportKeyPage() {
   const navigate = useNavigate()
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
+  const { activeGroup } = useGroupContext()
   const [values, setValues] = useState<ImportKeyFormValues>(defaultImportKeyFormValues)
+  const [teamVaultOverride, setTeamVaultOverride] = useState<boolean | null>(null)
   const [fieldErrors, setFieldErrors] = useState<ImportKeyFieldErrors>({})
   const [apiError, setApiError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
@@ -43,6 +46,8 @@ export function ImportKeyPage() {
       message: "Import key page viewed",
     })
   }, [])
+
+  const useTeamVault = teamVaultOverride ?? Boolean(activeGroup)
 
   const handlePreview = useCallback(async () => {
     logUiEvent("info", {
@@ -68,7 +73,9 @@ export function ImportKeyPage() {
 
     try {
       const token = await getAccessToken()
-      const body = buildImportKeyRequest(values)
+      const body = buildImportKeyRequest(values, {
+        ownerGroupId: useTeamVault ? activeGroup?.id : undefined,
+      })
       const response = await keysApi.previewKeyring({ accessToken: token, body })
       setPreview(response)
       logUiEvent("info", {
@@ -102,7 +109,7 @@ export function ImportKeyPage() {
     } finally {
       setPreviewing(false)
     }
-  }, [getAccessToken, values])
+  }, [activeGroup, getAccessToken, useTeamVault, values])
 
   const handleSubmit = useCallback(async () => {
     logUiEvent("info", {
@@ -128,7 +135,9 @@ export function ImportKeyPage() {
 
     try {
       const token = await getAccessToken()
-      const body = buildImportKeyRequest(values)
+      const body = buildImportKeyRequest(values, {
+        ownerGroupId: useTeamVault ? activeGroup?.id : undefined,
+      })
       const imported = await keysApi.register({ accessToken: token, body })
 
       const subkeyCount = imported.registeredSubkeyCount ?? 0
@@ -148,6 +157,7 @@ export function ImportKeyPage() {
         operationId: "createKey",
         keyId: imported.id ?? undefined,
         fingerprint: imported.fingerprint ?? undefined,
+        groupId: body.ownerGroupId,
       })
 
       const descriptionParts = [
@@ -191,7 +201,7 @@ export function ImportKeyPage() {
     } finally {
       setSubmitting(false)
     }
-  }, [getAccessToken, navigate, values])
+  }, [activeGroup, getAccessToken, navigate, useTeamVault, values])
 
   if (!isConfigured) {
     return (
@@ -223,6 +233,18 @@ export function ImportKeyPage() {
           and subkey metadata, including revocation state, before registering.
         </p>
       </header>
+
+      {activeGroup ? (
+        <label className="mb-6 flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={useTeamVault}
+            onChange={(event) => setTeamVaultOverride(event.target.checked)}
+          />
+          Store imported key in team vault <span className="font-medium">{activeGroup.name}</span>
+        </label>
+      ) : null}
 
       {preview ? (
         <ImportKeyPreview

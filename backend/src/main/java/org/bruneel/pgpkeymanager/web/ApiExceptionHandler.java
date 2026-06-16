@@ -15,7 +15,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.bruneel.pgpkeymanager.service.BadRequestException;
 import org.bruneel.pgpkeymanager.service.ConflictException;
 import org.bruneel.pgpkeymanager.service.CryptoException;
+import org.bruneel.pgpkeymanager.service.ForbiddenGroupActionException;
+import org.bruneel.pgpkeymanager.service.GroupNotFoundException;
 import org.bruneel.pgpkeymanager.service.KeyNotFoundException;
+import org.bruneel.pgpkeymanager.service.PlatformAdminRequiredException;
 import org.bruneel.pgpkeymanager.service.UnauthorizedException;
 
 @RestControllerAdvice
@@ -30,11 +33,25 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
+    @ExceptionHandler(GroupNotFoundException.class)
+    public ResponseEntity<ProblemDetail> groupNotFound(GroupNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Not Found");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ProblemDetail> unauthorized(UnauthorizedException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
         problem.setTitle("Unauthorized");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+    }
+
+    @ExceptionHandler({ForbiddenGroupActionException.class, PlatformAdminRequiredException.class})
+    public ResponseEntity<ProblemDetail> forbidden(RuntimeException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        problem.setTitle("Forbidden");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
     @ExceptionHandler(ConflictException.class)
