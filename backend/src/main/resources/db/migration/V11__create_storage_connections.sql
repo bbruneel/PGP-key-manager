@@ -3,6 +3,7 @@ CREATE TABLE storage_connections (
     user_id UUID NOT NULL REFERENCES app_users (id) ON DELETE CASCADE,
     provider TEXT NOT NULL CHECK (provider IN ('aws-s3')),
     display_name TEXT NOT NULL,
+    display_name_lower TEXT GENERATED ALWAYS AS (LOWER(display_name)) STORED,
     region TEXT NOT NULL,
     bucket TEXT NOT NULL,
     prefix TEXT NOT NULL DEFAULT 'pgp-key-manager/',
@@ -15,7 +16,7 @@ CREATE TABLE storage_connections (
 );
 
 CREATE UNIQUE INDEX storage_connections_user_display_name_idx
-    ON storage_connections (user_id, LOWER(display_name));
+    ON storage_connections (user_id, display_name_lower);
 
 CREATE INDEX storage_connections_user_id_idx ON storage_connections (user_id);
 

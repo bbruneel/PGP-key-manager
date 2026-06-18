@@ -19,6 +19,13 @@ export type StorageConnectionFormValues = {
   roleArn: string
 }
 
+type FieldErrors = {
+  displayName?: string
+  region?: string
+  bucket?: string
+  roleArn?: string
+}
+
 type StorageConnectionFormProps = {
   mode: "create" | "edit"
   initialValues?: StorageConnectionFormValues
@@ -35,6 +42,32 @@ const emptyValues: StorageConnectionFormValues = {
   roleArn: "",
 }
 
+function validateValues(values: StorageConnectionFormValues): FieldErrors {
+  const errors: FieldErrors = {}
+  const trimmedName = values.displayName.trim()
+  if (!trimmedName) {
+    errors.displayName = "Connection name is required"
+  } else if (trimmedName.length > DISPLAY_NAME_MAX) {
+    errors.displayName = `Connection name must be at most ${DISPLAY_NAME_MAX} characters`
+  }
+  if (!values.region.trim()) {
+    errors.region = "Region is required"
+  } else if (values.region.trim().length > REGION_MAX) {
+    errors.region = `Region must be at most ${REGION_MAX} characters`
+  }
+  if (!values.bucket.trim()) {
+    errors.bucket = "Bucket is required"
+  } else if (values.bucket.trim().length > BUCKET_MAX) {
+    errors.bucket = `Bucket must be at most ${BUCKET_MAX} characters`
+  }
+  if (!values.roleArn.trim()) {
+    errors.roleArn = "IAM role ARN is required"
+  } else if (values.roleArn.trim().length > ROLE_ARN_MAX) {
+    errors.roleArn = `IAM role ARN must be at most ${ROLE_ARN_MAX} characters`
+  }
+  return errors
+}
+
 export function StorageConnectionForm({
   mode,
   initialValues = emptyValues,
@@ -43,26 +76,18 @@ export function StorageConnectionForm({
   onCancel,
 }: StorageConnectionFormProps) {
   const [values, setValues] = useState<StorageConnectionFormValues>(initialValues)
-  const [displayNameError, setDisplayNameError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
 
   const handleSubmit = useCallback(() => {
-    const trimmedName = values.displayName.trim()
-    if (!trimmedName) {
-      setDisplayNameError("Connection name is required")
-      return
-    }
-    if (trimmedName.length > DISPLAY_NAME_MAX) {
-      setDisplayNameError(`Connection name must be at most ${DISPLAY_NAME_MAX} characters`)
-      return
-    }
-    if (!values.region.trim() || !values.bucket.trim() || !values.roleArn.trim()) {
-      setDisplayNameError(null)
+    const errors = validateValues(values)
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
       return
     }
 
-    setDisplayNameError(null)
+    setFieldErrors({})
     const payload = {
-      displayName: trimmedName,
+      displayName: values.displayName.trim(),
       region: values.region.trim(),
       bucket: values.bucket.trim(),
       roleArn: values.roleArn.trim(),
@@ -94,7 +119,7 @@ export function StorageConnectionForm({
           onChange={(event) => setValues((current) => ({ ...current, displayName: event.target.value }))}
           placeholder="Personal vault"
         />
-        {displayNameError ? <p className="text-sm text-destructive">{displayNameError}</p> : null}
+        {fieldErrors.displayName ? <p className="text-sm text-destructive">{fieldErrors.displayName}</p> : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -106,8 +131,8 @@ export function StorageConnectionForm({
             maxLength={REGION_MAX}
             onChange={(event) => setValues((current) => ({ ...current, region: event.target.value }))}
             placeholder="eu-west-1"
-            required
           />
+          {fieldErrors.region ? <p className="text-sm text-destructive">{fieldErrors.region}</p> : null}
         </div>
         <div className="space-y-1">
           <Label htmlFor="storage-bucket">Bucket</Label>
@@ -117,8 +142,8 @@ export function StorageConnectionForm({
             maxLength={BUCKET_MAX}
             onChange={(event) => setValues((current) => ({ ...current, bucket: event.target.value }))}
             placeholder="acme-pgp-vault"
-            required
           />
+          {fieldErrors.bucket ? <p className="text-sm text-destructive">{fieldErrors.bucket}</p> : null}
         </div>
       </div>
 
@@ -142,8 +167,8 @@ export function StorageConnectionForm({
           maxLength={ROLE_ARN_MAX}
           onChange={(event) => setValues((current) => ({ ...current, roleArn: event.target.value }))}
           placeholder="arn:aws:iam::123456789012:role/PgpKeyManager"
-          required
         />
+        {fieldErrors.roleArn ? <p className="text-sm text-destructive">{fieldErrors.roleArn}</p> : null}
       </div>
 
       <div className="flex flex-wrap gap-2">

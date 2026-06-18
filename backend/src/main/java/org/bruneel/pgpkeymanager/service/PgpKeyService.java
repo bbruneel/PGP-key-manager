@@ -56,6 +56,7 @@ public class PgpKeyService {
     private final GroupAuthorizationService groupAuthorizationService;
     private final KeyOperationLogger operationLogger;
     private final KeyOperationMetrics operationMetrics;
+    private final StorageRefParser storageRefParser;
 
     public PgpKeyService(
             PgpKeyRepository pgpKeyRepository,
@@ -63,13 +64,15 @@ public class PgpKeyService {
             PgpKeyMetadataParser metadataParser,
             GroupAuthorizationService groupAuthorizationService,
             KeyOperationLogger operationLogger,
-            KeyOperationMetrics operationMetrics) {
+            KeyOperationMetrics operationMetrics,
+            StorageRefParser storageRefParser) {
         this.pgpKeyRepository = pgpKeyRepository;
         this.pgpCryptoService = pgpCryptoService;
         this.metadataParser = metadataParser;
         this.groupAuthorizationService = groupAuthorizationService;
         this.operationLogger = operationLogger;
         this.operationMetrics = operationMetrics;
+        this.storageRefParser = storageRefParser;
     }
 
     public List<PgpKey> listAccessibleKeys(
@@ -167,7 +170,11 @@ public class PgpKeyService {
     }
 
     public PgpKey update(AppUser user, UUID id, UpdatePgpKeyRequest request) {
-        getAccessibleKey(user, id);
+        PgpKey existing = getAccessibleKey(user, id);
+        String nextProvider =
+                request.storageProvider() != null ? request.storageProvider() : existing.storageProvider();
+        String nextRef = request.storageRef() != null ? request.storageRef() : existing.storageRef();
+        validateStoragePointer(nextProvider, nextRef);
         return pgpKeyRepository
                 .updateMetadata(id, request.label(), request.expiresAt(), request.storageProvider(), request.storageRef())
                 .orElseThrow(() -> new KeyNotFoundException(id));
@@ -885,6 +892,7 @@ public class PgpKeyService {
             String storageProvider,
             String storageRef,
             Ownership ownership) {
+        validateStoragePointer(storageProvider, storageRef);
         try {
             return pgpKeyRepository.insert(
                     new PgpKeyInsert(
@@ -998,6 +1006,21 @@ public class PgpKeyService {
             }
         }
         throw new BadRequestException("No public key material available for export");
+    }
+
+    private void validateStoragePointer(String storageProvider, String storageRef) {
+        boolean providerBlank = storageProvider == null || storageProvider.isBlank();
+        boolean refBlank = storageRef == null || storageRef.isBlank();
+        if (providerBlank && refBlank) {
+            return;
+        }
+        if (providerBlank || refBlank) {
+            throw new BadRequestException("storageProvider and storageRef must both be set or both omitted");
+        }
+        if (!StorageRefParser.PROVIDER_SCHEME.equalsIgnoreCase(storageProvider.trim())) {
+            throw new BadRequestException("Unsupported storage provider: " + storageProvider);
+        }
+        storageRefParser.parse(storageRef);
     }
 
     private int revocationReasonCode(RevocationReason reason) {

@@ -59,6 +59,20 @@ describe("SettingsPage", () => {
     expect(screen.getByText(/no storage connections yet/i)).toBeInTheDocument()
   })
 
+  it("shows field errors when required inputs are missing", async () => {
+    const user = userEvent.setup()
+    render(<SettingsPage />)
+
+    await user.click(await screen.findByRole("button", { name: /add aws s3 connection/i }))
+    await user.click(screen.getByRole("button", { name: /add connection/i }))
+
+    expect(await screen.findByText("Connection name is required")).toBeInTheDocument()
+    expect(screen.getByText("Region is required")).toBeInTheDocument()
+    expect(screen.getByText("Bucket is required")).toBeInTheDocument()
+    expect(screen.getByText("IAM role ARN is required")).toBeInTheDocument()
+    expect(storageConnectionsApi.create).not.toHaveBeenCalled()
+  })
+
   it("creates a storage connection from the form", async () => {
     const user = userEvent.setup()
     vi.mocked(storageConnectionsApi.create).mockResolvedValue(connection)

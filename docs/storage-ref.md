@@ -44,4 +44,4 @@ The bucket name is **not** embedded in `storage_ref`; it lives on the `storage_c
 | `storage_provider` | `aws-s3` |
 | `storage_ref` | URI as above |
 
-Until Phase 17c, `storage_provider` and `storage_ref` may be set manually via PATCH but do not change where keyring bytes are stored.
+Until Phase 17c, `storage_provider` and `storage_ref` may be set manually via PATCH but do not change where keyring bytes are stored. When both fields are set, the API validates `storage_ref` against this URI contract via `StorageRefParser`.

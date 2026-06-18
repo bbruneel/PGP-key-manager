@@ -109,6 +109,7 @@ CREATE TABLE storage_connections (
     user_id CHAR(36) NOT NULL REFERENCES app_users (id) ON DELETE CASCADE,
     provider VARCHAR(32) NOT NULL,
     display_name VARCHAR(128) NOT NULL,
+    display_name_lower VARCHAR(128) AS LOWER(display_name),
     region VARCHAR(64) NOT NULL,
     bucket VARCHAR(255) NOT NULL,
     prefix VARCHAR(512) NOT NULL DEFAULT 'pgp-key-manager/',
@@ -122,6 +123,6 @@ CREATE TABLE storage_connections (
 );
 
 CREATE UNIQUE INDEX storage_connections_user_display_name_idx
-    ON storage_connections (user_id, display_name);
+    ON storage_connections (user_id, display_name_lower);
 
 CREATE INDEX storage_connections_user_id_idx ON storage_connections (user_id);

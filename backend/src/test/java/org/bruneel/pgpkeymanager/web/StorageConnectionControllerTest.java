@@ -96,6 +96,15 @@ class StorageConnectionControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.externalId").value("external-id-1"))
                 .andExpect(jsonPath("$.status").value("registered"));
+
+        verify(storageConnectionService)
+                .createConnection(
+                        eq(USER),
+                        eq("Personal vault"),
+                        eq("eu-west-1"),
+                        eq("acme-pgp-vault"),
+                        eq("pgp-key-manager/"),
+                        eq("arn:aws:iam::123456789012:role/PgpKeyManager"));
     }
 
     @Test
@@ -107,6 +116,8 @@ class StorageConnectionControllerTest {
         mockMvc.perform(get("/api/storage-connections/{connectionId}", connection.id()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bucket").value("acme-pgp-vault"));
+
+        verify(storageConnectionService).getConnection(USER, connection.id());
     }
 
     @Test
@@ -141,6 +152,16 @@ class StorageConnectionControllerTest {
                         .content("{\"displayName\":\"Updated vault\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("Updated vault"));
+
+        verify(storageConnectionService)
+                .updateConnection(
+                        eq(USER),
+                        eq(connection.id()),
+                        eq("Updated vault"),
+                        eq(null),
+                        eq(null),
+                        eq(null),
+                        eq(null));
     }
 
     @Test
