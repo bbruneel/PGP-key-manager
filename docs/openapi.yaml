@@ -12,7 +12,7 @@ info:
     Versioned JSON API for OpenPGP key management.
 
     **Versioning:** `Accept: application/json; version=1`
-    **Auth:** Bearer JWT (Auth0) on `/api/keys/**`, `/api/groups/**`, `/api/invites/**`, and `/api/admin/**`
+    **Auth:** Bearer JWT (Auth0) on `/api/keys/**`, `/api/groups/**`, `/api/invites/**`, `/api/storage-connections/**`, and `/api/admin/**`
     **Crypto:** Bouncy Castle (`bcprov-jdk18on`, `bcpg-jdk18on` 1.84). Primary generation supports `openpgpVersion` 4 (default) or 6.
     **Errors:** RFC 7807 `application/problem+json`
 
@@ -31,6 +31,8 @@ tags:
     description: Revoke, extend expiry, and rotate operations.
   - name: Groups
     description: Team vault group management, membership, invites, and summaries.
+  - name: Storage connections
+    description: BYO cloud storage connection registry (Phase 17a — metadata only, no S3 I/O yet).
   - name: Admin
     description: Platform administration endpoints for groups and users.
 
@@ -697,6 +699,96 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/storage-connections:
+    get:
+      tags: [Storage connections]
+      summary: List storage connections
+      operationId: listStorageConnections
+      x-implementation-status: implemented
+      responses:
+        '200':
+          description: Storage connection list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StorageConnectionResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    post:
+      tags: [Storage connections]
+      summary: Create storage connection
+      operationId: createStorageConnection
+      x-implementation-status: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStorageConnectionRequest'
+      responses:
+        '201':
+          description: Storage connection created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageConnectionResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/storage-connections/{connectionId}:
+    get:
+      tags: [Storage connections]
+      summary: Get storage connection
+      operationId: getStorageConnection
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/ConnectionId'
+      responses:
+        '200':
+          description: Storage connection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageConnectionResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      tags: [Storage connections]
+      summary: Update storage connection
+      operationId: updateStorageConnection
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/ConnectionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStorageConnectionRequest'
+      responses:
+        '200':
+          description: Updated storage connection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StorageConnectionResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Storage connections]
+      summary: Delete storage connection
+      operationId: deleteStorageConnection
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/ConnectionId'
+      responses:
+        '204':
+          description: Storage connection deleted
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/invites/{token}/accept:
     post:
       tags: [Groups]
@@ -790,6 +882,13 @@ components:
         format: uuid
     GroupId:
       name: groupId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ConnectionId:
+      name: connectionId
       in: path
       required: true
       schema:
@@ -1169,6 +1268,86 @@ components:
         description:
           type: string
           maxLength: 1024
+    StorageConnectionResponse:
+      type: object
+      required:
+        [id, provider, displayName, region, bucket, prefix, roleArn, externalId, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          enum: [aws-s3]
+        displayName:
+          type: string
+          description: User-chosen label for this connection (not the account display name).
+        region:
+          type: string
+        bucket:
+          type: string
+          description: Customer-owned S3 bucket name.
+        prefix:
+          type: string
+          description: Object key prefix within the bucket (default `pgp-key-manager/`).
+        roleArn:
+          type: string
+          description: IAM role ARN for STS AssumeRole (Phase 17b).
+        externalId:
+          type: string
+          description: External ID for cross-account trust policy (generated on create).
+        status:
+          type: string
+          enum: [registered]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateStorageConnectionRequest:
+      type: object
+      required: [displayName, region, bucket, roleArn]
+      properties:
+        displayName:
+          type: string
+          maxLength: 128
+        region:
+          type: string
+          maxLength: 64
+        bucket:
+          type: string
+          maxLength: 255
+        prefix:
+          type: string
+          maxLength: 512
+          description: Optional; defaults to `pgp-key-manager/`.
+        roleArn:
+          type: string
+          maxLength: 512
+    UpdateStorageConnectionRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+          maxLength: 128
+        region:
+          type: string
+          maxLength: 64
+        bucket:
+          type: string
+          maxLength: 255
+        prefix:
+          type: string
+          maxLength: 512
+        roleArn:
+          type: string
+          maxLength: 512
+    StorageRef:
+      type: string
+      description: |
+        URI pointer to externally stored keyring bytes: `aws-s3://{connectionUuid}/{objectKey}[?versionId=…]`.
+        See repository `docs/storage-ref.md`. Phase 17a documents the contract only; keyring bytes remain inline in Postgres until Phase 17c.
     GroupMemberResponse:
       type: object
       required: [groupId, userId, role, joinedAt]
@@ -1354,6 +1533,16 @@ components:
           type: integer
           enum: [4, 6]
           description: OpenPGP packet version for this keyring (primary sets it; subkeys inherit).
+        storageProvider:
+          type: [string, 'null']
+          description: |
+            External storage provider when set (e.g. `aws-s3`). Phase 17a documents pointers only;
+            keyring bytes remain inline in Postgres until Phase 17c.
+        storageRef:
+          allOf:
+            - $ref: '#/components/schemas/StorageRef'
+          description: |
+            URI resolving to connection UUID and object key. Optional until external storage is enabled.
         hasPrivateMaterial:
           type: boolean
           description: True when this key row has private key material available for cryptographic actions.

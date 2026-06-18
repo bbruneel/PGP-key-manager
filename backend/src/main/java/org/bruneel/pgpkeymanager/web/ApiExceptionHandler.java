@@ -19,6 +19,7 @@ import org.bruneel.pgpkeymanager.service.ForbiddenGroupActionException;
 import org.bruneel.pgpkeymanager.service.GroupNotFoundException;
 import org.bruneel.pgpkeymanager.service.KeyNotFoundException;
 import org.bruneel.pgpkeymanager.service.PlatformAdminRequiredException;
+import org.bruneel.pgpkeymanager.service.StorageConnectionNotFoundException;
 import org.bruneel.pgpkeymanager.service.UnauthorizedException;
 
 @RestControllerAdvice
@@ -35,6 +36,13 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(GroupNotFoundException.class)
     public ResponseEntity<ProblemDetail> groupNotFound(GroupNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Not Found");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    @ExceptionHandler(StorageConnectionNotFoundException.class)
+    public ResponseEntity<ProblemDetail> storageConnectionNotFound(StorageConnectionNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setTitle("Not Found");
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);

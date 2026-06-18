@@ -103,3 +103,25 @@ CREATE INDEX pgp_keys_role_idx ON pgp_keys (user_id, role);
 CREATE INDEX pgp_keys_expires_at_idx ON pgp_keys (expires_at);
 CREATE INDEX pgp_keys_owner_group_id_idx ON pgp_keys (owner_group_id);
 CREATE INDEX pgp_keys_created_by_user_id_idx ON pgp_keys (created_by_user_id);
+
+CREATE TABLE storage_connections (
+    id CHAR(36) PRIMARY KEY,
+    user_id CHAR(36) NOT NULL REFERENCES app_users (id) ON DELETE CASCADE,
+    provider VARCHAR(32) NOT NULL,
+    display_name VARCHAR(128) NOT NULL,
+    region VARCHAR(64) NOT NULL,
+    bucket VARCHAR(255) NOT NULL,
+    prefix VARCHAR(512) NOT NULL DEFAULT 'pgp-key-manager/',
+    role_arn VARCHAR(512) NOT NULL,
+    external_id VARCHAR(64) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'registered',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT storage_connections_provider_check CHECK (provider IN ('aws-s3')),
+    CONSTRAINT storage_connections_status_check CHECK (status IN ('registered'))
+);
+
+CREATE UNIQUE INDEX storage_connections_user_display_name_idx
+    ON storage_connections (user_id, display_name);
+
+CREATE INDEX storage_connections_user_id_idx ON storage_connections (user_id);

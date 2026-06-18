@@ -54,6 +54,17 @@ Optional cleanup on any smoke: `SMOKE_CLEANUP=1`.
 
 ---
 
+## Phase 17a — Storage connection registry manual QA
+
+1. Open `/settings` while signed in and confirm the **Cloud storage connections** section loads.
+2. Click **Add AWS S3 connection**, fill connection name, region, bucket, and IAM role ARN; submit and confirm the connection appears in the list with status **registered**.
+3. Select the connection card and verify read-only detail shows connection ID, prefix, role ARN, external ID, and the Phase 17b setup hint.
+4. Edit the connection name and confirm the list updates.
+5. Delete an unused connection and confirm it disappears.
+6. Optional API check: `GET /api/storage-connections` returns the saved row with `provider: aws-s3`.
+
+---
+
 ## Checklist A — Import legacy key → rotate subkey (UI)
 
 **Covers:** Phase 6A subkey rotate form (RSA / ECDSA / ECDH pickers on imported keyrings).
