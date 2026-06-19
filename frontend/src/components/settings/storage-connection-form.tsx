@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,22 +43,17 @@ export function StorageConnectionForm({
   onCancel,
 }: StorageConnectionFormProps) {
   const [values, setValues] = useState<StorageConnectionFormValues>(initialValues)
-  const [fieldErrors, setFieldErrors] = useState<StorageConnectionFieldErrors>({})
-
-  useEffect(() => {
-    if (Object.keys(serverFieldErrors).length > 0) {
-      setFieldErrors((current) => ({ ...current, ...serverFieldErrors }))
-    }
-  }, [serverFieldErrors])
+  const [clientFieldErrors, setClientFieldErrors] = useState<StorageConnectionFieldErrors>({})
+  const fieldErrors = { ...clientFieldErrors, ...serverFieldErrors }
 
   const handleSubmit = useCallback(() => {
     const errors = validateStorageConnectionForm(values)
     if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors)
+      setClientFieldErrors(errors)
       return
     }
 
-    setFieldErrors({})
+    setClientFieldErrors({})
     const payload = {
       displayName: values.displayName.trim(),
       region: values.region.trim(),
