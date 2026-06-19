@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 
+import org.bruneel.pgpkeymanager.service.BadRequestException;
+import org.bruneel.pgpkeymanager.service.ConflictException;
 import org.bruneel.pgpkeymanager.service.CryptoException;
 import org.bruneel.pgpkeymanager.service.ForbiddenGroupActionException;
 import org.bruneel.pgpkeymanager.service.GroupNotFoundException;
@@ -66,5 +68,27 @@ class ApiExceptionHandlerTest {
         assertThat(response.getStatusCode().value()).isEqualTo(403);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getTitle()).isEqualTo("Forbidden");
+    }
+
+    @Test
+    void badRequestIncludesStructuredFieldErrors() {
+        ApiExceptionHandler handler = new ApiExceptionHandler();
+        ResponseEntity<ProblemDetail> response =
+                handler.badRequest(BadRequestException.fieldError("roleArn", "roleArn must be a valid AWS IAM role ARN"));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getProperties().get("errors")).isNotNull();
+    }
+
+    @Test
+    void conflictIncludesStructuredFieldErrors() {
+        ApiExceptionHandler handler = new ApiExceptionHandler();
+        ResponseEntity<ProblemDetail> response = handler.conflict(
+                ConflictException.fieldConflict("displayName", "A storage connection with this display name already exists"));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(409);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getProperties().get("errors")).isNotNull();
     }
 }

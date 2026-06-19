@@ -7,7 +7,9 @@ import { toFormValues } from "@/components/settings/storage-connection-form-valu
 import { Button } from "@/components/ui/button"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
+import { mapStorageConnectionApiError } from "@/lib/map-storage-connection-api-error"
 import { storageConnectionsApi } from "@/lib/storage-connections-api"
+import type { StorageConnectionFieldErrors } from "@/lib/storage-connection-validation"
 import { logUiEvent } from "@/lib/ui-logger"
 import type {
   CreateStorageConnectionRequest,
@@ -27,6 +29,7 @@ export function StorageConnectionsSection() {
   const [submitting, setSubmitting] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
+  const [formFieldErrors, setFormFieldErrors] = useState<StorageConnectionFieldErrors>({})
 
   const loadConnections = useCallback(async () => {
     if (!isConfigured || !isAuthenticated) {
@@ -79,6 +82,7 @@ export function StorageConnectionsSection() {
     setEditingConnection(null)
     setApiError(null)
     setRequestId(null)
+    setFormFieldErrors({})
   }, [])
 
   const handleEditOpen = useCallback((connection: StorageConnectionResponse) => {
@@ -91,11 +95,13 @@ export function StorageConnectionsSection() {
     setSelectedId(connection.id)
     setApiError(null)
     setRequestId(null)
+    setFormFieldErrors({})
   }, [])
 
   const handleFormCancel = useCallback(() => {
     setFormMode("hidden")
     setEditingConnection(null)
+    setFormFieldErrors({})
   }, [])
 
   const handleCreateSubmit = useCallback(
@@ -103,6 +109,7 @@ export function StorageConnectionsSection() {
       setSubmitting(true)
       setApiError(null)
       setRequestId(null)
+      setFormFieldErrors({})
       logUiEvent("info", {
         eventId: "settings.storageConnections.create.submit",
         message: "Submit create storage connection",
@@ -122,9 +129,15 @@ export function StorageConnectionsSection() {
           message: "Storage connection created",
         })
       } catch (error) {
-        setApiError(getApiErrorMessage(error))
-        if (error instanceof ApiError && error.requestId) {
-          setRequestId(error.requestId)
+        if (error instanceof ApiError) {
+          const mapped = mapStorageConnectionApiError(error)
+          setFormFieldErrors(mapped.fieldErrors)
+          setApiError(mapped.bannerMessage)
+          if (error.requestId) {
+            setRequestId(error.requestId)
+          }
+        } else {
+          setApiError(getApiErrorMessage(error))
         }
         logUiEvent("error", {
           eventId: "settings.storageConnections.create.submit",
@@ -147,6 +160,7 @@ export function StorageConnectionsSection() {
       setSubmitting(true)
       setApiError(null)
       setRequestId(null)
+      setFormFieldErrors({})
       logUiEvent("info", {
         eventId: "settings.storageConnections.edit.submit",
         message: "Submit edit storage connection",
@@ -163,9 +177,15 @@ export function StorageConnectionsSection() {
         setFormMode("hidden")
         toast.success("Storage connection updated", { description: updated.displayName })
       } catch (error) {
-        setApiError(getApiErrorMessage(error))
-        if (error instanceof ApiError && error.requestId) {
-          setRequestId(error.requestId)
+        if (error instanceof ApiError) {
+          const mapped = mapStorageConnectionApiError(error)
+          setFormFieldErrors(mapped.fieldErrors)
+          setApiError(mapped.bannerMessage)
+          if (error.requestId) {
+            setRequestId(error.requestId)
+          }
+        } else {
+          setApiError(getApiErrorMessage(error))
         }
         logUiEvent("error", {
           eventId: "settings.storageConnections.edit.submit",
@@ -193,6 +213,7 @@ export function StorageConnectionsSection() {
       setSubmitting(true)
       setApiError(null)
       setRequestId(null)
+      setFormFieldErrors({})
       logUiEvent("info", {
         eventId: "settings.storageConnections.delete.submit",
         message: "Submit delete storage connection",
@@ -274,6 +295,7 @@ export function StorageConnectionsSection() {
         <StorageConnectionForm
           mode="create"
           submitting={submitting}
+          serverFieldErrors={formFieldErrors}
           onSubmit={(body) => void handleCreateSubmit(body)}
           onCancel={handleFormCancel}
         />
@@ -284,6 +306,7 @@ export function StorageConnectionsSection() {
           mode="edit"
           initialValues={toFormValues(editingConnection)}
           submitting={submitting}
+          serverFieldErrors={formFieldErrors}
           onSubmit={(body) => void handleEditSubmit(body)}
           onCancel={handleFormCancel}
         />

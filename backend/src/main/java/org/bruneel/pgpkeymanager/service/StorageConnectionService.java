@@ -55,19 +55,24 @@ public class StorageConnectionService {
         operationLogger.started("create_storage_connection", user.id(), null);
         try {
             String normalizedDisplayName = requireDisplayName(displayName);
+            String normalizedRegion = requireNonBlank(region, "region", 64);
+            String normalizedBucket = requireNonBlank(bucket, "bucket", 255);
+            String normalizedPrefix = normalizePrefix(prefix);
+            String normalizedRoleArn = requireRoleArn(roleArn);
             if (storageConnectionRepository.existsByUserIdAndDisplayNameIgnoreCase(
                     user.id(), normalizedDisplayName, null)) {
-                throw new ConflictException("A storage connection with this display name already exists");
+                throw ConflictException.fieldConflict(
+                        "displayName", "A storage connection with this display name already exists");
             }
             StorageConnection created =
                     storageConnectionRepository.insert(
                             user.id(),
                             StorageProvider.AWS_S3,
-                            requireDisplayName(displayName),
-                            requireNonBlank(region, "region", 64),
-                            requireNonBlank(bucket, "bucket", 255),
-                            normalizePrefix(prefix),
-                            requireRoleArn(roleArn),
+                            normalizedDisplayName,
+                            normalizedRegion,
+                            normalizedBucket,
+                            normalizedPrefix,
+                            normalizedRoleArn,
                             UUID.randomUUID().toString());
             operationLogger.succeeded("create_storage_connection", user.id(), created.id(), duration(start));
             return created;
@@ -96,7 +101,8 @@ public class StorageConnectionService {
             if (displayName != null
                     && storageConnectionRepository.existsByUserIdAndDisplayNameIgnoreCase(
                             user.id(), requireDisplayName(displayName), connectionId)) {
-                throw new ConflictException("A storage connection with this display name already exists");
+                throw ConflictException.fieldConflict(
+                        "displayName", "A storage connection with this display name already exists");
             }
             StorageConnection updated =
                     storageConnectionRepository
@@ -148,22 +154,22 @@ public class StorageConnectionService {
 
     private static String requireDisplayName(String displayName) {
         if (displayName == null || displayName.isBlank()) {
-            throw new BadRequestException("displayName is required");
+            throw BadRequestException.fieldError("displayName", "displayName is required");
         }
         String trimmed = displayName.trim();
         if (trimmed.length() > 128) {
-            throw new BadRequestException("displayName must be at most 128 characters");
+            throw BadRequestException.fieldError("displayName", "displayName must be at most 128 characters");
         }
         return trimmed;
     }
 
     private static String requireNonBlank(String value, String field, int maxLength) {
         if (value == null || value.isBlank()) {
-            throw new BadRequestException(field + " is required");
+            throw BadRequestException.fieldError(field, field + " is required");
         }
         String trimmed = value.trim();
         if (trimmed.length() > maxLength) {
-            throw new BadRequestException(field + " must be at most " + maxLength + " characters");
+            throw BadRequestException.fieldError(field, field + " must be at most " + maxLength + " characters");
         }
         return trimmed;
     }
@@ -171,7 +177,7 @@ public class StorageConnectionService {
     private static String requireRoleArn(String roleArn) {
         String trimmed = requireNonBlank(roleArn, "roleArn", 512);
         if (!ROLE_ARN_PATTERN.matcher(trimmed).matches()) {
-            throw new BadRequestException("roleArn must be a valid AWS IAM role ARN");
+            throw BadRequestException.fieldError("roleArn", "roleArn must be a valid AWS IAM role ARN");
         }
         return trimmed;
     }

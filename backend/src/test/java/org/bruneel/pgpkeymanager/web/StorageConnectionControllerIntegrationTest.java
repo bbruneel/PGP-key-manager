@@ -80,7 +80,29 @@ class StorageConnectionControllerIntegrationTest {
                                   "roleArn": "arn:aws:iam::123456789012:role/PgpKeyManager"
                                 }
                                 """))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errors[0].field").value("displayName"))
+                .andExpect(jsonPath("$.errors[0].message").value("A storage connection with this display name already exists"));
+    }
+
+    @Test
+    void invalidRoleArnReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/storage-connections")
+                        .with(jwtForSubject(PRIMARY_SUBJECT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "displayName": "Invalid ARN vault",
+                                  "region": "eu-west-1",
+                                  "bucket": "acme-pgp-vault",
+                                  "roleArn": "role"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("roleArn must be a valid AWS IAM role ARN"))
+                .andExpect(jsonPath("$.errors[0].field").value("roleArn"))
+                .andExpect(jsonPath("$.errors[0].message").value("roleArn must be a valid AWS IAM role ARN"));
     }
 
     @Test

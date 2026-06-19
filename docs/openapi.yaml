@@ -934,7 +934,7 @@ components:
           format: uri
         errors:
           type: array
-          description: Field validation errors (400 responses)
+          description: Field-level errors for validation (400) and field-targeted conflicts (409)
           items:
             type: object
             properties:

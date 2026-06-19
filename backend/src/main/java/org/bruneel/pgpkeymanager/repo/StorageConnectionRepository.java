@@ -142,21 +142,38 @@ public class StorageConnectionRepository {
     }
 
     public boolean existsByUserIdAndDisplayNameIgnoreCase(UUID userId, String displayName, UUID excludeConnectionId) {
-        Boolean exists =
-                jdbc.sql(
-                                """
-                                SELECT EXISTS (
-                                    SELECT 1 FROM storage_connections
-                                    WHERE user_id = :userId
-                                      AND LOWER(display_name) = LOWER(:displayName)
-                                      AND (:excludeConnectionId IS NULL OR id <> :excludeConnectionId)
-                                )
-                                """)
-                        .param("userId", userId)
-                        .param("displayName", displayName)
-                        .param("excludeConnectionId", excludeConnectionId)
-                        .query(Boolean.class)
-                        .single();
+        Boolean exists;
+        if (excludeConnectionId == null) {
+            exists =
+                    jdbc.sql(
+                                    """
+                                    SELECT EXISTS (
+                                        SELECT 1 FROM storage_connections
+                                        WHERE user_id = :userId
+                                          AND LOWER(display_name) = LOWER(:displayName)
+                                    )
+                                    """)
+                            .param("userId", userId)
+                            .param("displayName", displayName)
+                            .query(Boolean.class)
+                            .single();
+        } else {
+            exists =
+                    jdbc.sql(
+                                    """
+                                    SELECT EXISTS (
+                                        SELECT 1 FROM storage_connections
+                                        WHERE user_id = :userId
+                                          AND LOWER(display_name) = LOWER(:displayName)
+                                          AND id <> :excludeConnectionId
+                                    )
+                                    """)
+                            .param("userId", userId)
+                            .param("displayName", displayName)
+                            .param("excludeConnectionId", excludeConnectionId)
+                            .query(Boolean.class)
+                            .single();
+        }
         return Boolean.TRUE.equals(exists);
     }
 
