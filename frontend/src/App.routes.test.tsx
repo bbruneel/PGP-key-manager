@@ -93,7 +93,7 @@ describe("App routes", () => {
   it("renders settings page at /settings", async () => {
     renderApp("/settings")
     expect(await screen.findByRole("heading", { name: /^settings$/i, level: 1 })).toBeInTheDocument()
-    expect(screen.getByText(/phase 10/i)).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /^cloud storage connections$/i, level: 3 })).toBeInTheDocument()
   })
 
   it("navigates between overview and keys via sidebar links", async () => {

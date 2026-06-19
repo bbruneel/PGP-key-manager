@@ -98,6 +98,42 @@ class PgpKeyControllerIntegrationTest {
     }
 
     @Test
+    void patchRejectsInvalidStorageRef() throws Exception {
+        GeneratedKeyMaterial material = TestArmoredKeys.sampleEd25519PublicKey();
+        String armoredPublic = jsonEscape(material.armoredPublic());
+        MvcResult created =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "storage-ref-validation",
+                                          "keyType": "public",
+                                          "armoredPublic": "%s",
+                                          "fingerprint": "%s"
+                                        }
+                                        """
+                                                .formatted(armoredPublic, material.fingerprint())))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+
+        String keyId = readJsonField(created.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(patch("/api/keys/{keyId}", keyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "storageProvider": "aws-s3",
+                                  "storageRef": "not-a-valid-storage-ref"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void keysRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/keys").accept(MediaType.APPLICATION_JSON)).andExpect(status().isUnauthorized());
     }

@@ -129,6 +129,7 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/groups/new` | Create a team vault group | Phase 16 (implemented) |
 | `/groups/:groupId/keys` | List keys scoped to a team vault (`scope=group`) | Phase 16 (implemented) |
 | `/groups/:groupId/members` | View group members and summary metrics | Phase 16 (implemented) |
+| `/settings` | BYO cloud storage connection registry (AWS S3 metadata) | Phase 17a (implemented) |
 
 **Recorded decision:** create primary key at **`/keys/new`** and import at **`/keys/import`**, not modals on `/keys`.
 
@@ -156,6 +157,16 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 ### Auth0 organization mapping note
 
 Group membership and authorization are currently enforced from application data (`group_members`), not direct Auth0 Organization role claims. Auth0 org metadata can still be used upstream for UX hints, but backend authorization remains source-of-truth in repository-managed group membership tables.
+
+## BYO cloud storage registry (Phase 17a)
+
+Phase 17a introduces the **connection registry** only — no S3 or STS calls yet.
+
+- Postgres table `storage_connections` stores personal AWS S3 connection metadata (bucket, region, prefix, IAM role ARN, server-generated external ID).
+- REST CRUD at `/api/storage-connections` (auth required); structured logs use `storage_connection_operation_*`.
+- Settings page (`/settings`) lists connections, supports add/edit/delete, and shows read-only detail (connection id, external ID, IAM setup hint).
+- `pgp_keys.storage_provider` and `storage_ref` document the future external pointer; keyring bytes remain inline in Postgres until Phase 17c.
+- URI contract: [`docs/storage-ref.md`](docs/storage-ref.md) (`aws-s3://{connectionUuid}/{objectKey}[?versionId=…]`).
 
 ## Create primary key flow (Phase 1)
 

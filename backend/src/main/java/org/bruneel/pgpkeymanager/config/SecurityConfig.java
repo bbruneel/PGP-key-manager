@@ -34,6 +34,8 @@ public class SecurityConfig {
                                 "/api/groups/**",
                                 "/api/invites",
                                 "/api/invites/**",
+                                "/api/storage-connections",
+                                "/api/storage-connections/**",
                                 "/api/admin",
                                 "/api/admin/**")
                         .authenticated()

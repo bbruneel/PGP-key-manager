@@ -137,3 +137,7 @@ export type AdminUser = {
   platformRole: string
   createdAt: string
 }
+
+export type StorageConnectionResponse = components["schemas"]["StorageConnectionResponse"]
+export type CreateStorageConnectionRequest = components["schemas"]["CreateStorageConnectionRequest"]
+export type UpdateStorageConnectionRequest = components["schemas"]["UpdateStorageConnectionRequest"]
