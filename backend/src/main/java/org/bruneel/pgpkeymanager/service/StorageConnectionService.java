@@ -3,14 +3,18 @@ package org.bruneel.pgpkeymanager.service;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.domain.StorageConnection;
+import org.bruneel.pgpkeymanager.domain.StorageConnectionTestStatus;
 import org.bruneel.pgpkeymanager.domain.StorageProvider;
 import org.bruneel.pgpkeymanager.repo.StorageConnectionRepository;
+import org.bruneel.pgpkeymanager.storage.KeyringStorageProvider;
+import org.bruneel.pgpkeymanager.storage.StorageConnectionTestResult;
 
 @Service
 @Transactional
@@ -23,12 +27,15 @@ public class StorageConnectionService {
 
     private final StorageConnectionRepository storageConnectionRepository;
     private final StorageConnectionOperationLogger operationLogger;
+    private final KeyringStorageProvider keyringStorageProvider;
 
     public StorageConnectionService(
             StorageConnectionRepository storageConnectionRepository,
-            StorageConnectionOperationLogger operationLogger) {
+            StorageConnectionOperationLogger operationLogger,
+            KeyringStorageProvider keyringStorageProvider) {
         this.storageConnectionRepository = storageConnectionRepository;
         this.operationLogger = operationLogger;
+        this.keyringStorageProvider = keyringStorageProvider;
     }
 
     public List<StorageConnection> listConnections(AppUser user) {
@@ -137,6 +144,41 @@ public class StorageConnectionService {
             operationLogger.succeeded("delete_storage_connection", user.id(), connectionId, duration(start));
         } catch (RuntimeException ex) {
             operationLogger.failed("delete_storage_connection", user.id(), connectionId, ex);
+            throw ex;
+        }
+    }
+
+    public StorageConnectionTestOutcome testConnection(AppUser user, UUID connectionId) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("test_storage_connection", user.id(), connectionId);
+        StorageConnection owned = requireOwnedConnection(user, connectionId);
+        try {
+            StorageConnectionTestResult result = keyringStorageProvider.testConnection(owned);
+            Instant testedAt = Instant.now();
+            StorageConnectionTestStatus testStatus =
+                    result.succeeded() ? StorageConnectionTestStatus.SUCCEEDED : StorageConnectionTestStatus.FAILED;
+            StorageConnection updated =
+                    storageConnectionRepository
+                            .updateTestResult(
+                                    connectionId,
+                                    user.id(),
+                                    testedAt,
+                                    testStatus,
+                                    result.errorCategory())
+                            .orElseThrow(() -> new StorageConnectionNotFoundException(connectionId));
+            if (result.succeeded()) {
+                operationLogger.succeeded("test_storage_connection", user.id(), connectionId, duration(start));
+            } else {
+                operationLogger.failed(
+                        "test_storage_connection",
+                        user.id(),
+                        connectionId,
+                        new StorageConnectionTestFailedException(
+                                result.errorCategory(), result.message()));
+            }
+            return new StorageConnectionTestOutcome(updated, result);
+        } catch (RuntimeException ex) {
+            operationLogger.failed("test_storage_connection", user.id(), connectionId, ex);
             throw ex;
         }
     }

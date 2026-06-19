@@ -134,6 +134,9 @@ class StorageConnectionControllerTest {
                         "arn:aws:iam::123456789012:role/PgpKeyManager",
                         "external-id-1",
                         StorageConnectionStatus.REGISTERED,
+                        null,
+                        null,
+                        null,
                         Instant.EPOCH,
                         Instant.now());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
@@ -175,6 +178,75 @@ class StorageConnectionControllerTest {
         verify(storageConnectionService).deleteConnection(USER, connectionId);
     }
 
+    @Test
+    void testReturnsSuccessResponse() throws Exception {
+        UUID connectionId = connection().id();
+        StorageConnection tested =
+                new StorageConnection(
+                        connectionId,
+                        USER.id(),
+                        StorageProvider.AWS_S3,
+                        "Personal vault",
+                        "eu-west-1",
+                        "acme-pgp-vault",
+                        "pgp-key-manager/",
+                        "arn:aws:iam::123456789012:role/PgpKeyManager",
+                        "external-id-1",
+                        StorageConnectionStatus.REGISTERED,
+                        Instant.parse("2026-06-19T12:00:00Z"),
+                        org.bruneel.pgpkeymanager.domain.StorageConnectionTestStatus.SUCCEEDED,
+                        null,
+                        Instant.EPOCH,
+                        Instant.parse("2026-06-19T12:00:00Z"));
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(storageConnectionService.testConnection(USER, connectionId))
+                .thenReturn(
+                        new org.bruneel.pgpkeymanager.service.StorageConnectionTestOutcome(
+                                tested,
+                                org.bruneel.pgpkeymanager.storage.StorageConnectionTestResult.success(15L)));
+
+        mockMvc.perform(post("/api/storage-connections/{connectionId}/test", connectionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastTestStatus").value("succeeded"))
+                .andExpect(jsonPath("$.connection.id").value(connectionId.toString()));
+
+        verify(storageConnectionService).testConnection(USER, connectionId);
+    }
+
+    @Test
+    void testReturnsBadGatewayOnFailure() throws Exception {
+        UUID connectionId = connection().id();
+        StorageConnection failed =
+                new StorageConnection(
+                        connectionId,
+                        USER.id(),
+                        StorageProvider.AWS_S3,
+                        "Personal vault",
+                        "eu-west-1",
+                        "acme-pgp-vault",
+                        "pgp-key-manager/",
+                        "arn:aws:iam::123456789012:role/PgpKeyManager",
+                        "external-id-1",
+                        StorageConnectionStatus.REGISTERED,
+                        Instant.parse("2026-06-19T12:00:00Z"),
+                        org.bruneel.pgpkeymanager.domain.StorageConnectionTestStatus.FAILED,
+                        "access_denied",
+                        Instant.EPOCH,
+                        Instant.parse("2026-06-19T12:00:00Z"));
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(storageConnectionService.testConnection(USER, connectionId))
+                .thenReturn(
+                        new org.bruneel.pgpkeymanager.service.StorageConnectionTestOutcome(
+                                failed,
+                                org.bruneel.pgpkeymanager.storage.StorageConnectionTestResult.failure(
+                                        "access_denied", "Access Denied", 10L)));
+
+        mockMvc.perform(post("/api/storage-connections/{connectionId}/test", connectionId))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.lastTestStatus").value("failed"))
+                .andExpect(jsonPath("$.lastTestErrorCategory").value("access_denied"));
+    }
+
     private static StorageConnection connection() {
         return new StorageConnection(
                 UUID.fromString("00000000-0000-0000-0000-000000000020"),
@@ -187,6 +259,9 @@ class StorageConnectionControllerTest {
                 "arn:aws:iam::123456789012:role/PgpKeyManager",
                 "external-id-1",
                 StorageConnectionStatus.REGISTERED,
+                null,
+                null,
+                null,
                 Instant.EPOCH,
                 Instant.EPOCH);
     }

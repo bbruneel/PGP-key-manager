@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,8 +23,10 @@ import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.domain.StorageConnection;
 import org.bruneel.pgpkeymanager.service.CurrentUserService;
 import org.bruneel.pgpkeymanager.service.StorageConnectionService;
+import org.bruneel.pgpkeymanager.service.StorageConnectionTestOutcome;
 import org.bruneel.pgpkeymanager.web.dto.CreateStorageConnectionRequest;
 import org.bruneel.pgpkeymanager.web.dto.StorageConnectionResponse;
+import org.bruneel.pgpkeymanager.web.dto.TestStorageConnectionResponse;
 import org.bruneel.pgpkeymanager.web.dto.UpdateStorageConnectionRequest;
 
 @RestController
@@ -92,5 +95,16 @@ public class StorageConnectionController {
     public void delete(@PathVariable UUID connectionId, Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         storageConnectionService.deleteConnection(user, connectionId);
+    }
+
+    @PostMapping("/{connectionId}/test")
+    public ResponseEntity<TestStorageConnectionResponse> test(
+            @PathVariable UUID connectionId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        StorageConnectionTestOutcome outcome = storageConnectionService.testConnection(user, connectionId);
+        TestStorageConnectionResponse body =
+                TestStorageConnectionResponse.from(outcome.connection(), outcome.result());
+        HttpStatus status = outcome.result().succeeded() ? HttpStatus.OK : HttpStatus.BAD_GATEWAY;
+        return ResponseEntity.status(status).body(body);
     }
 }

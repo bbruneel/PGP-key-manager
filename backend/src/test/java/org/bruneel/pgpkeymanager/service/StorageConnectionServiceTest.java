@@ -21,8 +21,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.domain.StorageConnection;
 import org.bruneel.pgpkeymanager.domain.StorageConnectionStatus;
+import org.bruneel.pgpkeymanager.domain.StorageConnectionTestStatus;
 import org.bruneel.pgpkeymanager.domain.StorageProvider;
 import org.bruneel.pgpkeymanager.repo.StorageConnectionRepository;
+import org.bruneel.pgpkeymanager.storage.KeyringStorageProvider;
+import org.bruneel.pgpkeymanager.storage.StorageConnectionTestResult;
 
 @ExtendWith(MockitoExtension.class)
 class StorageConnectionServiceTest {
@@ -32,6 +35,9 @@ class StorageConnectionServiceTest {
 
     @Mock
     private StorageConnectionOperationLogger operationLogger;
+
+    @Mock
+    private KeyringStorageProvider keyringStorageProvider;
 
     @InjectMocks
     private StorageConnectionService storageConnectionService;
@@ -112,6 +118,51 @@ class StorageConnectionServiceTest {
                 .hasMessageContaining("roleArn");
     }
 
+    @Test
+    void testConnectionPersistsFailureOutcome() {
+        AppUser user = user();
+        UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000020");
+        StorageConnection owned = connection(user.id(), "ext-1");
+        when(storageConnectionRepository.findByIdAndUserId(connectionId, user.id())).thenReturn(Optional.of(owned));
+        when(keyringStorageProvider.testConnection(owned))
+                .thenReturn(StorageConnectionTestResult.failure("assume_role_denied", "Access denied", 42L));
+        when(storageConnectionRepository.updateTestResult(
+                        eq(connectionId),
+                        eq(user.id()),
+                        any(),
+                        eq(StorageConnectionTestStatus.FAILED),
+                        eq("assume_role_denied")))
+                .thenReturn(Optional.of(
+                        new StorageConnection(
+                                connectionId,
+                                user.id(),
+                                StorageProvider.AWS_S3,
+                                "Personal vault",
+                                "eu-west-1",
+                                "acme-pgp-vault",
+                                "pgp-key-manager/",
+                                "arn:aws:iam::123456789012:role/PgpKeyManager",
+                                "ext-1",
+                                StorageConnectionStatus.REGISTERED,
+                                Instant.parse("2026-06-19T12:00:00Z"),
+                                StorageConnectionTestStatus.FAILED,
+                                "assume_role_denied",
+                                Instant.EPOCH,
+                                Instant.parse("2026-06-19T12:00:00Z"))));
+
+        var outcome = storageConnectionService.testConnection(user, connectionId);
+
+        assertThat(outcome.result().succeeded()).isFalse();
+        assertThat(outcome.connection().lastTestStatus()).isEqualTo(StorageConnectionTestStatus.FAILED);
+        verify(storageConnectionRepository)
+                .updateTestResult(
+                        eq(connectionId),
+                        eq(user.id()),
+                        any(),
+                        eq(StorageConnectionTestStatus.FAILED),
+                        eq("assume_role_denied"));
+    }
+
     private static AppUser user() {
         return new AppUser(
                 UUID.fromString("00000000-0000-0000-0000-000000000001"),
@@ -135,6 +186,9 @@ class StorageConnectionServiceTest {
                 "arn:aws:iam::123456789012:role/PgpKeyManager",
                 externalId,
                 StorageConnectionStatus.REGISTERED,
+                null,
+                null,
+                null,
                 Instant.EPOCH,
                 Instant.EPOCH);
     }

@@ -3,6 +3,8 @@ package org.bruneel.pgpkeymanager.web;
 import static org.bruneel.pgpkeymanager.TestJwtSupport.PRIMARY_SUBJECT;
 import static org.bruneel.pgpkeymanager.TestJwtSupport.SECONDARY_SUBJECT;
 import static org.bruneel.pgpkeymanager.TestJwtSupport.jwtForSubject;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -17,10 +19,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import org.bruneel.pgpkeymanager.TestJwtConfiguration;
+import org.bruneel.pgpkeymanager.storage.KeyringStorageProvider;
+import org.bruneel.pgpkeymanager.storage.StorageConnectionTestResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -32,6 +37,42 @@ class StorageConnectionControllerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private KeyringStorageProvider keyringStorageProvider;
+
+    @Test
+    void testConnectionPersistsLastTestMetadata() throws Exception {
+        String connectionId = createConnection("Testable vault");
+        when(keyringStorageProvider.testConnection(any()))
+                .thenReturn(StorageConnectionTestResult.success(25L));
+
+        mockMvc.perform(post("/api/storage-connections/{connectionId}/test", connectionId)
+                        .with(jwtForSubject(PRIMARY_SUBJECT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastTestStatus").value("succeeded"))
+                .andExpect(jsonPath("$.connection.lastTestStatus").value("succeeded"))
+                .andExpect(jsonPath("$.connection.lastTestedAt").exists());
+
+        mockMvc.perform(get("/api/storage-connections/{connectionId}", connectionId)
+                        .with(jwtForSubject(PRIMARY_SUBJECT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastTestStatus").value("succeeded"));
+    }
+
+    @Test
+    void testConnectionFailureReturnsBadGateway() throws Exception {
+        String connectionId = createConnection("Failing vault");
+        when(keyringStorageProvider.testConnection(any()))
+                .thenReturn(StorageConnectionTestResult.failure("access_denied", "Access Denied", 10L));
+
+        mockMvc.perform(post("/api/storage-connections/{connectionId}/test", connectionId)
+                        .with(jwtForSubject(PRIMARY_SUBJECT)))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.lastTestStatus").value("failed"))
+                .andExpect(jsonPath("$.lastTestErrorCategory").value("access_denied"))
+                .andExpect(jsonPath("$.connection.lastTestStatus").value("failed"));
+    }
 
     @Test
     void ownerCanCrudStorageConnection() throws Exception {

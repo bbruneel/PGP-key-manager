@@ -128,6 +128,7 @@ For `StorageConnectionController`, every path under `/api/storage-connections` m
 - `GET /api/storage-connections/{connectionId}`
 - `PATCH /api/storage-connections/{connectionId}`
 - `DELETE /api/storage-connections/{connectionId}`
+- `POST /api/storage-connections/{connectionId}/test`
 
 For `PgpKeyController`, every path under `/api/keys` must appear in `PgpKeyControllerTest`:
 

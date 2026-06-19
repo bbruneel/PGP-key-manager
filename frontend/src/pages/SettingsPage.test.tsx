@@ -14,6 +14,7 @@ vi.mock("@/lib/storage-connections-api", () => ({
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    test: vi.fn(),
   },
 }))
 
@@ -169,5 +170,60 @@ describe("SettingsPage", () => {
       })
     })
     expect(await screen.findByText("Personal vault")).toBeInTheDocument()
+  })
+
+  it("runs test connection and shows success state", async () => {
+    const user = userEvent.setup()
+    vi.mocked(storageConnectionsApi.list).mockResolvedValue([connection])
+    vi.mocked(storageConnectionsApi.test).mockResolvedValue({
+      lastTestStatus: "succeeded",
+      lastTestedAt: "2026-06-19T12:00:00Z",
+      lastTestErrorCategory: null,
+      message: null,
+      durationMs: 20,
+      connection: {
+        ...connection,
+        lastTestStatus: "succeeded",
+        lastTestedAt: "2026-06-19T12:00:00Z",
+        lastTestErrorCategory: null,
+      },
+    })
+
+    render(<SettingsPage />)
+
+    await user.click(await screen.findByRole("button", { name: /test connection/i }))
+
+    await waitFor(() => {
+      expect(storageConnectionsApi.test).toHaveBeenCalledWith({
+        accessToken: "token",
+        connectionId: "conn-1",
+      })
+    })
+    expect(await screen.findByText(/last test:/i)).toBeInTheDocument()
+    expect(screen.getByText("succeeded")).toBeInTheDocument()
+  })
+
+  it("shows inline error when test connection fails", async () => {
+    const user = userEvent.setup()
+    vi.mocked(storageConnectionsApi.list).mockResolvedValue([connection])
+    vi.mocked(storageConnectionsApi.test).mockResolvedValue({
+      lastTestStatus: "failed",
+      lastTestedAt: "2026-06-19T12:00:00Z",
+      lastTestErrorCategory: "assume_role_denied",
+      message: "Access denied",
+      durationMs: 12,
+      connection: {
+        ...connection,
+        lastTestStatus: "failed",
+        lastTestedAt: "2026-06-19T12:00:00Z",
+        lastTestErrorCategory: "assume_role_denied",
+      },
+    })
+
+    render(<SettingsPage />)
+
+    await user.click(await screen.findByRole("button", { name: /test connection/i }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/trust policy/i)
   })
 })

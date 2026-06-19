@@ -65,6 +65,16 @@ Optional cleanup on any smoke: `SMOKE_CLEANUP=1`.
 
 ---
 
+## Phase 17b — Storage connection test manual QA
+
+1. Deploy customer IAM using [`docs/customer-setup/aws/setup.md`](../docs/customer-setup/aws/setup.md) (CloudFormation or manual JSON policies).
+2. Open `/settings`, select a connection, and click **Test connection**.
+3. On success: toast confirms connectivity; card shows **Last test: succeeded** with timestamp; API returns `200` with `lastTestStatus: succeeded`.
+4. On failure (e.g. wrong trust policy): inline message with error category; card shows **Last test: failed**; API returns `502` with `lastTestErrorCategory` (e.g. `assume_role_denied`).
+5. Optional API check: `POST /api/storage-connections/{id}/test` persists `lastTestedAt` / `lastTestStatus` on the connection row.
+
+---
+
 ## Checklist A — Import legacy key → rotate subkey (UI)
 
 **Covers:** Phase 6A subkey rotate form (RSA / ECDSA / ECDH pickers on imported keyrings).
