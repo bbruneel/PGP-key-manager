@@ -21,16 +21,6 @@ export function mapStorageConnectionApiError(error: ApiError): {
     }
   }
 
-  if (error.status === 409 && error.detail.toLowerCase().includes("display name")) {
-    fieldErrors.displayName = error.detail
-  }
-
-  for (const field of FIELD_NAMES) {
-    if (error.detail.startsWith(`${field} `)) {
-      fieldErrors[field] = error.detail
-    }
-  }
-
   const hasFieldErrors = Object.keys(fieldErrors).length > 0
   return {
     fieldErrors,

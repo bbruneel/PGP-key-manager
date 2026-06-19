@@ -1,5 +1,6 @@
 package org.bruneel.pgpkeymanager.web;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.bruneel.pgpkeymanager.service.ApiFieldError;
 import org.bruneel.pgpkeymanager.service.BadRequestException;
 import org.bruneel.pgpkeymanager.service.ConflictException;
 import org.bruneel.pgpkeymanager.service.CryptoException;
@@ -66,6 +68,7 @@ public class ApiExceptionHandler {
     public ResponseEntity<ProblemDetail> conflict(ConflictException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Conflict");
+        attachFieldErrors(problem, ex.getFieldErrors());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
@@ -81,7 +84,18 @@ public class ApiExceptionHandler {
     public ResponseEntity<ProblemDetail> badRequest(BadRequestException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         problem.setTitle("Bad Request");
+        attachFieldErrors(problem, ex.getFieldErrors());
         return ResponseEntity.badRequest().body(problem);
+    }
+
+    private static void attachFieldErrors(ProblemDetail problem, List<ApiFieldError> fieldErrors) {
+        if (!fieldErrors.isEmpty()) {
+            problem.setProperty(
+                    "errors",
+                    fieldErrors.stream()
+                            .map(err -> Map.of("field", err.field(), "message", err.message()))
+                            .toList());
+        }
     }
 
     @ExceptionHandler(CryptoException.class)

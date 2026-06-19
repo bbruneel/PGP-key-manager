@@ -18,6 +18,7 @@ vi.mock("@/lib/storage-connections-api", () => ({
 }))
 
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
+import { ApiError } from "@/lib/api-error"
 import { storageConnectionsApi } from "@/lib/storage-connections-api"
 
 const connection = {
@@ -86,6 +87,61 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByText(/valid aws iam role arn/i)).toBeInTheDocument()
     expect(storageConnectionsApi.create).not.toHaveBeenCalled()
+  })
+
+  it("shows API field errors inline when create returns bad request", async () => {
+    const user = userEvent.setup()
+    vi.mocked(storageConnectionsApi.create).mockRejectedValue(
+      new ApiError({
+        operationId: "createStorageConnection",
+        status: 400,
+        title: "Bad Request",
+        detail: "bucket must be at most 255 characters",
+        fieldErrors: [{ field: "bucket", message: "bucket must be at most 255 characters" }],
+      }),
+    )
+
+    render(<SettingsPage />)
+
+    await user.click(await screen.findByRole("button", { name: /add aws s3 connection/i }))
+    await user.type(screen.getByLabelText(/connection name/i), "test")
+    await user.type(screen.getByLabelText(/^region$/i), "eu-west-1")
+    await user.type(screen.getByLabelText(/^bucket$/i), "acme-pgp-vault")
+    await user.type(screen.getByLabelText(/iam role arn/i), "arn:aws:iam::123456789012:role/PgpKeyManager")
+    await user.click(screen.getByRole("button", { name: /add connection/i }))
+
+    expect(await screen.findByText("bucket must be at most 255 characters")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("shows API field errors inline when create returns conflict", async () => {
+    const user = userEvent.setup()
+    vi.mocked(storageConnectionsApi.create).mockRejectedValue(
+      new ApiError({
+        operationId: "createStorageConnection",
+        status: 409,
+        title: "Conflict",
+        detail: "A storage connection with this display name already exists",
+        fieldErrors: [
+          {
+            field: "displayName",
+            message: "A storage connection with this display name already exists",
+          },
+        ],
+      }),
+    )
+
+    render(<SettingsPage />)
+
+    await user.click(await screen.findByRole("button", { name: /add aws s3 connection/i }))
+    await user.type(screen.getByLabelText(/connection name/i), "test")
+    await user.type(screen.getByLabelText(/^region$/i), "eu-west-1")
+    await user.type(screen.getByLabelText(/^bucket$/i), "acme-pgp-vault")
+    await user.type(screen.getByLabelText(/iam role arn/i), "arn:aws:iam::123456789012:role/PgpKeyManager")
+    await user.click(screen.getByRole("button", { name: /add connection/i }))
+
+    expect(await screen.findByText("A storage connection with this display name already exists")).toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 
   it("creates a storage connection from the form", async () => {

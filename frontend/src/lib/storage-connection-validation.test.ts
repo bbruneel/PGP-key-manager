@@ -31,12 +31,13 @@ describe("validateStorageConnectionForm", () => {
 })
 
 describe("mapStorageConnectionApiError", () => {
-  it("maps roleArn bad request detail to a field error", () => {
+  it("maps structured roleArn bad request to a field error", () => {
     const error = new ApiError({
       operationId: "createStorageConnection",
       status: 400,
       title: "Bad Request",
       detail: "roleArn must be a valid AWS IAM role ARN",
+      fieldErrors: [{ field: "roleArn", message: "roleArn must be a valid AWS IAM role ARN" }],
     })
 
     const mapped = mapStorageConnectionApiError(error)
@@ -45,17 +46,23 @@ describe("mapStorageConnectionApiError", () => {
     expect(mapped.bannerMessage).toBeNull()
   })
 
-  it("maps duplicate display name conflict to a field error", () => {
+  it("maps structured duplicate display name conflict to a field error", () => {
     const error = new ApiError({
       operationId: "createStorageConnection",
       status: 409,
       title: "Conflict",
       detail: "A storage connection with this display name already exists",
+      fieldErrors: [
+        {
+          field: "displayName",
+          message: "A storage connection with this display name already exists",
+        },
+      ],
     })
 
     const mapped = mapStorageConnectionApiError(error)
 
-    expect(mapped.fieldErrors.displayName).toContain("display name")
+    expect(mapped.fieldErrors.displayName).toBe("A storage connection with this display name already exists")
     expect(mapped.bannerMessage).toBeNull()
   })
 
