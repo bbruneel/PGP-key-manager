@@ -1,6 +1,5 @@
+import type { StorageConnectionFormValues } from "@/lib/storage-connection-validation"
 import type { StorageConnectionResponse } from "@/types/api"
-
-import type { StorageConnectionFormValues } from "./storage-connection-form"
 
 export function toFormValues(connection: StorageConnectionResponse): StorageConnectionFormValues {
   return {

@@ -55,6 +55,10 @@ public class StorageConnectionService {
         operationLogger.started("create_storage_connection", user.id(), null);
         try {
             String normalizedDisplayName = requireDisplayName(displayName);
+            String normalizedRegion = requireNonBlank(region, "region", 64);
+            String normalizedBucket = requireNonBlank(bucket, "bucket", 255);
+            String normalizedPrefix = normalizePrefix(prefix);
+            String normalizedRoleArn = requireRoleArn(roleArn);
             if (storageConnectionRepository.existsByUserIdAndDisplayNameIgnoreCase(
                     user.id(), normalizedDisplayName, null)) {
                 throw new ConflictException("A storage connection with this display name already exists");
@@ -63,11 +67,11 @@ public class StorageConnectionService {
                     storageConnectionRepository.insert(
                             user.id(),
                             StorageProvider.AWS_S3,
-                            requireDisplayName(displayName),
-                            requireNonBlank(region, "region", 64),
-                            requireNonBlank(bucket, "bucket", 255),
-                            normalizePrefix(prefix),
-                            requireRoleArn(roleArn),
+                            normalizedDisplayName,
+                            normalizedRegion,
+                            normalizedBucket,
+                            normalizedPrefix,
+                            normalizedRoleArn,
                             UUID.randomUUID().toString());
             operationLogger.succeeded("create_storage_connection", user.id(), created.id(), duration(start));
             return created;

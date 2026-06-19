@@ -1,35 +1,27 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  BUCKET_MAX,
+  DISPLAY_NAME_MAX,
+  PREFIX_MAX,
+  REGION_MAX,
+  ROLE_ARN_MAX,
+  type StorageConnectionFieldErrors,
+  type StorageConnectionFormValues,
+  validateStorageConnectionForm,
+} from "@/lib/storage-connection-validation"
 import type { CreateStorageConnectionRequest, UpdateStorageConnectionRequest } from "@/types/api"
 
-const DISPLAY_NAME_MAX = 128
-const REGION_MAX = 64
-const BUCKET_MAX = 255
-const PREFIX_MAX = 512
-const ROLE_ARN_MAX = 512
-
-export type StorageConnectionFormValues = {
-  displayName: string
-  region: string
-  bucket: string
-  prefix: string
-  roleArn: string
-}
-
-type FieldErrors = {
-  displayName?: string
-  region?: string
-  bucket?: string
-  roleArn?: string
-}
+export type { StorageConnectionFormValues } from "@/lib/storage-connection-validation"
 
 type StorageConnectionFormProps = {
   mode: "create" | "edit"
   initialValues?: StorageConnectionFormValues
   submitting: boolean
+  serverFieldErrors?: StorageConnectionFieldErrors
   onSubmit: (values: CreateStorageConnectionRequest | UpdateStorageConnectionRequest) => void
   onCancel: () => void
 }
@@ -42,44 +34,25 @@ const emptyValues: StorageConnectionFormValues = {
   roleArn: "",
 }
 
-function validateValues(values: StorageConnectionFormValues): FieldErrors {
-  const errors: FieldErrors = {}
-  const trimmedName = values.displayName.trim()
-  if (!trimmedName) {
-    errors.displayName = "Connection name is required"
-  } else if (trimmedName.length > DISPLAY_NAME_MAX) {
-    errors.displayName = `Connection name must be at most ${DISPLAY_NAME_MAX} characters`
-  }
-  if (!values.region.trim()) {
-    errors.region = "Region is required"
-  } else if (values.region.trim().length > REGION_MAX) {
-    errors.region = `Region must be at most ${REGION_MAX} characters`
-  }
-  if (!values.bucket.trim()) {
-    errors.bucket = "Bucket is required"
-  } else if (values.bucket.trim().length > BUCKET_MAX) {
-    errors.bucket = `Bucket must be at most ${BUCKET_MAX} characters`
-  }
-  if (!values.roleArn.trim()) {
-    errors.roleArn = "IAM role ARN is required"
-  } else if (values.roleArn.trim().length > ROLE_ARN_MAX) {
-    errors.roleArn = `IAM role ARN must be at most ${ROLE_ARN_MAX} characters`
-  }
-  return errors
-}
-
 export function StorageConnectionForm({
   mode,
   initialValues = emptyValues,
   submitting,
+  serverFieldErrors = {},
   onSubmit,
   onCancel,
 }: StorageConnectionFormProps) {
   const [values, setValues] = useState<StorageConnectionFormValues>(initialValues)
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  const [fieldErrors, setFieldErrors] = useState<StorageConnectionFieldErrors>({})
+
+  useEffect(() => {
+    if (Object.keys(serverFieldErrors).length > 0) {
+      setFieldErrors((current) => ({ ...current, ...serverFieldErrors }))
+    }
+  }, [serverFieldErrors])
 
   const handleSubmit = useCallback(() => {
-    const errors = validateValues(values)
+    const errors = validateStorageConnectionForm(values)
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors)
       return
@@ -157,6 +130,7 @@ export function StorageConnectionForm({
           placeholder="pgp-key-manager/"
         />
         <p className="text-xs text-muted-foreground">Defaults to pgp-key-manager/ when omitted.</p>
+        {fieldErrors.prefix ? <p className="text-sm text-destructive">{fieldErrors.prefix}</p> : null}
       </div>
 
       <div className="space-y-1">

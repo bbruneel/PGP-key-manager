@@ -73,6 +73,21 @@ describe("SettingsPage", () => {
     expect(storageConnectionsApi.create).not.toHaveBeenCalled()
   })
 
+  it("shows field error for invalid IAM role ARN before submit", async () => {
+    const user = userEvent.setup()
+    render(<SettingsPage />)
+
+    await user.click(await screen.findByRole("button", { name: /add aws s3 connection/i }))
+    await user.type(screen.getByLabelText(/connection name/i), "test")
+    await user.type(screen.getByLabelText(/^region$/i), "eu-west-1")
+    await user.type(screen.getByLabelText(/^bucket$/i), "my-bucket")
+    await user.type(screen.getByLabelText(/iam role arn/i), "role")
+    await user.click(screen.getByRole("button", { name: /add connection/i }))
+
+    expect(await screen.findByText(/valid aws iam role arn/i)).toBeInTheDocument()
+    expect(storageConnectionsApi.create).not.toHaveBeenCalled()
+  })
+
   it("creates a storage connection from the form", async () => {
     const user = userEvent.setup()
     vi.mocked(storageConnectionsApi.create).mockResolvedValue(connection)
