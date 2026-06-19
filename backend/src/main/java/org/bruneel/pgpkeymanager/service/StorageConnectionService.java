@@ -6,7 +6,9 @@ import java.util.regex.Pattern;
 import java.time.Instant;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.domain.StorageConnection;
@@ -28,14 +30,17 @@ public class StorageConnectionService {
     private final StorageConnectionRepository storageConnectionRepository;
     private final StorageConnectionOperationLogger operationLogger;
     private final KeyringStorageProvider keyringStorageProvider;
+    private final TransactionTemplate transactionTemplate;
 
     public StorageConnectionService(
             StorageConnectionRepository storageConnectionRepository,
             StorageConnectionOperationLogger operationLogger,
-            KeyringStorageProvider keyringStorageProvider) {
+            KeyringStorageProvider keyringStorageProvider,
+            org.springframework.transaction.PlatformTransactionManager transactionManager) {
         this.storageConnectionRepository = storageConnectionRepository;
         this.operationLogger = operationLogger;
         this.keyringStorageProvider = keyringStorageProvider;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     public List<StorageConnection> listConnections(AppUser user) {
@@ -148,6 +153,7 @@ public class StorageConnectionService {
         }
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public StorageConnectionTestOutcome testConnection(AppUser user, UUID connectionId) {
         long start = System.currentTimeMillis();
         operationLogger.started("test_storage_connection", user.id(), connectionId);
@@ -158,14 +164,17 @@ public class StorageConnectionService {
             StorageConnectionTestStatus testStatus =
                     result.succeeded() ? StorageConnectionTestStatus.SUCCEEDED : StorageConnectionTestStatus.FAILED;
             StorageConnection updated =
-                    storageConnectionRepository
-                            .updateTestResult(
-                                    connectionId,
-                                    user.id(),
-                                    testedAt,
-                                    testStatus,
-                                    result.errorCategory())
-                            .orElseThrow(() -> new StorageConnectionNotFoundException(connectionId));
+                    transactionTemplate.execute(
+                            status ->
+                                    storageConnectionRepository
+                                            .updateTestResult(
+                                                    connectionId,
+                                                    user.id(),
+                                                    testedAt,
+                                                    testStatus,
+                                                    result.errorCategory())
+                                            .orElseThrow(
+                                                    () -> new StorageConnectionNotFoundException(connectionId)));
             if (result.succeeded()) {
                 operationLogger.succeeded("test_storage_connection", user.id(), connectionId, duration(start));
             } else {

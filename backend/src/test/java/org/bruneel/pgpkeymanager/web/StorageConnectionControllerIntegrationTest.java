@@ -97,6 +97,15 @@ class StorageConnectionControllerIntegrationTest {
     }
 
     @Test
+    void otherUserCannotTestConnection() throws Exception {
+        String connectionId = createConnection("Private vault test endpoint");
+
+        mockMvc.perform(post("/api/storage-connections/{connectionId}/test", connectionId)
+                        .with(jwtForSubject(SECONDARY_SUBJECT)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void otherUserCannotAccessConnection() throws Exception {
         String connectionId = createConnection("Private vault");
 

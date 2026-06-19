@@ -22,25 +22,35 @@ public class SdkAwsS3ProbeClient implements AwsS3ProbeClient {
     public void putGetDeleteProbe(
             String region, String bucket, String objectKey, AwsSessionCredentials credentials, byte[] payload) {
         try (S3Client s3Client = s3Client(region, credentials)) {
-            s3Client.putObject(
-                    PutObjectRequest.builder()
-                            .bucket(bucket)
-                            .key(objectKey)
-                            .serverSideEncryption(ServerSideEncryption.AES256)
-                            .build(),
-                    software.amazon.awssdk.core.sync.RequestBody.fromBytes(payload));
+            boolean probeWritten = false;
+            try {
+                s3Client.putObject(
+                        PutObjectRequest.builder()
+                                .bucket(bucket)
+                                .key(objectKey)
+                                .serverSideEncryption(ServerSideEncryption.AES256)
+                                .build(),
+                        software.amazon.awssdk.core.sync.RequestBody.fromBytes(payload));
+                probeWritten = true;
 
-            byte[] downloaded =
-                    s3Client.getObject(
-                                    GetObjectRequest.builder().bucket(bucket).key(objectKey).build(),
-                                    ResponseTransformer.toBytes())
-                            .asByteArray();
-            if (!java.util.Arrays.equals(payload, downloaded)) {
-                throw new StorageConnectionProbeException(
-                        StorageConnectionTestErrorCategories.ACCESS_DENIED, "Probe object content mismatch after upload");
+                byte[] downloaded =
+                        s3Client.getObject(
+                                        GetObjectRequest.builder().bucket(bucket).key(objectKey).build(),
+                                        ResponseTransformer.toBytes())
+                                .asByteArray();
+                if (!java.util.Arrays.equals(payload, downloaded)) {
+                    throw new StorageConnectionProbeException(
+                            StorageConnectionTestErrorCategories.ACCESS_DENIED,
+                            "Probe object content mismatch after upload");
+                }
+
+                s3Client.deleteObject(builder -> builder.bucket(bucket).key(objectKey));
+                probeWritten = false;
+            } finally {
+                if (probeWritten) {
+                    bestEffortDeleteProbe(s3Client, bucket, objectKey);
+                }
             }
-
-            s3Client.deleteObject(builder -> builder.bucket(bucket).key(objectKey));
         } catch (NoSuchBucketException ex) {
             throw new StorageConnectionProbeException(StorageConnectionTestErrorCategories.BUCKET_NOT_FOUND, ex.getMessage(), ex);
         } catch (S3Exception ex) {
@@ -49,6 +59,14 @@ public class SdkAwsS3ProbeClient implements AwsS3ProbeClient {
             throw ex;
         } catch (RuntimeException ex) {
             throw AwsStorageExceptionMapper.map(ex);
+        }
+    }
+
+    private static void bestEffortDeleteProbe(S3Client s3Client, String bucket, String objectKey) {
+        try {
+            s3Client.deleteObject(builder -> builder.bucket(bucket).key(objectKey));
+        } catch (RuntimeException ignored) {
+            // Probe cleanup is best-effort; orphaned objects under .pgp-key-manager-probe/ are harmless.
         }
     }
 
@@ -68,7 +86,10 @@ public class SdkAwsS3ProbeClient implements AwsS3ProbeClient {
         String errorCode = ex.awsErrorDetails() != null ? ex.awsErrorDetails().errorCode() : "";
         String category =
                 switch (errorCode) {
-                    case "AccessDenied", "AllAccessDisabled" -> StorageConnectionTestErrorCategories.ACCESS_DENIED;
+                    case "AccessDenied", "AllAccessDisabled" ->
+                            isKmsMessage(ex)
+                                    ? StorageConnectionTestErrorCategories.KMS_ACCESS_DENIED
+                                    : StorageConnectionTestErrorCategories.ACCESS_DENIED;
                     case "NoSuchBucket" -> StorageConnectionTestErrorCategories.BUCKET_NOT_FOUND;
                     case "KMS.AccessDeniedException" -> StorageConnectionTestErrorCategories.KMS_ACCESS_DENIED;
                     default ->

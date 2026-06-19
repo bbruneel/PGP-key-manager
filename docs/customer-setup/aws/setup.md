@@ -56,7 +56,7 @@ The API workload role in **your** (app) AWS account needs permission to call `st
 
 1. Open **Settings → Cloud storage connections**.
 2. Select your connection and click **Test connection**.
-3. Success writes a probe object under `{prefix}.pgp-key-manager-probe/{connectionId}/probe.json` and deletes it (SSE-S3).
+3. Success writes a probe object under `{prefix}.pgp-key-manager-probe/{connectionId}/probe.json` and deletes it (SSE-S3). If delete fails after a successful upload, a harmless probe object may remain until the next successful test or manual cleanup.
 
 ## Optional KMS (Phase 17c+)
 

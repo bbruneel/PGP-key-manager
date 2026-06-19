@@ -66,7 +66,7 @@ export const storageConnectionsApi = {
   },
 
   async test(options: StorageConnectionIdOptions): Promise<TestStorageConnectionResponse> {
-    const { status, data } = await requestJsonWithStatus<TestStorageConnectionResponse>(
+    const { data } = await requestJsonWithStatus<TestStorageConnectionResponse>(
       `/api/storage-connections/${options.connectionId}/test`,
       {
         operationId: "testStorageConnection",
@@ -75,9 +75,6 @@ export const storageConnectionsApi = {
       },
       [502],
     )
-    if (status === 502) {
-      return data
-    }
     return data
   },
 }
