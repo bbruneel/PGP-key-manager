@@ -9,11 +9,12 @@ import org.flywaydb.core.Flyway;
 
 public final class DependencyVersions {
 
-    public static final String MONITORED_CVES = "CVE-2026-42198,CVE-2026-10532,CVE-2026-9828";
+    public static final String MONITORED_CVES =
+            "CVE-2026-42198,CVE-2026-10532,CVE-2026-9828,CVE-2026-13006";
 
     public static final String POSTGRESQL_JDBC_MIN_VERSION = "42.7.11";
-    public static final String LOGBACK_MIN_VERSION = "1.5.34";
-    public static final String FLYWAY_VERSION = "12.8.1";
+    public static final String LOGBACK_MIN_VERSION = "1.5.37";
+    public static final String FLYWAY_VERSION = "12.9.0";
 
     private DependencyVersions() {}
 

@@ -23,9 +23,10 @@
         <bouncycastle.version>1.84</bouncycastle.version>
         <!-- Security-monitored dependencies (Spring Boot 4.1.0 BOM):
              postgresql 42.7.11 — CVE-2026-42198 (SCRAM PBKDF2 DoS)
-             logback 1.5.34 — CVE-2026-10532, CVE-2026-9828 (deserialization)
+             logback 1.5.37 — CVE-2026-13006 (Janino condition bypass; Janino removed in 1.5.37), CVE-2026-10532, CVE-2026-9828 (deserialization)
              Re-add explicit <postgresql.version> / <logback.version> overrides here if a future BOM lags patched releases. -->
-        <flyway.version>12.8.1</flyway.version>
+        <logback.version>1.5.37</logback.version>
+        <flyway.version>12.9.0</flyway.version>
         <aws.sdk.version>2.31.77</aws.sdk.version>
     </properties>
 

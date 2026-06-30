@@ -7,6 +7,6 @@
     "docs:preview": "cd docs && redocly preview --product redoc -p 8081"
   },
   "devDependencies": {
-    "@redocly/cli": "^2.31.6"
+    "@redocly/cli": "^2.35.1"
   }
 }
