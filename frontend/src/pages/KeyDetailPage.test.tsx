@@ -102,7 +102,7 @@ const metadataOnlyPrimary: PgpKey = {
 
 const subkey: PgpKey = {
   id: "sub-1",
-  label: "Work key",
+  label: "Encrypt subkey",
   fingerprint: "SUBKEYFINGERPRINT",
   keyId: "SUB1234",
   keyType: "private",
@@ -464,7 +464,7 @@ describe("KeyDetailPage", () => {
 
     renderDetail("/keys/sub-1")
 
-    await screen.findByRole("heading", { name: "Work key" })
+    await screen.findByRole("heading", { name: "Encrypt subkey" })
 
     const rotateSection = screen.getByRole("region", { name: "Rotate subkey" })
     await user.type(within(rotateSection).getByLabelText(/^passphrase$/i), "valid-passphrase")
@@ -506,7 +506,7 @@ describe("KeyDetailPage", () => {
 
     renderDetail("/keys/sub-1")
 
-    await screen.findByRole("heading", { name: "Work key" })
+    await screen.findByRole("heading", { name: "Encrypt subkey" })
 
     expect(screen.queryByRole("region", { name: "Add subkey" })).not.toBeInTheDocument()
   })
@@ -549,12 +549,14 @@ describe("KeyDetailPage", () => {
     await user.type(within(revokeSection).getByLabelText(/^passphrase$/i), "secret-passphrase")
 
     await router.navigate("/keys/sub-1")
-    await screen.findByRole("tab", { name: /actions & lifecycle/i })
+    await screen.findByRole("heading", { name: "Encrypt subkey" })
 
+    await user.click(screen.getByRole("tab", { name: /actions & lifecycle/i }))
     const rotateSection = screen.getByRole("region", { name: "Rotate subkey" })
     expect(within(rotateSection).getByLabelText(/^passphrase$/i)).toHaveValue("")
 
     await router.navigate("/keys/primary-1")
+    await screen.findByRole("heading", { name: "Work key" })
     await user.click(screen.getByRole("tab", { name: /actions & lifecycle/i }))
     const revokeSectionAfterReturn = screen.getByRole("region", { name: "Revoke key" })
     expect(within(revokeSectionAfterReturn).getByLabelText(/^passphrase$/i)).toHaveValue("")
@@ -587,7 +589,9 @@ describe("KeyDetailPage", () => {
     await user.click(screen.getByRole("tab", { name: /^subkeys$/i }))
 
     await router.navigate("/keys/sub-1")
-    expect(await screen.findByRole("button", { name: /copy to clipboard/i })).toBeVisible()
+    await screen.findByRole("heading", { name: "Encrypt subkey" })
+
+    expect(screen.getByRole("button", { name: /copy to clipboard/i })).toBeVisible()
   })
 
   it("hides SSH export for encrypt-only subkey", async () => {
@@ -600,7 +604,7 @@ describe("KeyDetailPage", () => {
 
     renderDetail("/keys/sub-1")
 
-    await screen.findByRole("heading", { name: "Work key" })
+    await screen.findByRole("heading", { name: "Encrypt subkey" })
 
     expect(screen.queryByRole("region", { name: "Export SSH public key" })).not.toBeInTheDocument()
   })
@@ -674,7 +678,7 @@ describe("KeyDetailPage", () => {
 
     renderDetail("/keys/sub-1")
 
-    await screen.findByRole("heading", { name: "Work key" })
+    await screen.findByRole("heading", { name: "Encrypt subkey" })
 
     expect(screen.queryByRole("tab", { name: /^subkeys$/i })).not.toBeInTheDocument()
 
