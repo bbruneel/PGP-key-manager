@@ -549,9 +549,8 @@ describe("KeyDetailPage", () => {
     await user.type(within(revokeSection).getByLabelText(/^passphrase$/i), "secret-passphrase")
 
     await router.navigate("/keys/sub-1")
-    await screen.findByRole("heading", { name: "Work key" })
+    await screen.findByRole("tab", { name: /actions & lifecycle/i })
 
-    await user.click(screen.getByRole("tab", { name: /actions & lifecycle/i }))
     const rotateSection = screen.getByRole("region", { name: "Rotate subkey" })
     expect(within(rotateSection).getByLabelText(/^passphrase$/i)).toHaveValue("")
 
@@ -588,9 +587,7 @@ describe("KeyDetailPage", () => {
     await user.click(screen.getByRole("tab", { name: /^subkeys$/i }))
 
     await router.navigate("/keys/sub-1")
-    await screen.findByRole("heading", { name: "Work key" })
-
-    expect(screen.getByRole("button", { name: /copy to clipboard/i })).toBeVisible()
+    expect(await screen.findByRole("button", { name: /copy to clipboard/i })).toBeVisible()
   })
 
   it("hides SSH export for encrypt-only subkey", async () => {
