@@ -14,7 +14,7 @@ public final class DependencyVersions {
 
     public static final String POSTGRESQL_JDBC_MIN_VERSION = "42.7.12";
     public static final String LOGBACK_MIN_VERSION = "1.5.37";
-    public static final String FLYWAY_VERSION = "12.10.0";
+    public static final String FLYWAY_VERSION = "12.11.0";
 
     private DependencyVersions() {}
 
