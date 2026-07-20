@@ -71,7 +71,7 @@ export function SubkeyAlgorithmFields({
         <Label htmlFor={`${idPrefix}-algorithm`}>Algorithm</Label>
         <Select
           value={values.algorithm}
-          onValueChange={(value) => handleAlgorithmChange(value as AlgorithmFormValues["algorithm"])}
+          onValueChange={(value: string) => handleAlgorithmChange(value as AlgorithmFormValues["algorithm"])}
           disabled={disabled}
         >
           <SelectTrigger
@@ -102,7 +102,7 @@ export function SubkeyAlgorithmFields({
           <Label htmlFor={`${idPrefix}-key-size`}>RSA key size</Label>
           <Select
             value={String(values.keySize ?? DEFAULT_RSA_KEY_SIZE)}
-            onValueChange={(value) =>
+            onValueChange={(value: string) =>
               updateAlgorithm({
                 algorithm: "rsa",
                 keySize: Number(value) as RsaKeySize,
@@ -129,7 +129,7 @@ export function SubkeyAlgorithmFields({
           <Label htmlFor={`${idPrefix}-curve`}>NIST curve</Label>
           <Select
             value={values.curve ?? "P-256"}
-            onValueChange={(value) =>
+            onValueChange={(value: string) =>
               updateAlgorithm({
                 algorithm: values.algorithm,
                 curve: value as NistCurve,

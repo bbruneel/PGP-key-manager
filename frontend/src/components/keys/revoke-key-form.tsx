@@ -80,7 +80,7 @@ export function RevokeKeyForm({
           <Label htmlFor="revoke-reason">Reason</Label>
           <Select
             value={values.reason}
-            onValueChange={(value) => updateField("reason", value as RevocationReason)}
+            onValueChange={(value: string) => updateField("reason", value as RevocationReason)}
             disabled={submitting || disabled}
           >
             <SelectTrigger id="revoke-reason" className="w-full" aria-invalid={Boolean(fieldErrors.reason)}>
