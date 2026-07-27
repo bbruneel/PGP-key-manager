@@ -44,7 +44,7 @@ export function KeysListFilters({ params, disabled = false, onChange }: KeysList
         <Label htmlFor="keys-filter-view">View</Label>
         <Select
           value={params.view}
-          onValueChange={(value) => onChange({ ...params, view: value as KeysListView })}
+          onValueChange={(value: string) => onChange({ ...params, view: value as KeysListView })}
           disabled={disabled}
         >
           <SelectTrigger id="keys-filter-view" className="w-full">
@@ -64,7 +64,7 @@ export function KeysListFilters({ params, disabled = false, onChange }: KeysList
         <Label htmlFor="keys-filter-status">Status</Label>
         <Select
           value={params.status ?? "all"}
-          onValueChange={(value) =>
+          onValueChange={(value: string) =>
             onChange({ ...params, status: value === "all" ? undefined : (value as KeyStatus) })
           }
           disabled={disabled}
@@ -86,7 +86,7 @@ export function KeysListFilters({ params, disabled = false, onChange }: KeysList
         <Label htmlFor="keys-filter-capability">Capability</Label>
         <Select
           value={params.capability ?? "all"}
-          onValueChange={(value) =>
+          onValueChange={(value: string) =>
             onChange({
               ...params,
               capability: value === "all" ? undefined : (value as PgpCapability),

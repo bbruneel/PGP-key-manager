@@ -226,7 +226,7 @@ export function CreateKeyForm({
               <Label htmlFor="create-key-openpgp-version">OpenPGP version</Label>
               <Select
                 value={String(values.openpgpVersion)}
-                onValueChange={(value) => {
+                onValueChange={(value: string) => {
                   const previous = values
                   const next = applyOpenpgpVersionChange(values, Number(value) as 4 | 6)
                   onChange(next)
