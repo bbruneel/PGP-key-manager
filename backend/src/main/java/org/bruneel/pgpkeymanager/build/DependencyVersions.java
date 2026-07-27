@@ -12,9 +12,9 @@ public final class DependencyVersions {
     public static final String MONITORED_CVES =
             "CVE-2026-42198,CVE-2026-54291,CVE-2026-10532,CVE-2026-9828,CVE-2026-13006";
 
-    public static final String POSTGRESQL_JDBC_MIN_VERSION = "42.7.12";
-    public static final String LOGBACK_MIN_VERSION = "1.5.37";
-    public static final String FLYWAY_VERSION = "12.10.0";
+    public static final String POSTGRESQL_JDBC_MIN_VERSION = "42.7.13";
+    public static final String LOGBACK_MIN_VERSION = "1.5.38";
+    public static final String FLYWAY_VERSION = "12.11.0";
 
     private DependencyVersions() {}
 

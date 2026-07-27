@@ -131,7 +131,7 @@ npm run docs:preview   # live Redoc at http://127.0.0.1:8081 (runs from docs/ so
 
 **Editing workflow:** change `docs/openapi.yaml` → run `npm run docs:lint` locally → open a PR.
 
-**Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.84). Supported algorithms: `ed25519`, `cv25519`, `rsa`, `ecdsa`, `ecdh` (with curve). Primary key generation accepts optional `openpgpVersion` (`4` default, `6` for RFC 9580); subkeys and lifecycle operations use the primary key’s stored version. Passphrases are wiped from memory after use and are never logged.
+**Cryptography:** server-side OpenPGP operations use [Bouncy Castle](https://www.bouncycastle.org/) (`bcprov-jdk18on` / `bcpg-jdk18on` 1.85). Supported algorithms: `ed25519`, `cv25519`, `rsa`, `ecdsa`, `ecdh` (with curve). Primary key generation accepts optional `openpgpVersion` (`4` default, `6` for RFC 9580); subkeys and lifecycle operations use the primary key’s stored version. Passphrases are wiped from memory after use and are never logged.
 
 **Keyring storage:** armored public/private keyrings are stored on the primary key row only. Subkey rows hold fingerprints, key IDs, capabilities, and expiry metadata.
 
@@ -139,7 +139,7 @@ npm run docs:preview   # live Redoc at http://127.0.0.1:8081 (runs from docs/ so
 
 **Revocation:** cryptographic revocation requires primary private material and a passphrase. Public-only registrations receive metadata revocation only.
 
-**Security checks:** run `./mvnw test` (full suite; includes `ResolvedDependencyVersionsTest` for postgresql ≥ 42.7.11, logback ≥ 1.5.37, Flyway 12.9.0) and review dependencies (`./mvnw dependency:tree`). Backend uses Spring Boot **4.1.0** with Flyway **12.9.0**; monitored CVEs (CVE-2026-42198, CVE-2026-10532, CVE-2026-9828, CVE-2026-13006) are documented in `backend/pom.xml`. Startup logs `build_dependencies_audit` with resolved versions. Lifecycle logs use structured fields including `openpgpVersion` where applicable (user id, key id, operation, duration). Micrometer metrics: `pgp.key.operation.count`, `pgp.key.operation.duration`, `pgp.key.version.generated.count`. API cryptographic failures return a generic client message; details are logged server-side.
+**Security checks:** run `./mvnw test` (full suite; includes `ResolvedDependencyVersionsTest` for postgresql ≥ 42.7.13, logback ≥ 1.5.38, Flyway 12.11.0) and review dependencies (`./mvnw dependency:tree`). Backend uses Spring Boot **4.1.0** with Flyway **12.11.0**; monitored CVEs (CVE-2026-42198, CVE-2026-54291, CVE-2026-10532, CVE-2026-9828, CVE-2026-13006) are documented in `backend/pom.xml`. Startup logs `build_dependencies_audit` with resolved versions. Lifecycle logs use structured fields including `openpgpVersion` where applicable (user id, key id, operation, duration). Micrometer metrics: `pgp.key.operation.count`, `pgp.key.operation.duration`, `pgp.key.version.generated.count`. API cryptographic failures return a generic client message; details are logged server-side.
 
 ### Versioned API headers (frontend)
 
