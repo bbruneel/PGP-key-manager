@@ -25,9 +25,9 @@
              postgresql 42.7.12 — CVE-2026-42198 (SCRAM PBKDF2 DoS), CVE-2026-54291 (channel-binding downgrade)
              logback 1.5.37 — CVE-2026-13006 (Janino condition bypass; Janino removed in 1.5.37), CVE-2026-10532, CVE-2026-9828 (deserialization)
              Re-add explicit <postgresql.version> / <logback.version> overrides here if a future BOM lags patched releases. -->
-        <logback.version>1.5.37</logback.version>
+        <logback.version>1.5.38</logback.version>
         <postgresql.version>42.7.13</postgresql.version>
-        <flyway.version>12.10.0</flyway.version>
+        <flyway.version>12.11.0</flyway.version>
     </properties>
 
     <dependencies>
