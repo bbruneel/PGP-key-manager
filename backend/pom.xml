@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.0</version>
+        <version>4.1.1</version>
         <relativePath/>
     </parent>
 
@@ -21,7 +21,7 @@
         <java.version>25</java.version>
         <maven.compiler.release>25</maven.compiler.release>
         <bouncycastle.version>1.85</bouncycastle.version>
-        <!-- Security-monitored dependencies (Spring Boot 4.1.0 BOM):
+        <!-- Security-monitored dependencies (Spring Boot 4.1.1 BOM):
              postgresql 42.7.12 — CVE-2026-42198 (SCRAM PBKDF2 DoS), CVE-2026-54291 (channel-binding downgrade)
              logback 1.5.37 — CVE-2026-13006 (Janino condition bypass; Janino removed in 1.5.37), CVE-2026-10532, CVE-2026-9828 (deserialization)
              Re-add explicit <postgresql.version> / <logback.version> overrides here if a future BOM lags patched releases. -->
