@@ -14,6 +14,9 @@ public record StorageConnectionResponse(
         String roleArn,
         String externalId,
         String status,
+        Instant lastTestedAt,
+        String lastTestStatus,
+        String lastTestErrorCategory,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -28,6 +31,9 @@ public record StorageConnectionResponse(
                 connection.roleArn(),
                 connection.externalId(),
                 connection.status().toApi(),
+                connection.lastTestedAt(),
+                connection.lastTestStatus() == null ? null : connection.lastTestStatus().toApi(),
+                connection.lastTestErrorCategory(),
                 connection.createdAt(),
                 connection.updatedAt());
     }

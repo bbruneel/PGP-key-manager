@@ -37,4 +37,29 @@ public class StorageConnectionOperationLogger {
                 ex.getClass().getSimpleName(),
                 ex.getMessage());
     }
+
+    public void testStarted(UUID userId, UUID connectionId) {
+        log.info(
+                "storage_connection_test_started userId={} connectionId={}",
+                userId,
+                connectionId);
+    }
+
+    public void testSucceeded(UUID userId, UUID connectionId, long durationMs) {
+        log.info(
+                "storage_connection_test_succeeded userId={} connectionId={} durationMs={}",
+                userId,
+                connectionId,
+                durationMs);
+    }
+
+    public void testFailed(UUID userId, UUID connectionId, String errorCategory, String message, long durationMs) {
+        log.warn(
+                "storage_connection_test_failed userId={} connectionId={} errorCategory={} durationMs={} message={}",
+                userId,
+                connectionId,
+                errorCategory,
+                durationMs,
+                message);
+    }
 }

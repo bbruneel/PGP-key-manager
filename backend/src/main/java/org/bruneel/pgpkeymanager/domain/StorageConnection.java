@@ -14,5 +14,8 @@ public record StorageConnection(
         String roleArn,
         String externalId,
         StorageConnectionStatus status,
+        Instant lastTestedAt,
+        StorageConnectionTestStatus lastTestStatus,
+        String lastTestErrorCategory,
         Instant createdAt,
         Instant updatedAt) {}

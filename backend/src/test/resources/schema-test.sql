@@ -116,10 +116,14 @@ CREATE TABLE storage_connections (
     role_arn VARCHAR(512) NOT NULL,
     external_id VARCHAR(64) NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'registered',
+    last_tested_at TIMESTAMP WITH TIME ZONE,
+    last_test_status VARCHAR(32),
+    last_test_error_category VARCHAR(64),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT storage_connections_provider_check CHECK (provider IN ('aws-s3')),
-    CONSTRAINT storage_connections_status_check CHECK (status IN ('registered'))
+    CONSTRAINT storage_connections_status_check CHECK (status IN ('registered')),
+    CONSTRAINT storage_connections_last_test_status_check CHECK (last_test_status IN ('succeeded', 'failed'))
 );
 
 CREATE UNIQUE INDEX storage_connections_user_display_name_idx

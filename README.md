@@ -65,6 +65,10 @@ Environment variables (backend):
 | `FLYWAY_URL` / `FLYWAY_USER` / `FLYWAY_PASSWORD` | Direct connection for migrations (optional if same as datasource) |
 | `AUTH0_ISSUER_URI` | Auth0 issuer for JWT validation |
 | `AUTH0_AUDIENCE` | API audience (optional) |
+| `STORAGE_AWS_ENABLED` | Set to `false` to disable AWS STS/S3 I/O (tests use this) |
+| `AWS_REGION` | Optional default region for the STS client (connection `region` is used for S3) |
+
+**BYO AWS storage (Phase 17b+):** In production the API must use a **task/instance IAM role** (AWS SDK default credential chain) with `sts:AssumeRole` on customer roles. Do **not** rely on static access keys in production. For local/self-hosted dev only, you may use `AWS_PROFILE` or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. Customer setup: [`docs/customer-setup/aws/setup.md`](docs/customer-setup/aws/setup.md).
 
 ### Docker (alternative deployment)
 

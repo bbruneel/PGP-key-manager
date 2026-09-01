@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import { mapStorageConnectionApiError } from "@/lib/map-storage-connection-api-error"
+import { mapStorageConnectionTestError } from "@/lib/map-storage-connection-test-error"
 import { storageConnectionsApi } from "@/lib/storage-connections-api"
 import type { StorageConnectionFieldErrors } from "@/lib/storage-connection-validation"
 import { logUiEvent } from "@/lib/ui-logger"
@@ -27,6 +28,8 @@ export function StorageConnectionsSection() {
   const [editingConnection, setEditingConnection] = useState<StorageConnectionResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [testingConnectionId, setTestingConnectionId] = useState<string | null>(null)
+  const [testErrors, setTestErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const [formFieldErrors, setFormFieldErrors] = useState<StorageConnectionFieldErrors>({})
@@ -200,6 +203,64 @@ export function StorageConnectionsSection() {
     [editingConnection, getAccessToken],
   )
 
+  const handleTest = useCallback(
+    async (connection: StorageConnectionResponse) => {
+      setTestingConnectionId(connection.id)
+      setTestErrors((current) => {
+        const next = { ...current }
+        delete next[connection.id]
+        return next
+      })
+      logUiEvent("info", {
+        eventId: "settings.storageConnections.test.submit",
+        message: "Submit test storage connection",
+        connectionId: connection.id,
+      })
+      try {
+        const accessToken = await getAccessToken()
+        const result = await storageConnectionsApi.test({ accessToken, connectionId: connection.id })
+        setConnections((current) =>
+          current.map((item) => (item.id === result.connection.id ? result.connection : item)),
+        )
+        if (result.lastTestStatus === "succeeded") {
+          toast.success("Connection test succeeded", { description: connection.displayName })
+          logUiEvent("info", {
+            eventId: "settings.storageConnections.test.success",
+            message: "Storage connection test succeeded",
+            connectionId: connection.id,
+          })
+        } else {
+          const message = mapStorageConnectionTestError(
+            result.lastTestErrorCategory,
+            result.message,
+          ).message
+          setTestErrors((current) => ({ ...current, [connection.id]: message }))
+          toast.error("Connection test failed", { description: message })
+          logUiEvent("error", {
+            eventId: "settings.storageConnections.test.error",
+            message: "Storage connection test failed",
+            connectionId: connection.id,
+            errorCategory: result.lastTestErrorCategory ?? undefined,
+          })
+        }
+      } catch (error) {
+        const message = getApiErrorMessage(error)
+        setTestErrors((current) => ({ ...current, [connection.id]: message }))
+        toast.error("Connection test failed", { description: message })
+        logUiEvent("error", {
+          eventId: "settings.storageConnections.test.error",
+          message: "Storage connection test request failed",
+          connectionId: connection.id,
+          requestId: error instanceof ApiError ? error.requestId : undefined,
+          status: error instanceof ApiError ? error.status : undefined,
+        })
+      } finally {
+        setTestingConnectionId(null)
+      }
+    },
+    [getAccessToken],
+  )
+
   const handleDelete = useCallback(
     async (connection: StorageConnectionResponse) => {
       logUiEvent("info", {
@@ -274,7 +335,7 @@ export function StorageConnectionsSection() {
         <div>
           <h3 className="text-lg font-semibold text-foreground">Cloud storage connections</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Register customer-owned AWS S3 buckets for future keyring offload (Phase 17a registry only).
+            Register customer-owned AWS S3 buckets and validate access with Test connection (Phase 17b).
           </p>
         </div>
         {formMode === "hidden" ? (
@@ -327,9 +388,12 @@ export function StorageConnectionsSection() {
               key={connection.id}
               connection={connection}
               selected={selectedId === connection.id}
+              testing={testingConnectionId === connection.id}
+              testErrorMessage={testErrors[connection.id] ?? null}
               onSelect={setSelectedId}
               onEdit={handleEditOpen}
               onDelete={(item) => void handleDelete(item)}
+              onTest={(item) => void handleTest(item)}
             />
           ))}
         </div>

@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: PGP Key Manager BYO storage access role (customer account). Bucket is BYO; deploy policies only.
+
+Parameters:
+  AppRoleArn:
+    Type: String
+    Description: IAM role ARN of the PGP Key Manager API workload (in the app AWS account) that will call sts:AssumeRole.
+  ExternalId:
+    Type: String
+    Description: External ID from Settings after creating the storage connection (server-generated).
+  BucketName:
+    Type: String
+    Description: Customer-owned S3 bucket name where keyrings will be stored.
+  Prefix:
+    Type: String
+    Default: pgp-key-manager/
+    Description: Object key prefix within the bucket (must match the connection prefix, trailing slash recommended).
+
+Resources:
+  PgpKeyManagerStorageRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "pgp-key-manager-storage-${AWS::StackName}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref AppRoleArn
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      Policies:
+        - PolicyName: PgpKeyManagerS3PrefixAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListBucketPrefix
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${BucketName}"
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub "${Prefix}*"
+              - Sid: ObjectReadWriteDelete
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${BucketName}/${Prefix}*"
+
+Outputs:
+  RoleArn:
+    Description: Paste this ARN into Settings when registering the storage connection.
+    Value: !GetAtt PgpKeyManagerStorageRole.Arn
+  ExternalIdHint:
+    Description: Use the ExternalId parameter value in the trust policy (must match Settings).
+    Value: !Ref ExternalId

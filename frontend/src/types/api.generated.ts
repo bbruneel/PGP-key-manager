@@ -463,6 +463,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/storage-connections/{connectionId}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test storage connection (AWS STS AssumeRole + S3 probe)
+         * @description Validates cross-account access by assuming the customer IAM role and writing, reading, and deleting
+         *     a probe object under the connection prefix. Persists `lastTestedAt`, `lastTestStatus`, and
+         *     `lastTestErrorCategory` on the connection row. Keyring bytes remain inline in Postgres (Phase 17b).
+         */
+        post: operations["testStorageConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/storage-connections/{connectionId}": {
         parameters: {
             query?: never;
@@ -546,7 +568,7 @@ export interface components {
             detail?: string;
             /** Format: uri */
             instance?: string;
-            /** @description Field validation errors (400 responses) */
+            /** @description Field-level errors for validation (400) and field-targeted conflicts (409) */
             errors?: {
                 field?: string;
                 message?: string;
@@ -766,6 +788,12 @@ export interface components {
             /** @enum {string} */
             status: "registered";
             /** Format: date-time */
+            lastTestedAt?: string | null;
+            /** @enum {string|null} */
+            lastTestStatus?: "succeeded" | "failed" | null;
+            /** @description Machine-readable category when the last test failed (e.g. `assume_role_denied`). */
+            lastTestErrorCategory?: string | null;
+            /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
@@ -784,6 +812,18 @@ export interface components {
             bucket?: string;
             prefix?: string;
             roleArn?: string;
+        };
+        TestStorageConnectionResponse: {
+            /** @enum {string} */
+            lastTestStatus: "succeeded" | "failed";
+            /** Format: date-time */
+            lastTestedAt?: string | null;
+            lastTestErrorCategory?: string | null;
+            /** @description Human-readable failure detail when the test failed. */
+            message?: string | null;
+            /** Format: int64 */
+            durationMs: number;
+            connection: components["schemas"]["StorageConnectionResponse"];
         };
         /**
          * @description URI pointer to externally stored keyring bytes: `aws-s3://{connectionUuid}/{objectKey}[?versionId=…]`.
@@ -1762,6 +1802,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageConnectionResponse"];
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    testStorageConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connectionId: components["parameters"]["ConnectionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connection test succeeded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestStorageConnectionResponse"];
+                };
+            };
+            /** @description Connection test failed (AWS connectivity or permissions) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestStorageConnectionResponse"];
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];

@@ -1,7 +1,8 @@
-import { requestJson } from "@/lib/api-client"
+import { requestJson, requestJsonWithStatus } from "@/lib/api-client"
 import type {
   CreateStorageConnectionRequest,
   StorageConnectionResponse,
+  TestStorageConnectionResponse,
   UpdateStorageConnectionRequest,
 } from "@/types/api"
 
@@ -62,5 +63,18 @@ export const storageConnectionsApi = {
       accessToken: options.accessToken,
       method: "DELETE",
     })
+  },
+
+  async test(options: StorageConnectionIdOptions): Promise<TestStorageConnectionResponse> {
+    const { data } = await requestJsonWithStatus<TestStorageConnectionResponse>(
+      `/api/storage-connections/${options.connectionId}/test`,
+      {
+        operationId: "testStorageConnection",
+        accessToken: options.accessToken,
+        method: "POST",
+      },
+      [502],
+    )
+    return data
   },
 }

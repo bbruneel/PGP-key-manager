@@ -10,6 +10,8 @@ export type UiLogContext = {
   status?: number
   keyId?: string
   groupId?: string
+  connectionId?: string
+  errorCategory?: string
   fingerprint?: string
   count?: number
   succeededCount?: number
@@ -66,6 +68,8 @@ export function logUiEvent(
     status: context.status,
     keyId: context.keyId,
     groupId: context.groupId,
+    connectionId: context.connectionId,
+    errorCategory: context.errorCategory,
     fingerprint: context.fingerprint,
     count: context.count,
     succeededCount: context.succeededCount,

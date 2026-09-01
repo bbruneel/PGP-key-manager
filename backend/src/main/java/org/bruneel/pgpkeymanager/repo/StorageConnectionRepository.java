@@ -2,6 +2,8 @@ package org.bruneel.pgpkeymanager.repo;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Repository;
 
 import org.bruneel.pgpkeymanager.domain.StorageConnection;
 import org.bruneel.pgpkeymanager.domain.StorageConnectionStatus;
+import org.bruneel.pgpkeymanager.domain.StorageConnectionTestStatus;
 import org.bruneel.pgpkeymanager.domain.StorageProvider;
 
 @Repository
@@ -57,7 +60,8 @@ public class StorageConnectionRepository {
         return jdbc.sql(
                         """
                         SELECT id, user_id, provider, display_name, region, bucket, prefix, role_arn, external_id,
-                               status, created_at, updated_at
+                               status, last_tested_at, last_test_status, last_test_error_category,
+                               created_at, updated_at
                         FROM storage_connections
                         WHERE id = :connectionId
                         """)
@@ -70,7 +74,8 @@ public class StorageConnectionRepository {
         return jdbc.sql(
                         """
                         SELECT id, user_id, provider, display_name, region, bucket, prefix, role_arn, external_id,
-                               status, created_at, updated_at
+                               status, last_tested_at, last_test_status, last_test_error_category,
+                               created_at, updated_at
                         FROM storage_connections
                         WHERE id = :connectionId AND user_id = :userId
                         """)
@@ -84,7 +89,8 @@ public class StorageConnectionRepository {
         return jdbc.sql(
                         """
                         SELECT id, user_id, provider, display_name, region, bucket, prefix, role_arn, external_id,
-                               status, created_at, updated_at
+                               status, last_tested_at, last_test_status, last_test_error_category,
+                               created_at, updated_at
                         FROM storage_connections
                         WHERE user_id = :userId
                         ORDER BY created_at DESC
@@ -121,6 +127,34 @@ public class StorageConnectionRepository {
                         .param("bucket", bucket)
                         .param("prefix", prefix)
                         .param("roleArn", roleArn)
+                        .update();
+        if (rows == 0) {
+            return Optional.empty();
+        }
+        return findById(connectionId);
+    }
+
+    public Optional<StorageConnection> updateTestResult(
+            UUID connectionId,
+            UUID userId,
+            Instant testedAt,
+            StorageConnectionTestStatus testStatus,
+            String errorCategory) {
+        int rows =
+                jdbc.sql(
+                                """
+                                UPDATE storage_connections
+                                SET last_tested_at = :testedAt,
+                                    last_test_status = :testStatus,
+                                    last_test_error_category = :errorCategory,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE id = :connectionId AND user_id = :userId
+                                """)
+                        .param("connectionId", connectionId)
+                        .param("userId", userId)
+                        .param("testedAt", java.sql.Timestamp.from(testedAt))
+                        .param("testStatus", testStatus.toDb())
+                        .param("errorCategory", errorCategory)
                         .update();
         if (rows == 0) {
             return Optional.empty();
@@ -206,7 +240,18 @@ public class StorageConnectionRepository {
                 rs.getString("role_arn"),
                 rs.getString("external_id"),
                 StorageConnectionStatus.fromDb(rs.getString("status")),
+                toInstant(rs.getTimestamp("last_tested_at")),
+                toTestStatus(rs.getString("last_test_status")),
+                rs.getString("last_test_error_category"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("updated_at").toInstant());
+    }
+
+    private static Instant toInstant(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    private static StorageConnectionTestStatus toTestStatus(String value) {
+        return value == null ? null : StorageConnectionTestStatus.fromDb(value);
     }
 }

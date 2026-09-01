@@ -42,6 +42,10 @@ app:
   auth0:
     issuer-uri: ${AUTH0_ISSUER_URI:}
     audience: ${AUTH0_AUDIENCE:}
+  storage:
+    aws:
+      enabled: ${STORAGE_AWS_ENABLED:true}
+      probe-object-suffix: ${STORAGE_AWS_PROBE_OBJECT_SUFFIX:.pgp-key-manager-probe/}
 
 logging:
   level:

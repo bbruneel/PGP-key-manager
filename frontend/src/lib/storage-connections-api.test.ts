@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { requestJson } from "@/lib/api-client"
+import { requestJson, requestJsonWithStatus } from "@/lib/api-client"
 import { storageConnectionsApi } from "@/lib/storage-connections-api"
 
 vi.mock("@/lib/api-client", () => ({
   requestJson: vi.fn(),
+  requestJsonWithStatus: vi.fn(),
 }))
 
 describe("storageConnectionsApi", () => {
@@ -24,6 +25,7 @@ describe("storageConnectionsApi", () => {
 
   beforeEach(() => {
     vi.mocked(requestJson).mockReset()
+    vi.mocked(requestJsonWithStatus).mockReset()
   })
 
   it("lists storage connections", async () => {
@@ -96,5 +98,30 @@ describe("storageConnectionsApi", () => {
       accessToken: "token-abc",
       method: "DELETE",
     })
+  })
+
+  it("tests a storage connection allowing 502 body", async () => {
+    vi.mocked(requestJsonWithStatus).mockResolvedValue({
+      status: 502,
+      data: {
+        lastTestStatus: "failed",
+        lastTestErrorCategory: "access_denied",
+        durationMs: 5,
+        connection,
+      },
+    })
+
+    const result = await storageConnectionsApi.test({ accessToken: "token-abc", connectionId: "conn-1" })
+
+    expect(requestJsonWithStatus).toHaveBeenCalledWith(
+      "/api/storage-connections/conn-1/test",
+      {
+        operationId: "testStorageConnection",
+        accessToken: "token-abc",
+        method: "POST",
+      },
+      [502],
+    )
+    expect(result.lastTestStatus).toBe("failed")
   })
 })

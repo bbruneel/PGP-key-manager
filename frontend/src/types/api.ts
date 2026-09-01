@@ -141,3 +141,4 @@ export type AdminUser = {
 export type StorageConnectionResponse = components["schemas"]["StorageConnectionResponse"]
 export type CreateStorageConnectionRequest = components["schemas"]["CreateStorageConnectionRequest"]
 export type UpdateStorageConnectionRequest = components["schemas"]["UpdateStorageConnectionRequest"]
+export type TestStorageConnectionResponse = components["schemas"]["TestStorageConnectionResponse"]

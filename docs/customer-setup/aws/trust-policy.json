@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::APP_ACCOUNT_ID:role/PgpKeyManagerAppRole"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "CONNECTION_EXTERNAL_ID"
+        }
+      }
+    }
+  ]
+}

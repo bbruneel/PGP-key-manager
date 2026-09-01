@@ -737,6 +737,34 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/storage-connections/{connectionId}/test:
+    post:
+      tags: [Storage connections]
+      summary: Test storage connection (AWS STS AssumeRole + S3 probe)
+      operationId: testStorageConnection
+      x-implementation-status: implemented
+      description: |
+        Validates cross-account access by assuming the customer IAM role and writing, reading, and deleting
+        a probe object under the connection prefix. Persists `lastTestedAt`, `lastTestStatus`, and
+        `lastTestErrorCategory` on the connection row. Keyring bytes remain inline in Postgres (Phase 17b).
+      parameters:
+        - $ref: '#/components/parameters/ConnectionId'
+      responses:
+        '200':
+          description: Connection test succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestStorageConnectionResponse'
+        '502':
+          description: Connection test failed (AWS connectivity or permissions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestStorageConnectionResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/storage-connections/{connectionId}:
     get:
       tags: [Storage connections]
@@ -1299,6 +1327,15 @@ components:
         status:
           type: string
           enum: [registered]
+        lastTestedAt:
+          type: [string, 'null']
+          format: date-time
+        lastTestStatus:
+          type: [string, 'null']
+          enum: [succeeded, failed]
+        lastTestErrorCategory:
+          type: [string, 'null']
+          description: Machine-readable category when the last test failed (e.g. `assume_role_denied`).
         createdAt:
           type: string
           format: date-time
@@ -1343,6 +1380,26 @@ components:
         roleArn:
           type: string
           maxLength: 512
+    TestStorageConnectionResponse:
+      type: object
+      required: [lastTestStatus, durationMs, connection]
+      properties:
+        lastTestStatus:
+          type: string
+          enum: [succeeded, failed]
+        lastTestedAt:
+          type: [string, 'null']
+          format: date-time
+        lastTestErrorCategory:
+          type: [string, 'null']
+        message:
+          type: [string, 'null']
+          description: Human-readable failure detail when the test failed.
+        durationMs:
+          type: integer
+          format: int64
+        connection:
+          $ref: '#/components/schemas/StorageConnectionResponse'
     StorageRef:
       type: string
       description: |
