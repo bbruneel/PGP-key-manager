@@ -27,6 +27,7 @@ vi.mock("@/lib/ui-logger", () => ({
 import { SshSetupCard } from "@/components/keys/ssh-setup-card"
 import { keysApi } from "@/lib/keys-api"
 import { logUiEvent } from "@/lib/ui-logger"
+import { toast } from "sonner"
 
 describe("SshSetupCard", () => {
   afterEach(() => {
@@ -37,6 +38,8 @@ describe("SshSetupCard", () => {
     vi.mocked(keysApi.exportSshPublic).mockReset()
     vi.mocked(keysApi.exportSshSetupPack).mockReset()
     vi.mocked(logUiEvent).mockReset()
+    vi.mocked(toast.success).mockReset()
+    vi.mocked(toast.error).mockReset()
     vi.mocked(keysApi.exportSshPublic).mockResolvedValue(
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample openpgp:0xabcdef01",
     )
@@ -89,7 +92,6 @@ describe("SshSetupCard", () => {
 
   it("surfaces an error when archive password is missing and does not toast success", async () => {
     const user = userEvent.setup()
-    const { toast } = await import("sonner")
     vi.mocked(keysApi.exportSshSetupPack).mockRejectedValue(
       new Error("SSH setup pack response missing archive password or zip content"),
     )
@@ -110,7 +112,11 @@ describe("SshSetupCard", () => {
       expect(screen.getByText(/missing archive password/i)).toBeInTheDocument()
     })
     expect(toast.success).not.toHaveBeenCalled()
-    expect(screen.queryByLabelText(/archive password/i)).not.toBeInTheDocument()
+    expect(logUiEvent).not.toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({ eventId: "keyDetail.sshSetup.password.shown" }),
+    )
+    expect(screen.getByLabelText(/archive password/i)).toHaveValue("")
   })
 
   it("shows disabled reason when pack cannot download", () => {
