@@ -198,7 +198,7 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 2. Confirm **SSH setup** shows **On servers** (copy/download `.pub`) and **On this computer** (vault passphrase + confirm + **Download SSH setup pack**).
 3. Enter vault passphrase, check the confirm box, download the pack.
 4. Confirm a blocking dialog shows the zip password once; **Copy password** works; **I saved this password** dismisses and clears the field.
-5. Unzip with 7-Zip / macOS Archive Utility using that password. Confirm files: private key, `.pub`, `README.txt`, `config-snippet.txt`.
+5. Unzip with **7-Zip**, PeaZip, or The Unarchiver using that password (macOS Archive Utility / Finder and stock Info-ZIP `unzip` on macOS/Linux do **not** support WinZip AES — expect “unsupported compression method 99”). Confirm files: private key, `.pub`, `README.txt`, `config-snippet.txt`.
 6. `ssh-keygen -y -f <private>` output should match the `.pub` line (type + base64).
 7. Re-download: a **new** password is shown; the previous zip still opens with its original password.
 8. Revoked auth subkey: public export still available; pack form disabled with revoked message.

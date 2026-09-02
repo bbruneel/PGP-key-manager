@@ -1,4 +1,4 @@
-import { requestBlob, requestJson, requestText } from "@/lib/api-client"
+import { requestJson, requestText } from "@/lib/api-client"
 import type {
   CreatePgpKeyRequest,
   CreateSubkeyRequest,
@@ -16,6 +16,7 @@ import type {
   RevokeKeyRequest,
   RotateKeyRequest,
   RotateKeyResponse,
+  SshSetupPackResponse,
   UpdatePgpKeyRequest,
 } from "@/types/api"
 
@@ -304,13 +305,26 @@ export const keysApi = {
     })
   },
 
-  exportSshSetupPack(options: ExportSshPrivateKeyOptions) {
-    return requestBlob(`/api/keys/${options.keyId}/export-ssh-setup-pack`, {
+  exportSshSetupPack(options: ExportSshPrivateKeyOptions): Promise<{
+    blob: Blob
+    filename: string
+    archivePassword: string
+  }> {
+    return requestJson<SshSetupPackResponse>(`/api/keys/${options.keyId}/export-ssh-setup-pack`, {
       operationId: "exportSshSetupPack",
       accessToken: options.accessToken,
       method: "POST",
       body: options.body,
-      headers: { Accept: "application/zip" },
+    }).then((pack) => {
+      if (!pack.archivePassword?.trim() || !pack.content) {
+        throw new Error("SSH setup pack response missing archive password or zip content")
+      }
+      const binary = Uint8Array.from(atob(pack.content), (char) => char.charCodeAt(0))
+      return {
+        blob: new Blob([binary], { type: "application/zip" }),
+        filename: pack.filename || "ssh-setup.zip",
+        archivePassword: pack.archivePassword,
+      }
     })
   },
 }

@@ -410,7 +410,7 @@ class PgpKeyControllerTest {
     }
 
     @Test
-    void exportSshSetupPackReturnsZipAndPasswordHeader() throws Exception {
+    void exportSshSetupPackReturnsJsonEnvelopeWithPasswordAndZip() throws Exception {
         UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
         char[] password = "TestArchivePass12Ab".toCharArray();
@@ -426,13 +426,15 @@ class PgpKeyControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"passphrase\":\"test-passphrase-123\"}"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/zip")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
                         .string("Cache-Control", "no-store"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
-                        .string("X-Archive-Password", "TestArchivePass12Ab"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
-                        .string("Content-Disposition", "attachment; filename=\"bc-tst-ssh-setup.zip\""));
+                        .doesNotExist("X-Archive-Password"))
+                .andExpect(jsonPath("$.filename").value("bc-tst-ssh-setup.zip"))
+                .andExpect(jsonPath("$.archivePassword").value("TestArchivePass12Ab"))
+                .andExpect(jsonPath("$.content").value(java.util.Base64.getEncoder().encodeToString(
+                        new byte[] {0x50, 0x4b, 0x03, 0x04})));
 
         verify(pgpKeyService).exportSshSetupPack(eq(USER), eq(keyId), any(ExportSshPrivateRequest.class));
     }

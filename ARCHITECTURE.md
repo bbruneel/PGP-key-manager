@@ -209,7 +209,7 @@ Phase 17a introduces the **connection registry** only — no S3 or STS calls yet
 
 1. Authenticate subkey Overview shows **SSH setup**: server `.pub` + client pack form (vault passphrase + confirm).
 2. Pack requires primary private material; revoked keys can still export public but not the pack.
-3. `keysApi.exportSshSetupPack()` → `POST /api/keys/{keyId}/export-ssh-setup-pack` → AES-256 zip (`application/zip`) with `X-Archive-Password` (CORS-exposed). Files: OpenSSH private (unencrypted PEM), `.pub`, `README.txt`, `config-snippet.txt`.
+3. `keysApi.exportSshSetupPack()` → `POST /api/keys/{keyId}/export-ssh-setup-pack` → JSON envelope (`filename`, `archivePassword`, base64 `content` zip) with `Cache-Control: no-store`. Files inside the zip: OpenSSH private (unencrypted PEM), `.pub`, `README.txt`, `config-snippet.txt`.
 4. Frontend downloads the zip, then shows a blocking dialog with the password once (`ArchivePasswordDialog`); dismiss clears React state. Re-download generates a new password.
 5. Lower-level `POST /api/keys/{keyId}/export-ssh-private` remains available (text PEM) and is used internally by the pack builder.
 6. Logging: `export_ssh_private` / `export_ssh_setup_pack` + `export_ssh_private_ready` / `ssh_setup_pack_built` (never log the archive password or key bytes).

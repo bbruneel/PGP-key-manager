@@ -39,14 +39,13 @@ import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
 import org.bruneel.pgpkeymanager.web.dto.RevokeKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.RotateKeyResponse;
+import org.bruneel.pgpkeymanager.web.dto.SshSetupPackResponse;
 import org.bruneel.pgpkeymanager.web.dto.TransferOwnershipRequest;
 import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 
 @RestController
 @RequestMapping(path = "/api/keys", produces = MediaType.APPLICATION_JSON_VALUE)
 public class PgpKeyController {
-
-    public static final String ARCHIVE_PASSWORD_HEADER = "X-Archive-Password";
 
     private final CurrentUserService currentUserService;
     private final PgpKeyService pgpKeyService;
@@ -227,22 +226,21 @@ public class PgpKeyController {
                 .body(pem);
     }
 
-    @PostMapping(path = "/{keyId}/export-ssh-setup-pack", produces = "application/zip")
-    public ResponseEntity<byte[]> exportSshSetupPack(
+    @PostMapping(path = "/{keyId}/export-ssh-setup-pack")
+    public ResponseEntity<SshSetupPackResponse> exportSshSetupPack(
             @PathVariable UUID keyId,
             @Valid @RequestBody ExportSshPrivateRequest request,
             Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         var pack = pgpKeyService.exportSshSetupPack(user, keyId, request);
         try {
+            // Password travels in the JSON body (not a response header) to avoid proxy/access-log leakage.
             return ResponseEntity.ok()
                     .header("Cache-Control", "no-store")
-                    .header(
-                            "Content-Disposition",
-                            "attachment; filename=\"" + pack.filename() + "\"")
-                    .header(ARCHIVE_PASSWORD_HEADER, new String(pack.archivePassword()))
-                    .contentType(MediaType.parseMediaType("application/zip"))
-                    .body(pack.zipBytes());
+                    .body(new SshSetupPackResponse(
+                            pack.filename(),
+                            new String(pack.archivePassword()),
+                            pack.zipBytes()));
         } finally {
             PassphraseUtil.wipe(pack.archivePassword());
         }

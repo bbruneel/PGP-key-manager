@@ -102,6 +102,12 @@ export function SshSetupCard({
         body: buildExportSshPrivateRequest(values),
       })
 
+      if (!pack.archivePassword.trim()) {
+        throw new Error(
+          "Archive password was missing from the server response. Retry the download.",
+        )
+      }
+
       const url = URL.createObjectURL(pack.blob)
       const anchor = document.createElement("a")
       anchor.href = url
@@ -109,18 +115,16 @@ export function SshSetupCard({
         .toString()
         .toLowerCase()
         .replace(/[^a-z0-9._-]+/g, "-")}-ssh-setup.zip`
-      anchor.download = pack.filename ?? fallbackName
+      anchor.download = pack.filename || fallbackName
       anchor.click()
       URL.revokeObjectURL(url)
 
-      if (pack.archivePassword) {
-        setArchivePassword(pack.archivePassword)
-        logUiEvent("info", {
-          eventId: "keyDetail.sshSetup.password.shown",
-          message: "SSH setup archive password shown once",
-          keyId,
-        })
-      }
+      setArchivePassword(pack.archivePassword)
+      logUiEvent("info", {
+        eventId: "keyDetail.sshSetup.password.shown",
+        message: "SSH setup archive password shown once",
+        keyId,
+      })
 
       toast.success("SSH setup pack downloaded", {
         description: "Save the zip password from the dialog. If you lose it, download a new pack.",
@@ -188,7 +192,8 @@ export function SshSetupCard({
             <p className="text-sm text-muted-foreground">
               Download an AES-encrypted zip with the OpenSSH private key, matching{" "}
               <code>.pub</code>, README, and an SSH config snippet. The zip password is shown once
-              after download.
+              after download. Use 7-Zip, PeaZip, or The Unarchiver — macOS Archive Utility and
+              stock <code>unzip</code> on macOS/Linux do not open AES zips.
             </p>
             <div className="space-y-2">
               <Label htmlFor="ssh-setup-passphrase">Vault passphrase</Label>

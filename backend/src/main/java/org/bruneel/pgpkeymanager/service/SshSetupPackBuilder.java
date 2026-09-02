@@ -116,7 +116,9 @@ public class SshSetupPackBuilder {
                 - Rotating or revoking the subkey in the vault does not update files on disk;
                   re-download a new pack after rotation.
                 - Prefer gpg-agent if you want to keep one OpenPGP keyring instead of a standalone SSH key.
-                - Older Windows Explorer may not open AES-encrypted zips; use 7-Zip or similar.
+                - WinZip AES zips need 7-Zip, PeaZip, or The Unarchiver.
+                  macOS Archive Utility / Finder, macOS & Linux Info-ZIP `unzip`, and older
+                  Windows Explorer do not support AES (method 99).
                 """
                 .formatted(
                         displayLabel,

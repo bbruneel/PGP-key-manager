@@ -165,18 +165,26 @@ class PgpKeyLifecycleIntegrationTest {
                                         """
                                                 .formatted(PASSPHRASE)))
                         .andExpect(status().isOk())
-                        .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/zip")))
+                        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
-                                .exists("X-Archive-Password"))
+                                .doesNotExist("X-Archive-Password"))
                         .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
                                 .string("Cache-Control", "no-store"))
+                        .andExpect(jsonPath("$.filename").isNotEmpty())
+                        .andExpect(jsonPath("$.archivePassword").isNotEmpty())
+                        .andExpect(jsonPath("$.content").isNotEmpty())
                         .andReturn();
 
-        String archivePassword = packResult.getResponse().getHeader("X-Archive-Password");
+        String responseJson = packResult.getResponse().getContentAsString();
+        tools.jackson.databind.JsonNode packJson =
+                new tools.jackson.databind.ObjectMapper().readTree(responseJson);
+        String archivePassword = packJson.get("archivePassword").asString();
+        byte[] zipBytes =
+                java.util.Base64.getDecoder().decode(packJson.get("content").asString());
         org.assertj.core.api.Assertions.assertThat(archivePassword).isNotBlank();
-        byte[] zipBytes = packResult.getResponse().getContentAsByteArray();
         org.assertj.core.api.Assertions.assertThat(zipBytes).isNotEmpty();
-        org.assertj.core.api.Assertions.assertThat(packResult.getResponse().getContentAsString())
+        // Password must not appear inside the zip ciphertext itself.
+        org.assertj.core.api.Assertions.assertThat(new String(zipBytes, java.nio.charset.StandardCharsets.ISO_8859_1))
                 .doesNotContain(archivePassword);
 
         java.nio.file.Path zipPath = java.nio.file.Files.createTempFile("ssh-setup-", ".zip");

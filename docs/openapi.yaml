@@ -508,10 +508,13 @@ paths:
       tags: [Keys]
       summary: Download SSH setup pack (AES-encrypted zip)
       description: |
-        Returns an AES-256 encrypted zip containing an OpenSSH private key, matching `.pub`,
-        README.txt, and config-snippet.txt. Requires the vault passphrase. The one-time
-        archive password is returned in the `X-Archive-Password` response header and is
-        shown once in the UI — it is never stored in the zip or in server logs.
+        Returns a JSON envelope with an AES-256 encrypted zip (`content`, base64), the suggested
+        `filename`, and a one-time `archivePassword`. Requires the vault passphrase. The password
+        is returned in the JSON body (not a response header) so proxies and access logs that
+        record headers do not persist it. It is shown once in the UI and is never stored in the
+        zip or in server logs. WinZip AES zips require 7-Zip, PeaZip, or The Unarchiver —
+        macOS Archive Utility / Finder, Info-ZIP `unzip` on macOS and Linux, and older Windows
+        Explorer do not support AES (compression method 99).
       operationId: exportSshSetupPack
       x-implementation-status: implemented
       parameters:
@@ -524,25 +527,16 @@ paths:
               $ref: '#/components/schemas/ExportSshPrivateRequest'
       responses:
         '200':
-          description: Password-protected SSH setup zip
+          description: Password-protected SSH setup pack (JSON envelope)
           headers:
             Cache-Control:
               schema:
                 type: string
                 example: no-store
-            Content-Disposition:
-              schema:
-                type: string
-                example: attachment; filename="bc-tst-ssh-setup.zip"
-            X-Archive-Password:
-              description: One-time zip password (never logged; shown once in the UI)
-              schema:
-                type: string
           content:
-            application/zip:
+            application/json:
               schema:
-                type: string
-                format: binary
+                $ref: '#/components/schemas/SshSetupPackResponse'
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
@@ -1196,6 +1190,23 @@ components:
         passphrase:
           $ref: '#/components/schemas/PassphraseField'
           description: Vault passphrase that unlocks the primary secret keyring.
+    SshSetupPackResponse:
+      type: object
+      required: [filename, archivePassword, content]
+      properties:
+        filename:
+          type: string
+          description: Suggested download filename for the zip
+          example: bc-tst-ssh-setup.zip
+        archivePassword:
+          type: string
+          description: |
+            One-time zip password (never logged; shown once in the UI). Returned in the JSON body
+            rather than a response header so proxies and access logs do not capture it.
+        content:
+          type: string
+          format: byte
+          description: AES-256 encrypted zip bytes (base64 in JSON)
     RotateKeyRequest:
       type: object
       required: [capabilities, algorithm]

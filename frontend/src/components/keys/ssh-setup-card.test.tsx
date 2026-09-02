@@ -49,7 +49,6 @@ describe("SshSetupCard", () => {
       blob: new Blob([new Uint8Array([1, 2, 3])], { type: "application/zip" }),
       filename: "bc-tst-ssh-setup.zip",
       archivePassword: password,
-      requestId: "rid-1",
     })
 
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {})
@@ -86,6 +85,32 @@ describe("SshSetupCard", () => {
     )
 
     clickSpy.mockRestore()
+  })
+
+  it("surfaces an error when archive password is missing and does not toast success", async () => {
+    const user = userEvent.setup()
+    const { toast } = await import("sonner")
+    vi.mocked(keysApi.exportSshSetupPack).mockRejectedValue(
+      new Error("SSH setup pack response missing archive password or zip content"),
+    )
+
+    render(
+      <SshSetupCard
+        keyId="auth-1"
+        canDownloadPack
+        getAccessToken={async () => "token"}
+      />,
+    )
+
+    await user.type(screen.getByLabelText(/vault passphrase/i), "vault-pass-123")
+    await user.click(screen.getByLabelText(/I understand this download/i))
+    await user.click(screen.getByRole("button", { name: /download ssh setup pack/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/missing archive password/i)).toBeInTheDocument()
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText(/archive password/i)).not.toBeInTheDocument()
   })
 
   it("shows disabled reason when pack cannot download", () => {

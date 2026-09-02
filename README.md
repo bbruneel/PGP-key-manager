@@ -102,7 +102,7 @@ Production hardening (TLS, secrets management, resource limits) is not included 
 
 ### API contract
 
-OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, export-public, export-ssh-public, export-ssh-private, and export-ssh-setup-pack (authenticate subkeys with ed25519, rsa, or ecdsa). The setup pack is an AES-256 encrypted zip; older Windows Explorer may need **7-Zip** (or similar) to open it. The one-time zip password is shown once in the app after download.
+OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, export-public, export-ssh-public, export-ssh-private, and export-ssh-setup-pack (authenticate subkeys with ed25519, rsa, or ecdsa). The setup pack is an AES-256 encrypted zip returned in a JSON envelope with a one-time `archivePassword` (not a response header). Open with **7-Zip**, PeaZip, or The Unarchiver — macOS Archive Utility / Finder, Info-ZIP `unzip` on macOS and Linux, and older Windows Explorer do not support WinZip AES. The password is shown once in the app after download.
 
 ### API documentation (Redocly)
 

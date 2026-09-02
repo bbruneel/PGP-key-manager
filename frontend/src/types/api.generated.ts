@@ -702,6 +702,20 @@ export interface components {
         ExportSshPrivateRequest: {
             passphrase: components["schemas"]["PassphraseField"];
         };
+        SshSetupPackResponse: {
+            /** @description Suggested download filename for the zip */
+            filename: string;
+            /**
+             * @description One-time zip password (never logged; shown once in the UI). Returned in the JSON body
+             *     rather than a response header so proxies and access logs do not capture it.
+             */
+            archivePassword: string;
+            /**
+             * Format: byte
+             * @description AES-256 encrypted zip bytes (base64 in JSON)
+             */
+            content: string;
+        };
         RotateKeyRequest: {
             capabilities: components["schemas"]["PgpCapability"][];
             algorithm: components["schemas"]["AlgorithmSpec"];
@@ -1500,16 +1514,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Password-protected SSH setup zip */
+            /** @description Password-protected SSH setup pack (JSON envelope) */
             200: {
                 headers: {
                     "Cache-Control"?: string;
-                    "Content-Disposition"?: string;
-                    "X-Archive-Password"?: string;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/zip": string;
+                    "application/json": components["schemas"]["SshSetupPackResponse"];
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];
