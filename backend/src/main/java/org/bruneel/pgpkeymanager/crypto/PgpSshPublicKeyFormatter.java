@@ -28,13 +28,17 @@ final class PgpSshPublicKeyFormatter {
 
     private PgpSshPublicKeyFormatter() {}
 
-    static String formatLine(PGPPublicKey publicKey, String comment) {
+    static void validateSshExportable(PGPPublicKey publicKey) {
         if (!hasAuthenticateFlag(publicKey)) {
             throw new CryptoException("OpenSSH export requires the authenticate capability on this key");
         }
         if (!isSshCompatibleAlgorithm(publicKey.getAlgorithm())) {
             throw new CryptoException("Algorithm cannot be exported as an OpenSSH public key");
         }
+    }
+
+    static String formatLine(PGPPublicKey publicKey, String comment) {
+        validateSshExportable(publicKey);
 
         try {
             JcaPGPKeyConverter converter = new JcaPGPKeyConverter().setProvider(PROVIDER);

@@ -467,6 +467,79 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/{keyId}/export-ssh-private:
+    post:
+      tags: [Keys]
+      summary: Export OpenSSH private key
+      description: |
+        Returns an OpenSSH private key PEM for an authenticate subkey (or primary) with an
+        SSH-compatible algorithm. Requires the vault passphrase that unlocks the primary
+        secret keyring. The private key material itself is unencrypted OpenSSH PEM;
+        revoked keys and keys without stored private material return 4xx.
+        Ed25519/ECDSA use `BEGIN OPENSSH PRIVATE KEY`; RSA uses `BEGIN RSA PRIVATE KEY`
+        (Bouncy Castle PKCS#1 encoding).
+      operationId: exportSshPrivateKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportSshPrivateRequest'
+      responses:
+        '200':
+          description: "OpenSSH private key PEM (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            text/plain:
+              schema:
+                type: string
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/keys/{keyId}/export-ssh-setup-pack:
+    post:
+      tags: [Keys]
+      summary: Download SSH setup pack (AES-encrypted zip)
+      description: |
+        Returns a JSON envelope with an AES-256 encrypted zip (`content`, base64), the suggested
+        `filename`, and a one-time `archivePassword`. Requires the vault passphrase. The password
+        is returned in the JSON body (not a response header) so proxies and access logs that
+        record headers do not persist it. It is shown once in the UI and is never stored in the
+        zip or in server logs. WinZip AES zips require 7-Zip, PeaZip, or The Unarchiver —
+        macOS Archive Utility / Finder, Info-ZIP `unzip` on macOS and Linux, and older Windows
+        Explorer do not support AES (compression method 99).
+      operationId: exportSshSetupPack
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportSshPrivateRequest'
+      responses:
+        '200':
+          description: Password-protected SSH setup pack (JSON envelope)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SshSetupPackResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/groups:
     get:
       tags: [Groups]
@@ -1110,6 +1183,30 @@ components:
           format: date-time
         passphrase:
           $ref: '#/components/schemas/PassphraseField'
+    ExportSshPrivateRequest:
+      type: object
+      required: [passphrase]
+      properties:
+        passphrase:
+          $ref: '#/components/schemas/PassphraseField'
+          description: Vault passphrase that unlocks the primary secret keyring.
+    SshSetupPackResponse:
+      type: object
+      required: [filename, archivePassword, content]
+      properties:
+        filename:
+          type: string
+          description: Suggested download filename for the zip
+          example: bc-tst-ssh-setup.zip
+        archivePassword:
+          type: string
+          description: |
+            One-time zip password (never logged; shown once in the UI). Returned in the JSON body
+            rather than a response header so proxies and access logs do not capture it.
+        content:
+          type: string
+          format: byte
+          description: AES-256 encrypted zip bytes (base64 in JSON)
     RotateKeyRequest:
       type: object
       required: [capabilities, algorithm]

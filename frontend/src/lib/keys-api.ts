@@ -2,6 +2,7 @@ import { requestJson, requestText } from "@/lib/api-client"
 import type {
   CreatePgpKeyRequest,
   CreateSubkeyRequest,
+  ExportSshPrivateRequest,
   ExtendExpiryRequest,
   KeyRole,
   KeyStatus,
@@ -15,6 +16,7 @@ import type {
   RevokeKeyRequest,
   RotateKeyRequest,
   RotateKeyResponse,
+  SshSetupPackResponse,
   UpdatePgpKeyRequest,
 } from "@/types/api"
 
@@ -96,6 +98,12 @@ export type ExportPublicKeyOptions = {
 export type ExportSshPublicKeyOptions = {
   accessToken: string
   keyId: string
+}
+
+export type ExportSshPrivateKeyOptions = {
+  accessToken: string
+  keyId: string
+  body: ExportSshPrivateRequest
 }
 
 export type UpdateKeyOptions = {
@@ -284,6 +292,39 @@ export const keysApi = {
       accessToken: options.accessToken,
       method: "GET",
       headers: { Accept: "text/plain" },
+    })
+  },
+
+  exportSshPrivate(options: ExportSshPrivateKeyOptions): Promise<string> {
+    return requestText(`/api/keys/${options.keyId}/export-ssh-private`, {
+      operationId: "exportSshPrivateKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+      headers: { Accept: "text/plain" },
+    })
+  },
+
+  exportSshSetupPack(options: ExportSshPrivateKeyOptions): Promise<{
+    blob: Blob
+    filename: string
+    archivePassword: string
+  }> {
+    return requestJson<SshSetupPackResponse>(`/api/keys/${options.keyId}/export-ssh-setup-pack`, {
+      operationId: "exportSshSetupPack",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+    }).then((pack) => {
+      if (!pack.archivePassword?.trim() || !pack.content) {
+        throw new Error("SSH setup pack response missing archive password or zip content")
+      }
+      const binary = Uint8Array.from(atob(pack.content), (char) => char.charCodeAt(0))
+      return {
+        blob: new Blob([binary], { type: "application/zip" }),
+        filename: pack.filename || "ssh-setup.zip",
+        archivePassword: pack.archivePassword,
+      }
     })
   },
 }

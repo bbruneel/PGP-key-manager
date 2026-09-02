@@ -67,6 +67,8 @@ vi.mock("@/lib/keys-api", () => ({
     rotate: vi.fn(),
     exportPublic: vi.fn(),
     exportSshPublic: vi.fn(),
+    exportSshPrivate: vi.fn(),
+    exportSshSetupPack: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
   },
@@ -523,7 +525,8 @@ describe("KeyDetailPage", () => {
 
     await screen.findByRole("heading", { name: "Work key" })
 
-    expect(screen.getByRole("region", { name: "Export SSH public key" })).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "SSH setup" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /download ssh setup pack/i })).toBeInTheDocument()
   })
 
   it("clears passphrase fields when navigating to another key", async () => {
@@ -606,7 +609,7 @@ describe("KeyDetailPage", () => {
 
     await screen.findByRole("heading", { name: "Encrypt subkey" })
 
-    expect(screen.queryByRole("region", { name: "Export SSH public key" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("region", { name: "SSH setup" })).not.toBeInTheDocument()
   })
 
   it("uses roving tabindex on key detail tabs", async () => {

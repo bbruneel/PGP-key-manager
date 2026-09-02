@@ -288,6 +288,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/keys/{keyId}/export-ssh-private": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export OpenSSH private key */
+        post: operations["exportSshPrivateKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/keys/{keyId}/export-ssh-setup-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download SSH setup pack (AES-encrypted zip) */
+        post: operations["exportSshSetupPack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/groups": {
         parameters: {
             query?: never;
@@ -664,6 +698,23 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             passphrase?: components["schemas"]["PassphraseField"];
+        };
+        ExportSshPrivateRequest: {
+            passphrase: components["schemas"]["PassphraseField"];
+        };
+        SshSetupPackResponse: {
+            /** @description Suggested download filename for the zip */
+            filename: string;
+            /**
+             * @description One-time zip password (never logged; shown once in the UI). Returned in the JSON body
+             *     rather than a response header so proxies and access logs do not capture it.
+             */
+            archivePassword: string;
+            /**
+             * Format: byte
+             * @description AES-256 encrypted zip bytes (base64 in JSON)
+             */
+            content: string;
         };
         RotateKeyRequest: {
             capabilities: components["schemas"]["PgpCapability"][];
@@ -1415,6 +1466,62 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    exportSshPrivateKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportSshPrivateRequest"];
+            };
+        };
+        responses: {
+            /** @description OpenSSH private key PEM (Cache-Control: no-store) */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    exportSshSetupPack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportSshPrivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Password-protected SSH setup pack (JSON envelope) */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SshSetupPackResponse"];
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];

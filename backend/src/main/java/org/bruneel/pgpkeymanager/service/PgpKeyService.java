@@ -33,6 +33,7 @@ import org.bruneel.pgpkeymanager.repo.PgpKeyRepository.PgpKeyInsert;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.ExportSshPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
 import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyEntry;
@@ -57,6 +58,7 @@ public class PgpKeyService {
     private final KeyOperationLogger operationLogger;
     private final KeyOperationMetrics operationMetrics;
     private final StorageRefParser storageRefParser;
+    private final SshSetupPackBuilder sshSetupPackBuilder;
 
     public PgpKeyService(
             PgpKeyRepository pgpKeyRepository,
@@ -65,7 +67,8 @@ public class PgpKeyService {
             GroupAuthorizationService groupAuthorizationService,
             KeyOperationLogger operationLogger,
             KeyOperationMetrics operationMetrics,
-            StorageRefParser storageRefParser) {
+            StorageRefParser storageRefParser,
+            SshSetupPackBuilder sshSetupPackBuilder) {
         this.pgpKeyRepository = pgpKeyRepository;
         this.pgpCryptoService = pgpCryptoService;
         this.metadataParser = metadataParser;
@@ -73,6 +76,7 @@ public class PgpKeyService {
         this.operationLogger = operationLogger;
         this.operationMetrics = operationMetrics;
         this.storageRefParser = storageRefParser;
+        this.sshSetupPackBuilder = sshSetupPackBuilder;
     }
 
     public List<PgpKey> listAccessibleKeys(
@@ -466,6 +470,97 @@ public class PgpKeyService {
         } catch (RuntimeException ex) {
             completeFailure("export_ssh_public", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
+        }
+    }
+
+    public String exportSshPrivate(AppUser user, UUID keyId, ExportSshPrivateRequest request) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("export_ssh_private", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
+        char[] passphrase = null;
+        try {
+            PgpKey key = getForUser(user, keyId);
+            openpgpVersion = key.openpgpVersion();
+            ensureNotRevoked(key);
+            PgpKeyValidator.validateSshExportable(key);
+
+            UUID primaryId = key.isPrimary() ? key.id() : key.parentKeyId();
+            if (primaryId == null) {
+                throw new BadRequestException("Subkey has no parent primary key");
+            }
+            PgpKey primary = requirePrimaryWithPrivate(user, primaryId);
+            openpgpVersion = primary.openpgpVersion();
+
+            passphrase = PassphraseUtil.require(request.passphrase());
+            long targetKeyId = parseKeyId(key);
+            String pem =
+                    pgpCryptoService.exportSshPrivateKey(
+                            primary.encryptedPrivateArmored(), passphrase, targetKeyId);
+
+            log.info(
+                    "export_ssh_private_ready algorithm={} keyIdHex={} hasPrivateMaterial=true",
+                    key.algorithm(),
+                    key.keyId() != null ? key.keyId().toLowerCase() : null);
+            completeSuccess("export_ssh_private", user.id(), keyId, openpgpVersion, start);
+            return pem;
+        } catch (RuntimeException ex) {
+            completeFailure("export_ssh_private", user.id(), keyId, openpgpVersion, start, ex);
+            throw ex;
+        } finally {
+            PassphraseUtil.wipe(passphrase, "export_ssh_private");
+        }
+    }
+
+    public SshSetupPackBuilder.BuiltPack exportSshSetupPack(
+            AppUser user, UUID keyId, ExportSshPrivateRequest request) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("export_ssh_setup_pack", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
+        char[] passphrase = null;
+        try {
+            PgpKey key = getForUser(user, keyId);
+            openpgpVersion = key.openpgpVersion();
+            ensureNotRevoked(key);
+            PgpKeyValidator.validateSshExportable(key);
+
+            UUID primaryId = key.isPrimary() ? key.id() : key.parentKeyId();
+            if (primaryId == null) {
+                throw new BadRequestException("Subkey has no parent primary key");
+            }
+            PgpKey primary = requirePrimaryWithPrivate(user, primaryId);
+            openpgpVersion = primary.openpgpVersion();
+
+            passphrase = PassphraseUtil.require(request.passphrase());
+            long targetKeyId = parseKeyId(key);
+            String comment = "openpgp:0x" + key.keyId().toLowerCase();
+            String privatePem =
+                    pgpCryptoService.exportSshPrivateKey(
+                            primary.encryptedPrivateArmored(), passphrase, targetKeyId);
+            String publicLine =
+                    pgpCryptoService.exportSshPublicKey(
+                            resolveArmoredPublic(key, user), targetKeyId, comment);
+
+            String baseName =
+                    key.label() != null && !key.label().isBlank()
+                            ? key.label()
+                            : (key.keyId() != null ? key.keyId() : "ssh-key");
+            SshSetupPackBuilder.BuiltPack pack =
+                    sshSetupPackBuilder.build(
+                            baseName, privatePem, publicLine, key.label(), key.fingerprint());
+
+            log.info(
+                    "ssh_setup_pack_built algorithm={} fileCount={} archiveBytes={} encryption=aes256 passwordLength={}",
+                    key.algorithm(),
+                    pack.fileCount(),
+                    pack.zipBytes().length,
+                    pack.archivePassword().length);
+            completeSuccess("export_ssh_setup_pack", user.id(), keyId, openpgpVersion, start);
+            return pack;
+        } catch (RuntimeException ex) {
+            completeFailure("export_ssh_setup_pack", user.id(), keyId, openpgpVersion, start, ex);
+            throw ex;
+        } finally {
+            PassphraseUtil.wipe(passphrase, "export_ssh_setup_pack");
         }
     }
 

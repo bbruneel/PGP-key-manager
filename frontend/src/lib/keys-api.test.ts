@@ -421,3 +421,78 @@ describe("keysApi.exportSshPublic", () => {
     expect(result).toBe(sshLine)
   })
 })
+
+describe("keysApi.exportSshPrivate", () => {
+  beforeEach(() => {
+    vi.mocked(requestText).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/export-ssh-private with exportSshPrivateKey operationId", async () => {
+    const pem = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----\n"
+    vi.mocked(requestText).mockResolvedValue(pem)
+
+    const result = await keysApi.exportSshPrivate({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: { passphrase: "vault-pass-123" },
+    })
+
+    expect(requestText).toHaveBeenCalledWith("/api/keys/key-1/export-ssh-private", {
+      operationId: "exportSshPrivateKey",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { passphrase: "vault-pass-123" },
+      headers: { Accept: "text/plain" },
+    })
+    expect(result).toBe(pem)
+  })
+})
+
+describe("keysApi.exportSshSetupPack", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST export-ssh-setup-pack and decodes the JSON envelope", async () => {
+    const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04])
+    const content = btoa(String.fromCharCode(...zipBytes))
+    vi.mocked(requestJson).mockResolvedValue({
+      filename: "bc-tst-ssh-setup.zip",
+      archivePassword: "Abcdefghjk23456789mn",
+      content,
+    })
+
+    const result = await keysApi.exportSshSetupPack({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: { passphrase: "vault-pass-123" },
+    })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1/export-ssh-setup-pack", {
+      operationId: "exportSshSetupPack",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { passphrase: "vault-pass-123" },
+    })
+    expect(result.filename).toBe("bc-tst-ssh-setup.zip")
+    expect(result.archivePassword).toBe("Abcdefghjk23456789mn")
+    expect(result.blob.type).toBe("application/zip")
+    expect(new Uint8Array(await result.blob.arrayBuffer())).toEqual(zipBytes)
+  })
+
+  it("rejects when archive password is missing", async () => {
+    vi.mocked(requestJson).mockResolvedValue({
+      filename: "bc-tst-ssh-setup.zip",
+      archivePassword: "",
+      content: btoa("zip"),
+    })
+
+    await expect(
+      keysApi.exportSshSetupPack({
+        accessToken: "token-abc",
+        keyId: "key-1",
+        body: { passphrase: "vault-pass-123" },
+      }),
+    ).rejects.toThrow(/missing archive password/i)
+  })
+})
