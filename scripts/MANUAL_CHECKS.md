@@ -186,9 +186,24 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 1. Create or open a primary key with private material.
 2. Add an **authenticate** subkey (default Ed25519) via **Add subkey**.
 3. Open the new subkey detail (`/keys/{subkeyId}`).
-4. Confirm **Export SSH public key** appears; **Copy SSH public key** should yield a line starting with `ssh-ed25519 `.
-5. Open an encrypt-only subkey (e.g. Cv25519): SSH export section should be hidden.
+4. Confirm **SSH setup** appears; **Copy SSH public key** should yield a line starting with `ssh-ed25519 `.
+5. Open an encrypt-only subkey (e.g. Cv25519): SSH setup section should be hidden.
 6. Optional API check: `GET /api/keys/{encryptSubkeyId}/export-ssh-public` should return 400.
+
+---
+
+## Phase 18 — SSH setup pack
+
+1. Open an authenticate subkey with private material on the primary (`/keys/{authSubkeyId}`).
+2. Confirm **SSH setup** shows **On servers** (copy/download `.pub`) and **On this computer** (vault passphrase + confirm + **Download SSH setup pack**).
+3. Enter vault passphrase, check the confirm box, download the pack.
+4. Confirm a blocking dialog shows the zip password once; **Copy password** works; **I saved this password** dismisses and clears the field.
+5. Unzip with 7-Zip / macOS Archive Utility using that password. Confirm files: private key, `.pub`, `README.txt`, `config-snippet.txt`.
+6. `ssh-keygen -y -f <private>` output should match the `.pub` line (type + base64).
+7. Re-download: a **new** password is shown; the previous zip still opens with its original password.
+8. Revoked auth subkey: public export still available; pack form disabled with revoked message.
+9. Encrypt-only subkey: no SSH setup card.
+10. Optional API: `POST /api/keys/{authSubkeyId}/export-ssh-private` returns OpenSSH PEM with `Cache-Control: no-store`.
 
 ---
 

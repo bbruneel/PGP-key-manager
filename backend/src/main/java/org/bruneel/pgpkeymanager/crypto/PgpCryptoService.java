@@ -246,6 +246,25 @@ public class PgpCryptoService {
         }
     }
 
+    public String exportSshPrivateKey(String armoredPrivate, char[] passphrase, long keyId) {
+        try {
+            PGPSecretKeyRing ring = PgpCryptoSupport.loadSecretKeyRing(armoredPrivate, passphrase);
+            PGPSecretKey secret = findSecretKey(ring, keyId);
+            if (secret == null) {
+                throw new CryptoException("Secret key id not found");
+            }
+            PGPPrivateKey privateKey = unlockSecret(secret, passphrase);
+            return PgpSshPrivateKeyFormatter.formatPem(secret.getPublicKey(), privateKey);
+        } catch (CryptoException e) {
+            throw e;
+        } catch (Exception e) {
+            if (PgpCryptoSupport.isPassphraseMismatch(e)) {
+                throw new CryptoException("Passphrase does not unlock the private key");
+            }
+            throw new CryptoException("Failed to export OpenSSH private key", e);
+        }
+    }
+
     public String exportPublicKey(String armoredPublic, long keyId) {
         try {
             PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
@@ -275,6 +294,17 @@ public class PgpCryptoService {
         Iterator<PGPPublicKey> keys = ring.getPublicKeys();
         while (keys.hasNext()) {
             PGPPublicKey k = keys.next();
+            if (k.getKeyID() == keyId) {
+                return k;
+            }
+        }
+        return null;
+    }
+
+    private PGPSecretKey findSecretKey(PGPSecretKeyRing ring, long keyId) {
+        Iterator<PGPSecretKey> keys = ring.getSecretKeys();
+        while (keys.hasNext()) {
+            PGPSecretKey k = keys.next();
             if (k.getKeyID() == keyId) {
                 return k;
             }

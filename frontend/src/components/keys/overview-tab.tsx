@@ -4,7 +4,7 @@ import { EditKeyLabelForm } from "@/components/keys/edit-key-label-form"
 import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
 import { KeyDetailTabPanel } from "@/components/keys/key-detail-tab-panel"
 import { KeyExportAction } from "@/components/keys/key-export-action"
-import { KeySshExportAction } from "@/components/keys/key-ssh-export-action"
+import { SshSetupCard } from "@/components/keys/ssh-setup-card"
 import type { UpdateKeyLabelFieldErrors, UpdateKeyLabelFormValues } from "@/lib/update-key-label-validation"
 import type { PgpKey } from "@/types/api"
 
@@ -14,6 +14,8 @@ export type OverviewTabProps = {
   ownerGroupName?: string | null
   isSubkey: boolean
   showSshExport: boolean
+  showSshPrivateExport: boolean
+  sshPackDisabledReason?: string | null
   subkeysRefreshToken: number
   getAccessToken: () => Promise<string>
   updateLabelValues: UpdateKeyLabelFormValues
@@ -31,6 +33,8 @@ export function OverviewTab({
   ownerGroupName,
   isSubkey,
   showSshExport,
+  showSshPrivateExport,
+  sshPackDisabledReason,
   subkeysRefreshToken,
   getAccessToken,
   updateLabelValues,
@@ -76,7 +80,7 @@ export function OverviewTab({
           />
         </div>
 
-        <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm flex flex-col justify-between">
+        <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm flex flex-col justify-between gap-5">
           <KeyExportAction
             keyId={keyData.id!}
             fingerprint={keyData.fingerprint}
@@ -84,11 +88,14 @@ export function OverviewTab({
             invalidateToken={subkeysRefreshToken}
           />
           {showSshExport ? (
-            <div className="mt-5 pt-5 border-t border-border">
-              <KeySshExportAction
+            <div className="border-t border-border pt-5">
+              <SshSetupCard
                 keyId={keyData.id!}
                 fingerprint={keyData.fingerprint}
                 keyIdHex={keyData.keyId}
+                label={keyData.label}
+                canDownloadPack={showSshPrivateExport}
+                packDisabledReason={sshPackDisabledReason}
                 getAccessToken={getAccessToken}
                 invalidateToken={subkeysRefreshToken}
               />

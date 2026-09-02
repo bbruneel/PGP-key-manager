@@ -96,4 +96,34 @@ export async function requestText(path: string, options: RequestOptions): Promis
   return text
 }
 
+export type BlobDownloadResult = {
+  blob: Blob
+  filename: string | null
+  archivePassword: string | null
+  requestId: string
+}
+
+function parseFilenameFromContentDisposition(header: string | null): string | null {
+  if (!header) {
+    return null
+  }
+  const match = /filename="([^"]+)"/i.exec(header)
+  return match?.[1] ?? null
+}
+
+export async function requestBlob(path: string, options: RequestOptions): Promise<BlobDownloadResult> {
+  const requestId = options.requestId ?? newRequestId()
+  const response = await executeRequest(path, { ...options, requestId })
+  const correlatedRequestId = responseRequestId(response, requestId) ?? requestId
+  const blob = await response.blob()
+  // Intentionally omit archive password from API success logs.
+  logRequestSuccess(options, path, response, correlatedRequestId)
+  return {
+    blob,
+    filename: parseFilenameFromContentDisposition(response.headers.get("Content-Disposition")),
+    archivePassword: response.headers.get("X-Archive-Password"),
+    requestId: correlatedRequestId,
+  }
+}
+
 export { API_ACCEPT_HEADER }

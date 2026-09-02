@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError } from "@/lib/api-error"
-import { requestJson, requestText } from "@/lib/api-client"
+import { requestBlob, requestJson, requestText } from "@/lib/api-client"
 import { logApiEvent } from "@/lib/logger"
 
 vi.mock("@/lib/logger", () => ({
@@ -217,5 +217,56 @@ describe("requestText", () => {
         status: 404,
       }),
     )
+  })
+})
+
+describe("requestBlob", () => {
+  beforeEach(() => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://localhost:8080")
+    vi.mocked(logApiEvent).mockClear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it("returns blob, filename, and archive password without logging the password", async () => {
+    const zipBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04])
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        "content-type": "application/zip",
+        "x-request-id": "server-rid-zip",
+        "content-disposition": 'attachment; filename="bc-tst-ssh-setup.zip"',
+        "x-archive-password": "SecretZipPassword12ab",
+      }),
+      blob: async () => new Blob([zipBytes], { type: "application/zip" }),
+    } as Response)
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await requestBlob("/api/keys/key-1/export-ssh-setup-pack", {
+      operationId: "exportSshSetupPack",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { passphrase: "vault-pass" },
+      headers: { Accept: "application/zip" },
+    })
+
+    expect(result.filename).toBe("bc-tst-ssh-setup.zip")
+    expect(result.archivePassword).toBe("SecretZipPassword12ab")
+    expect(result.requestId).toBe("server-rid-zip")
+    expect(result.blob.size).toBe(4)
+    expect(logApiEvent).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({
+        operationId: "exportSshSetupPack",
+        requestId: "server-rid-zip",
+        status: 200,
+      }),
+    )
+    const logged = vi.mocked(logApiEvent).mock.calls.map((call) => JSON.stringify(call[1]))
+    expect(logged.join("\n")).not.toContain("SecretZipPassword12ab")
   })
 })

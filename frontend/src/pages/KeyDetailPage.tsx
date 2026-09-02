@@ -209,6 +209,12 @@ function KeyDetailPageContent() {
   const showSshExport = Boolean(
     keyData && isSshExportableKey(keyData.capabilities, keyData.algorithm),
   )
+  const showSshPrivateExport = Boolean(showSshExport && requiresPassphrase && !isRevoked)
+  const sshPackDisabledReason = !requiresPassphrase
+    ? "Import private keyring material on the primary key to enable the SSH setup pack."
+    : isRevoked
+      ? "This key is revoked. Download a new pack from a replacement authenticate subkey."
+      : null
   const ownerGroupName = useMemo(() => {
     if (!keyData || keyData.ownerType !== "group" || !keyData.ownerGroupId) {
       return null
@@ -903,6 +909,8 @@ function KeyDetailPageContent() {
             ownerGroupName={ownerGroupName}
             isSubkey={isSubkey}
             showSshExport={showSshExport}
+            showSshPrivateExport={showSshPrivateExport}
+            sshPackDisabledReason={sshPackDisabledReason}
             subkeysRefreshToken={subkeysRefreshToken}
             getAccessToken={getAccessToken}
             updateLabelValues={updateLabelValues}

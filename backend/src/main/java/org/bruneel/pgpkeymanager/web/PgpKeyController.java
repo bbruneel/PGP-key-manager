@@ -24,11 +24,13 @@ import org.bruneel.pgpkeymanager.domain.AppUser;
 import org.bruneel.pgpkeymanager.domain.KeyRole;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
 import org.bruneel.pgpkeymanager.service.CurrentUserService;
+import org.bruneel.pgpkeymanager.service.PassphraseUtil;
 import org.bruneel.pgpkeymanager.service.PgpKeyService;
 import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.ExportSshPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
 import org.bruneel.pgpkeymanager.web.dto.ImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PgpKeyResponse;
@@ -43,6 +45,8 @@ import org.bruneel.pgpkeymanager.web.dto.UpdatePgpKeyRequest;
 @RestController
 @RequestMapping(path = "/api/keys", produces = MediaType.APPLICATION_JSON_VALUE)
 public class PgpKeyController {
+
+    public static final String ARCHIVE_PASSWORD_HEADER = "X-Archive-Password";
 
     private final CurrentUserService currentUserService;
     private final PgpKeyService pgpKeyService;
@@ -208,5 +212,39 @@ public class PgpKeyController {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         String sshLine = pgpKeyService.exportSshPublic(user, keyId);
         return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(sshLine);
+    }
+
+    @PostMapping(path = "/{keyId}/export-ssh-private", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> exportSshPrivate(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody ExportSshPrivateRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        String pem = pgpKeyService.exportSshPrivate(user, keyId, request);
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store")
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(pem);
+    }
+
+    @PostMapping(path = "/{keyId}/export-ssh-setup-pack", produces = "application/zip")
+    public ResponseEntity<byte[]> exportSshSetupPack(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody ExportSshPrivateRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        var pack = pgpKeyService.exportSshSetupPack(user, keyId, request);
+        try {
+            return ResponseEntity.ok()
+                    .header("Cache-Control", "no-store")
+                    .header(
+                            "Content-Disposition",
+                            "attachment; filename=\"" + pack.filename() + "\"")
+                    .header(ARCHIVE_PASSWORD_HEADER, new String(pack.archivePassword()))
+                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .body(pack.zipBytes());
+        } finally {
+            PassphraseUtil.wipe(pack.archivePassword());
+        }
     }
 }

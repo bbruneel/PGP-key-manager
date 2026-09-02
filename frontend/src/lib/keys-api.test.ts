@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { requestJson, requestText } from "@/lib/api-client"
+import { requestBlob, requestJson, requestText } from "@/lib/api-client"
 import { keysApi } from "@/lib/keys-api"
 import type { RegisterPgpKeyRequest } from "@/types/api"
 
 vi.mock("@/lib/api-client", () => ({
   requestJson: vi.fn(),
   requestText: vi.fn(),
+  requestBlob: vi.fn(),
 }))
 
 describe("keysApi.list", () => {
@@ -419,5 +420,62 @@ describe("keysApi.exportSshPublic", () => {
       headers: { Accept: "text/plain" },
     })
     expect(result).toBe(sshLine)
+  })
+})
+
+describe("keysApi.exportSshPrivate", () => {
+  beforeEach(() => {
+    vi.mocked(requestText).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/export-ssh-private with exportSshPrivateKey operationId", async () => {
+    const pem = "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----\n"
+    vi.mocked(requestText).mockResolvedValue(pem)
+
+    const result = await keysApi.exportSshPrivate({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: { passphrase: "vault-pass-123" },
+    })
+
+    expect(requestText).toHaveBeenCalledWith("/api/keys/key-1/export-ssh-private", {
+      operationId: "exportSshPrivateKey",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { passphrase: "vault-pass-123" },
+      headers: { Accept: "text/plain" },
+    })
+    expect(result).toBe(pem)
+  })
+})
+
+describe("keysApi.exportSshSetupPack", () => {
+  beforeEach(() => {
+    vi.mocked(requestBlob).mockReset()
+  })
+
+  it("calls POST export-ssh-setup-pack with exportSshSetupPack operationId", async () => {
+    const pack = {
+      blob: new Blob([new Uint8Array([1, 2, 3])], { type: "application/zip" }),
+      filename: "bc-tst-ssh-setup.zip",
+      archivePassword: "Abcdefghjk23456789mn",
+      requestId: "rid-1",
+    }
+    vi.mocked(requestBlob).mockResolvedValue(pack)
+
+    const result = await keysApi.exportSshSetupPack({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: { passphrase: "vault-pass-123" },
+    })
+
+    expect(requestBlob).toHaveBeenCalledWith("/api/keys/key-1/export-ssh-setup-pack", {
+      operationId: "exportSshSetupPack",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { passphrase: "vault-pass-123" },
+      headers: { Accept: "application/zip" },
+    })
+    expect(result).toEqual(pack)
   })
 })

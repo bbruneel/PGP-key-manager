@@ -288,6 +288,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/keys/{keyId}/export-ssh-private": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export OpenSSH private key */
+        post: operations["exportSshPrivateKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/keys/{keyId}/export-ssh-setup-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download SSH setup pack (AES-encrypted zip) */
+        post: operations["exportSshSetupPack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/groups": {
         parameters: {
             query?: never;
@@ -664,6 +698,9 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             passphrase?: components["schemas"]["PassphraseField"];
+        };
+        ExportSshPrivateRequest: {
+            passphrase: components["schemas"]["PassphraseField"];
         };
         RotateKeyRequest: {
             capabilities: components["schemas"]["PgpCapability"][];
@@ -1415,6 +1452,64 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    exportSshPrivateKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportSshPrivateRequest"];
+            };
+        };
+        responses: {
+            /** @description OpenSSH private key PEM (Cache-Control: no-store) */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    exportSshSetupPack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportSshPrivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Password-protected SSH setup zip */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    "Content-Disposition"?: string;
+                    "X-Archive-Password"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
                 };
             };
             "4XX": components["responses"]["ErrorResponse"];

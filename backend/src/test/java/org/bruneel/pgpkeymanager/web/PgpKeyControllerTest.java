@@ -37,6 +37,7 @@ import org.bruneel.pgpkeymanager.service.PgpKeyService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.ExportSshPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
 import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyEntry;
@@ -387,6 +388,53 @@ class PgpKeyControllerTest {
                 .andExpect(content().string(containsString("ssh-ed25519")));
 
         verify(pgpKeyService).exportSshPublic(USER, keyId);
+    }
+
+    @Test
+    void exportSshPrivateReturnsOpenSshPem() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.exportSshPrivate(eq(USER), eq(keyId), any(ExportSshPrivateRequest.class)))
+                .thenReturn("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmU=\n-----END OPENSSH PRIVATE KEY-----\n");
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-ssh-private", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"passphrase\":\"test-passphrase-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(content().string(containsString("BEGIN OPENSSH PRIVATE KEY")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"));
+
+        verify(pgpKeyService).exportSshPrivate(eq(USER), eq(keyId), any(ExportSshPrivateRequest.class));
+    }
+
+    @Test
+    void exportSshSetupPackReturnsZipAndPasswordHeader() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        char[] password = "TestArchivePass12Ab".toCharArray();
+        when(pgpKeyService.exportSshSetupPack(eq(USER), eq(keyId), any(ExportSshPrivateRequest.class)))
+                .thenReturn(
+                        new org.bruneel.pgpkeymanager.service.SshSetupPackBuilder.BuiltPack(
+                                new byte[] {0x50, 0x4b, 0x03, 0x04},
+                                password,
+                                "bc-tst-ssh-setup.zip",
+                                4));
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-ssh-setup-pack", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"passphrase\":\"test-passphrase-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/zip")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("X-Archive-Password", "TestArchivePass12Ab"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Content-Disposition", "attachment; filename=\"bc-tst-ssh-setup.zip\""));
+
+        verify(pgpKeyService).exportSshSetupPack(eq(USER), eq(keyId), any(ExportSshPrivateRequest.class));
     }
 
     @Test

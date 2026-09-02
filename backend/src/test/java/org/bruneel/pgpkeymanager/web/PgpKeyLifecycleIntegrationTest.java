@@ -124,8 +124,96 @@ class PgpKeyLifecycleIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
                 .andExpect(content().string(org.hamcrest.Matchers.startsWith("ssh-ed25519 ")));
 
+        mockMvc.perform(post("/api/keys/{keyId}/export-ssh-private", authSubkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                { "passphrase": "%s" }
+                                """
+                                        .formatted(PASSPHRASE)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN OPENSSH PRIVATE KEY")));
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-ssh-private", authSubkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"passphrase\": \"wrong-passphrase-xx\" }"))
+                .andExpect(status().isBadRequest());
+
         mockMvc.perform(get("/api/keys/{keyId}/export-ssh-public", subkeyId).with(jwt()))
                 .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-ssh-private", subkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                { "passphrase": "%s" }
+                                """
+                                        .formatted(PASSPHRASE)))
+                .andExpect(status().isBadRequest());
+
+        MvcResult packResult =
+                mockMvc.perform(post("/api/keys/{keyId}/export-ssh-setup-pack", authSubkeyId)
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        { "passphrase": "%s" }
+                                        """
+                                                .formatted(PASSPHRASE)))
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/zip")))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                                .exists("X-Archive-Password"))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                                .string("Cache-Control", "no-store"))
+                        .andReturn();
+
+        String archivePassword = packResult.getResponse().getHeader("X-Archive-Password");
+        org.assertj.core.api.Assertions.assertThat(archivePassword).isNotBlank();
+        byte[] zipBytes = packResult.getResponse().getContentAsByteArray();
+        org.assertj.core.api.Assertions.assertThat(zipBytes).isNotEmpty();
+        org.assertj.core.api.Assertions.assertThat(packResult.getResponse().getContentAsString())
+                .doesNotContain(archivePassword);
+
+        java.nio.file.Path zipPath = java.nio.file.Files.createTempFile("ssh-setup-", ".zip");
+        java.nio.file.Path extractDir = java.nio.file.Files.createTempDirectory("ssh-setup-out");
+        try {
+            java.nio.file.Files.write(zipPath, zipBytes);
+            try (net.lingala.zip4j.ZipFile zipFile =
+                    new net.lingala.zip4j.ZipFile(zipPath.toFile(), archivePassword.toCharArray())) {
+                zipFile.extractAll(extractDir.toString());
+            }
+            boolean foundPrivate =
+                    java.nio.file.Files.list(extractDir)
+                            .anyMatch(
+                                    path -> {
+                                        try {
+                                            return java.nio.file.Files.readString(path)
+                                                    .contains("BEGIN OPENSSH PRIVATE KEY");
+                                        } catch (java.io.IOException e) {
+                                            return false;
+                                        }
+                                    });
+            org.assertj.core.api.Assertions.assertThat(foundPrivate).isTrue();
+            org.assertj.core.api.Assertions.assertThat(extractDir.resolve("README.txt")).exists();
+        } finally {
+            java.nio.file.Files.deleteIfExists(zipPath);
+            try (var paths = java.nio.file.Files.walk(extractDir)) {
+                paths.sorted(java.util.Comparator.reverseOrder())
+                        .forEach(
+                                path -> {
+                                    try {
+                                        java.nio.file.Files.deleteIfExists(path);
+                                    } catch (java.io.IOException ignored) {
+                                        // best-effort cleanup
+                                    }
+                                });
+            }
+        }
 
         mockMvc.perform(post("/api/keys/{keyId}/extend-expiry", subkeyId)
                         .with(jwt())

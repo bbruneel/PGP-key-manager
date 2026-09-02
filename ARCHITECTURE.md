@@ -199,11 +199,21 @@ Phase 17a introduces the **connection registry** only — no S3 or STS calls yet
 
 ## SSH public key export (Phase 9)
 
-1. On key detail (`/keys/:id`), when the key has the `authenticate` capability and an SSH-compatible algorithm (`ed25519`, `rsa`, or `ecdsa`), the **Export SSH public key** section appears below armored PGP export.
+1. On key detail (`/keys/:id`), when the key has the `authenticate` capability and an SSH-compatible algorithm (`ed25519`, `rsa`, or `ecdsa`), the **SSH setup** section appears (Phase 18 unified card; previously standalone export).
 2. `keysApi.exportSshPublic()` sends `GET /api/keys/{keyId}/export-ssh-public` with `operationId: exportSshPublicKey` and `Accept: text/plain`.
 3. Backend `PgpKeyService.exportSshPublic()` validates capability and algorithm, converts the subkey via Bouncy Castle (`PgpSshPublicKeyFormatter`), and logs `export_ssh_public` through `KeyOperationLogger` / `KeyOperationMetrics`.
-4. `[pgp-ui]` events: `keyDetail.exportSsh.submit`, `keyDetail.exportSsh.success`, `keyDetail.exportSsh.error`.
+4. `[pgp-ui]` events: `keyDetail.exportSsh.*` (standalone) or `keyDetail.sshSetup.public.*` (embedded).
 5. Client helper `isSshExportableKey()` (`frontend/src/lib/ssh-export.ts`) gates UI visibility; copy or download `.pub` uses the same export cache pattern as armored PGP export.
+
+## SSH setup pack (Phase 18)
+
+1. Authenticate subkey Overview shows **SSH setup**: server `.pub` + client pack form (vault passphrase + confirm).
+2. Pack requires primary private material; revoked keys can still export public but not the pack.
+3. `keysApi.exportSshSetupPack()` → `POST /api/keys/{keyId}/export-ssh-setup-pack` → AES-256 zip (`application/zip`) with `X-Archive-Password` (CORS-exposed). Files: OpenSSH private (unencrypted PEM), `.pub`, `README.txt`, `config-snippet.txt`.
+4. Frontend downloads the zip, then shows a blocking dialog with the password once (`ArchivePasswordDialog`); dismiss clears React state. Re-download generates a new password.
+5. Lower-level `POST /api/keys/{keyId}/export-ssh-private` remains available (text PEM) and is used internally by the pack builder.
+6. Logging: `export_ssh_private` / `export_ssh_setup_pack` + `export_ssh_private_ready` / `ssh_setup_pack_built` (never log the archive password or key bytes).
+7. `[pgp-ui]`: `keyDetail.sshSetup.pack.*`, `keyDetail.sshSetup.password.shown|copied|dismissed`.
 
 ## Add subkey (Phase 4)
 

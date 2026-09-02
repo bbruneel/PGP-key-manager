@@ -467,6 +467,85 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/{keyId}/export-ssh-private:
+    post:
+      tags: [Keys]
+      summary: Export OpenSSH private key
+      description: |
+        Returns an OpenSSH private key PEM for an authenticate subkey (or primary) with an
+        SSH-compatible algorithm. Requires the vault passphrase that unlocks the primary
+        secret keyring. The private key material itself is unencrypted OpenSSH PEM;
+        revoked keys and keys without stored private material return 4xx.
+        Ed25519/ECDSA use `BEGIN OPENSSH PRIVATE KEY`; RSA uses `BEGIN RSA PRIVATE KEY`
+        (Bouncy Castle PKCS#1 encoding).
+      operationId: exportSshPrivateKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportSshPrivateRequest'
+      responses:
+        '200':
+          description: "OpenSSH private key PEM (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            text/plain:
+              schema:
+                type: string
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/keys/{keyId}/export-ssh-setup-pack:
+    post:
+      tags: [Keys]
+      summary: Download SSH setup pack (AES-encrypted zip)
+      description: |
+        Returns an AES-256 encrypted zip containing an OpenSSH private key, matching `.pub`,
+        README.txt, and config-snippet.txt. Requires the vault passphrase. The one-time
+        archive password is returned in the `X-Archive-Password` response header and is
+        shown once in the UI — it is never stored in the zip or in server logs.
+      operationId: exportSshSetupPack
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportSshPrivateRequest'
+      responses:
+        '200':
+          description: Password-protected SSH setup zip
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="bc-tst-ssh-setup.zip"
+            X-Archive-Password:
+              description: One-time zip password (never logged; shown once in the UI)
+              schema:
+                type: string
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/groups:
     get:
       tags: [Groups]
@@ -1110,6 +1189,13 @@ components:
           format: date-time
         passphrase:
           $ref: '#/components/schemas/PassphraseField'
+    ExportSshPrivateRequest:
+      type: object
+      required: [passphrase]
+      properties:
+        passphrase:
+          $ref: '#/components/schemas/PassphraseField'
+          description: Vault passphrase that unlocks the primary secret keyring.
     RotateKeyRequest:
       type: object
       required: [capabilities, algorithm]

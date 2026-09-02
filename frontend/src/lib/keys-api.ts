@@ -1,7 +1,8 @@
-import { requestJson, requestText } from "@/lib/api-client"
+import { requestBlob, requestJson, requestText } from "@/lib/api-client"
 import type {
   CreatePgpKeyRequest,
   CreateSubkeyRequest,
+  ExportSshPrivateRequest,
   ExtendExpiryRequest,
   KeyRole,
   KeyStatus,
@@ -96,6 +97,12 @@ export type ExportPublicKeyOptions = {
 export type ExportSshPublicKeyOptions = {
   accessToken: string
   keyId: string
+}
+
+export type ExportSshPrivateKeyOptions = {
+  accessToken: string
+  keyId: string
+  body: ExportSshPrivateRequest
 }
 
 export type UpdateKeyOptions = {
@@ -284,6 +291,26 @@ export const keysApi = {
       accessToken: options.accessToken,
       method: "GET",
       headers: { Accept: "text/plain" },
+    })
+  },
+
+  exportSshPrivate(options: ExportSshPrivateKeyOptions): Promise<string> {
+    return requestText(`/api/keys/${options.keyId}/export-ssh-private`, {
+      operationId: "exportSshPrivateKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+      headers: { Accept: "text/plain" },
+    })
+  },
+
+  exportSshSetupPack(options: ExportSshPrivateKeyOptions) {
+    return requestBlob(`/api/keys/${options.keyId}/export-ssh-setup-pack`, {
+      operationId: "exportSshSetupPack",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+      headers: { Accept: "application/zip" },
     })
   },
 }

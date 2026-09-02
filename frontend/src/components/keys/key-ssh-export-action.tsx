@@ -14,6 +14,8 @@ type KeySshExportActionProps = {
   getAccessToken: () => Promise<string>
   /** Bumped when key material may have changed (refresh, revoke, rotate, etc.). */
   invalidateToken?: number
+  /** When true, omit outer heading (used inside SSH setup card). */
+  embedded?: boolean
 }
 
 export function KeySshExportAction({
@@ -22,6 +24,7 @@ export function KeySshExportAction({
   keyIdHex,
   getAccessToken,
   invalidateToken = 0,
+  embedded = false,
 }: KeySshExportActionProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +44,7 @@ export function KeySshExportAction({
     }
 
     logUiEvent("info", {
-      eventId: "keyDetail.exportSsh.submit",
+      eventId: embedded ? "keyDetail.sshSetup.public.submit" : "keyDetail.exportSsh.submit",
       message: "Export SSH public key requested",
       operationId: "exportSshPublicKey",
       keyId,
@@ -56,7 +59,7 @@ export function KeySshExportAction({
       const sshLine = await keysApi.exportSshPublic({ accessToken: token, keyId })
       setExportCache({ keyId, invalidateToken, sshLine })
       logUiEvent("info", {
-        eventId: "keyDetail.exportSsh.success",
+        eventId: embedded ? "keyDetail.sshSetup.public.success" : "keyDetail.exportSsh.success",
         message: "SSH public key exported",
         operationId: "exportSshPublicKey",
         keyId,
@@ -71,7 +74,7 @@ export function KeySshExportAction({
           setRequestId(e.requestId)
         }
         logUiEvent("error", {
-          eventId: "keyDetail.exportSsh.error",
+          eventId: embedded ? "keyDetail.sshSetup.public.error" : "keyDetail.exportSsh.error",
           message: "Export SSH public key failed",
           operationId: e.operationId,
           requestId: e.requestId,
@@ -90,6 +93,13 @@ export function KeySshExportAction({
       const sshLine = await exportSshLine()
       await copyTextToClipboard(sshLine)
       toast.success("SSH public key copied to clipboard")
+      if (embedded) {
+        logUiEvent("info", {
+          eventId: "keyDetail.sshSetup.public.copy",
+          message: "SSH public key copied",
+          keyId,
+        })
+      }
     } catch {
       // error state already set
     }
@@ -107,20 +117,37 @@ export function KeySshExportAction({
       anchor.click()
       URL.revokeObjectURL(url)
       toast.success("SSH public key download started")
+      if (embedded) {
+        logUiEvent("info", {
+          eventId: "keyDetail.sshSetup.public.download",
+          message: "SSH public key downloaded",
+          keyId,
+        })
+      }
     } catch {
       // error state already set
     }
   }
 
   return (
-    <section role="region" aria-label="Export SSH public key" className="space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold text-foreground">Export SSH public key</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Copy or download the OpenSSH one-line public key for <code>authorized_keys</code>. For
-          daily SSH use with GnuPG, configure gpg-agent locally instead of exporting a private key.
+    <section
+      role="region"
+      aria-label={embedded ? "SSH public key for servers" : "Export SSH public key"}
+      className="space-y-3"
+    >
+      {embedded ? null : (
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Export SSH public key</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Copy or download the OpenSSH one-line public key for <code>authorized_keys</code>.
+          </p>
+        </div>
+      )}
+      {embedded ? (
+        <p className="text-sm text-muted-foreground">
+          Copy or download the OpenSSH one-line public key for <code>authorized_keys</code>.
         </p>
-      </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" disabled={loading} onClick={() => void handleCopy()}>
