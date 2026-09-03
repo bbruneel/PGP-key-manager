@@ -209,7 +209,7 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 
 ## Phase 19 — Transfer ownership
 
-1. Open a **primary** key in the personal vault (`/keys/:id` → **Actions & Lifecycle**). Confirm **Transfer ownership** appears outside Danger Zone.
+1. Open a **primary** key in the personal vault (`/keys/:id` or `/keys/:id?tab=actions`). Confirm **Actions & Lifecycle** is selected when `tab=actions` is in the URL, and **Transfer ownership** appears outside Danger Zone.
 2. Transfer to a team vault you belong to; confirm summary shows access impact and subkey count; after success the ownership badge shows `Owned by {group}` and the key appears under `/groups/{groupId}/keys`.
 3. As group **owner**, transfer the same key to another team (team → team) and confirm ownership updates.
 4. As group **owner**, transfer team → personal: pick a source-group member as recipient; confirm only that user can open the key afterward.

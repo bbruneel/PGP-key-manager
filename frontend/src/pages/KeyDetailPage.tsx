@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { notifyAlgorithmAdjusted } from "@/lib/algorithm-adjustment-toast"
@@ -78,6 +78,13 @@ function tabButtonClassName(isActive: boolean) {
 
 type KeyDetailTab = "overview" | "subkeys" | "actions"
 
+function parseKeyDetailTab(value: string | null): KeyDetailTab | null {
+  if (value === "overview" || value === "subkeys" || value === "actions") {
+    return value
+  }
+  return null
+}
+
 export function KeyDetailPage() {
   const { id } = useParams<{ id: string }>()
   if (!id) {
@@ -88,6 +95,7 @@ export function KeyDetailPage() {
 
 function KeyDetailPageContent() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
   const { groups, setActiveGroupId } = useGroupContext()
@@ -152,8 +160,6 @@ function KeyDetailPageContent() {
   const [transferMembers, setTransferMembers] = useState<GroupMember[]>([])
   const [transferMembersLoading, setTransferMembersLoading] = useState(false)
   const [transferSubkeyCount, setTransferSubkeyCount] = useState(0)
-
-  const [activeTab, setActiveTab] = useState<KeyDetailTab>("overview")
 
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
@@ -335,6 +341,33 @@ function KeyDetailPageContent() {
     transferValues.destinationKind,
   ])
 
+  const visibleTabs = useMemo<readonly KeyDetailTab[]>(
+    () => (isPrimary ? ["overview", "subkeys", "actions"] : ["overview", "actions"]),
+    [isPrimary],
+  )
+
+  const requestedTab = parseKeyDetailTab(searchParams.get("tab")) ?? "overview"
+  const activeTab = visibleTabs.includes(requestedTab) ? requestedTab : "overview"
+
+  const activateTab = useCallback(
+    (tab: KeyDetailTab) => {
+      const nextTab = visibleTabs.includes(tab) ? tab : "overview"
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          if (nextTab === "overview") {
+            next.delete("tab")
+          } else {
+            next.set("tab", nextTab)
+          }
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams, visibleTabs],
+  )
+
   useEffect(() => {
     if (activeTab === "actions" && isPrimary) {
       logUiEvent("debug", {
@@ -345,15 +378,10 @@ function KeyDetailPageContent() {
     }
   }, [activeTab, id, isPrimary])
 
-  const visibleTabs = useMemo<readonly KeyDetailTab[]>(
-    () => (isPrimary ? ["overview", "subkeys", "actions"] : ["overview", "actions"]),
-    [isPrimary],
-  )
-
   const { getTabProps } = useRovingTablist<KeyDetailTab>({
     tabs: visibleTabs,
     activeTab,
-    onActivate: setActiveTab,
+    onActivate: activateTab,
     getTabElementId: (tab) => `key-detail-${tab}-tab`,
     onKeyboardNav: ({ to, direction }) => {
       logUiEvent("debug", {
@@ -1075,7 +1103,7 @@ function KeyDetailPageContent() {
               aria-controls="key-detail-overview-panel"
               className={tabButtonClassName(activeTab === "overview")}
               {...getTabProps("overview")}
-              onClick={() => setActiveTab("overview")}
+              onClick={() => activateTab("overview")}
             >
               <Info className="size-4" />
               Overview
@@ -1089,7 +1117,7 @@ function KeyDetailPageContent() {
                 aria-controls="key-detail-subkeys-panel"
                 className={tabButtonClassName(activeTab === "subkeys")}
                 {...getTabProps("subkeys")}
-                onClick={() => setActiveTab("subkeys")}
+                onClick={() => activateTab("subkeys")}
               >
                 <Layers className="size-4" />
                 Subkeys
@@ -1103,7 +1131,7 @@ function KeyDetailPageContent() {
               aria-controls="key-detail-actions-panel"
               className={tabButtonClassName(activeTab === "actions")}
               {...getTabProps("actions")}
-              onClick={() => setActiveTab("actions")}
+              onClick={() => activateTab("actions")}
             >
               <ShieldAlert className="size-4" />
               Actions & Lifecycle
