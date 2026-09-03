@@ -188,6 +188,8 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
 
 - **Phase 18 (implemented):** SSH setup pack for authenticate subkeys — `POST /api/keys/{keyId}/export-ssh-private` (OpenSSH PEM) and `POST /api/keys/{keyId}/export-ssh-setup-pack` (AES-256 zip via zip4j in a JSON envelope with one-time `archivePassword` in the body, not a response header); Overview **SSH setup** card (`SshSetupCard`) with server `.pub` export + pack download; blocking one-time password dialog; OpenSSH private key inside the zip is unencrypted; password never logged or stored in the zip; `[pgp-ui]` `keyDetail.sshSetup.*`; backend ops `export_ssh_private` / `export_ssh_setup_pack`.
 
+- **Phase 19 (implemented):** Transfer ownership between personal and team vaults — `POST /api/keys/{keyId}/transfer-ownership` with optional `ownerGroupId` (team destination) and `targetUserId` (required for team → personal; recipient must be a source-group member). Primary-only with subkey cascade; personal owner or group **owner** role required; revoked keys blocked; fingerprint conflicts hard-fail (409). Actions & Lifecycle **Ownership** card (not Danger Zone) with confirm summary; `[pgp-ui]` `keyDetail.transferOwnership.*`; backend `transfer_ownership` / `transfer_ownership_completed`. No bulk move; no `storage_ref`/S3 path migration (inline Postgres only until Phase 17c+).
+
 - Pages in `frontend/src/pages/`, shared UI in `frontend/src/components/`, utilities in `frontend/src/lib/`.
 - Use `apiFetch` from `frontend/src/lib/api.ts` for API calls. It sets:
   - `Accept: application/json; version=1`
