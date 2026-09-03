@@ -194,7 +194,8 @@ public class PgpKeyController {
             @Valid @RequestBody TransferOwnershipRequest request,
             Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return PgpKeyResponse.from(pgpKeyService.transferOwnership(user, keyId, request.ownerGroupId()), true);
+        return PgpKeyResponse.from(
+                pgpKeyService.transferOwnership(user, keyId, request.ownerGroupId(), request.targetUserId()), true);
     }
 
     @GetMapping(path = "/{keyId}/export-public", produces = {MediaType.TEXT_PLAIN_VALUE, "application/pgp-keys"})
