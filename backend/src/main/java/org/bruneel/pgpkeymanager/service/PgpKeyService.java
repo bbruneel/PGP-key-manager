@@ -564,35 +564,84 @@ public class PgpKeyService {
         }
     }
 
-    public PgpKey transferOwnership(AppUser user, UUID keyId, UUID ownerGroupId) {
-        PgpKey key = getAccessibleKey(user, keyId);
-        // Authorization parity: any current key operator can transfer ownership.
-        // For team targets, caller must be a member of the destination group.
-        Ownership targetOwnership = resolveOwnershipForTransfer(user, ownerGroupId);
-        if (key.ownerType() == targetOwnership.ownerType()
-                && java.util.Objects.equals(key.ownerGroupId(), targetOwnership.ownerGroupId())
-                && java.util.Objects.equals(key.userId(), targetOwnership.ownerUserId())) {
-            return key;
-        }
-
-        List<UUID> keyIds = new ArrayList<>();
-        keyIds.add(key.id());
-        if (key.isPrimary()) {
-            keyIds.addAll(pgpKeyRepository.findSubkeysByParentId(key.id()).stream().map(PgpKey::id).toList());
-        }
+    public PgpKey transferOwnership(AppUser user, UUID keyId, UUID ownerGroupId, UUID targetUserId) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("transfer_ownership", user.id(), keyId);
         try {
-            for (UUID id : keyIds) {
-                pgpKeyRepository
-                        .updateOwnership(id, targetOwnership.ownerType(), targetOwnership.ownerGroupId(), targetOwnership.ownerUserId())
-                        .orElseThrow(() -> new KeyNotFoundException(id));
+            PgpKey key = getAccessibleKey(user, keyId);
+            if (!key.isPrimary()) {
+                throw new BadRequestException("Only primary keys can be transferred; subkeys move with their primary");
             }
-        } catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("A key with this fingerprint already exists for the target owner");
+            if (key.revokedAt() != null) {
+                throw new BadRequestException("Revoked keys cannot be transferred");
+            }
+            requireTransferAuthority(user, key);
+
+            Ownership targetOwnership = resolveOwnershipForTransfer(user, key, ownerGroupId, targetUserId);
+            if (key.ownerType() == targetOwnership.ownerType()
+                    && java.util.Objects.equals(key.ownerGroupId(), targetOwnership.ownerGroupId())
+                    && java.util.Objects.equals(key.userId(), targetOwnership.ownerUserId())) {
+                completeSuccess("transfer_ownership", user.id(), keyId, key.openpgpVersion(), start);
+                log.info(
+                        "transfer_ownership_noop keyId={} ownerType={} ownerGroupId={} ownerUserId={}",
+                        keyId,
+                        key.ownerType().toDb(),
+                        key.ownerGroupId(),
+                        key.userId());
+                return key;
+            }
+
+            List<PgpKey> subkeys = pgpKeyRepository.findSubkeysByParentId(key.id());
+            List<UUID> keyIds = new ArrayList<>();
+            keyIds.add(key.id());
+            keyIds.addAll(subkeys.stream().map(PgpKey::id).toList());
+            try {
+                for (UUID id : keyIds) {
+                    pgpKeyRepository
+                            .updateOwnership(
+                                    id,
+                                    targetOwnership.ownerType(),
+                                    targetOwnership.ownerGroupId(),
+                                    targetOwnership.ownerUserId())
+                            .orElseThrow(() -> new KeyNotFoundException(id));
+                }
+            } catch (DataIntegrityViolationException ex) {
+                throw new ConflictException("A key with this fingerprint already exists for the target owner");
+            }
+
+            PgpKey updated = pgpKeyRepository.findById(keyId).orElseThrow(() -> new KeyNotFoundException(keyId));
+            completeSuccess("transfer_ownership", user.id(), keyId, key.openpgpVersion(), start);
+            log.info(
+                    "transfer_ownership_completed keyId={} fromOwnerType={} toOwnerType={} fromGroupId={} toGroupId={} targetUserId={} subkeyCount={}",
+                    keyId,
+                    key.ownerType().toDb(),
+                    updated.ownerType().toDb(),
+                    key.ownerGroupId(),
+                    updated.ownerGroupId(),
+                    updated.userId(),
+                    subkeys.size());
+            return updated;
+        } catch (RuntimeException ex) {
+            completeFailure("transfer_ownership", user.id(), keyId, 0, start, ex);
+            throw ex;
         }
-        return pgpKeyRepository.findById(keyId).orElseThrow(() -> new KeyNotFoundException(keyId));
     }
 
     public record RotateResult(PgpKey newKey, PgpKey previousKey) {}
+
+    private void requireTransferAuthority(AppUser user, PgpKey key) {
+        if (key.ownerType() == KeyOwnerType.USER) {
+            if (key.userId() == null || !key.userId().equals(user.id())) {
+                throw new KeyNotFoundException(key.id());
+            }
+            return;
+        }
+        UUID groupId = key.ownerGroupId();
+        if (groupId == null) {
+            throw new KeyNotFoundException(key.id());
+        }
+        groupAuthorizationService.requireGroupOwner(user, groupId);
+    }
 
     private PgpKey generatePrimary(AppUser user, CreatePgpKeyRequest request) {
         Ownership ownership = resolveOwnership(user, request.ownerGroupId());
@@ -1048,12 +1097,24 @@ public class PgpKeyService {
         return new Ownership(KeyOwnerType.GROUP, null, ownerGroupId);
     }
 
-    private Ownership resolveOwnershipForTransfer(AppUser user, UUID ownerGroupId) {
-        if (ownerGroupId == null) {
-            return new Ownership(KeyOwnerType.USER, user.id(), null);
+    private Ownership resolveOwnershipForTransfer(
+            AppUser user, PgpKey sourceKey, UUID ownerGroupId, UUID targetUserId) {
+        if (ownerGroupId != null) {
+            groupAuthorizationService.requireGroupMember(user, ownerGroupId);
+            return new Ownership(KeyOwnerType.GROUP, null, ownerGroupId);
         }
-        groupAuthorizationService.requireGroupMember(user, ownerGroupId);
-        return new Ownership(KeyOwnerType.GROUP, null, ownerGroupId);
+        if (sourceKey.ownerType() != KeyOwnerType.GROUP) {
+            throw new BadRequestException(
+                    "Transfer to a personal vault is only allowed from a team vault; choose a team destination");
+        }
+        if (targetUserId == null) {
+            throw new BadRequestException("targetUserId is required when transferring to a personal vault");
+        }
+        UUID sourceGroupId = sourceKey.ownerGroupId();
+        if (sourceGroupId == null || !groupAuthorizationService.isUserMember(sourceGroupId, targetUserId)) {
+            throw new BadRequestException("targetUserId must be a member of the source team vault");
+        }
+        return new Ownership(KeyOwnerType.USER, targetUserId, null);
     }
 
     private PgpKey requirePrimary(AppUser user, UUID primaryKeyId) {

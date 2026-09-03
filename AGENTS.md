@@ -188,6 +188,8 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
 
 - **Phase 18 (implemented):** SSH setup pack for authenticate subkeys — `POST /api/keys/{keyId}/export-ssh-private` (OpenSSH PEM) and `POST /api/keys/{keyId}/export-ssh-setup-pack` (AES-256 zip via zip4j in a JSON envelope with one-time `archivePassword` in the body, not a response header); Overview **SSH setup** card (`SshSetupCard`) with server `.pub` export + pack download; blocking one-time password dialog; OpenSSH private key inside the zip is unencrypted; password never logged or stored in the zip; `[pgp-ui]` `keyDetail.sshSetup.*`; backend ops `export_ssh_private` / `export_ssh_setup_pack`.
 
+- **Phase 19 (implemented):** Transfer ownership between personal and team vaults — `POST /api/keys/{keyId}/transfer-ownership` with optional `ownerGroupId` (team destination) and `targetUserId` (required for team → personal; recipient must be a source-group member). Primary-only with subkey cascade; personal owner or group **owner** role required; revoked keys blocked; fingerprint conflicts hard-fail (409). Actions & Lifecycle **Ownership** card (not Danger Zone) with confirm summary; `[pgp-ui]` `keyDetail.transferOwnership.*`; backend `transfer_ownership` / `transfer_ownership_completed`. No bulk move; no `storage_ref`/S3 path migration (inline Postgres only until Phase 17c+).
+
 - Pages in `frontend/src/pages/`, shared UI in `frontend/src/components/`, utilities in `frontend/src/lib/`.
 - Use `apiFetch` from `frontend/src/lib/api.ts` for API calls. It sets:
   - `Accept: application/json; version=1`
@@ -242,14 +244,15 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
   export PATH="$NVM_DIR/versions/node/v24.16.0/bin:$PATH"
   ```
 - Root and frontend dependencies are refreshed by the update script (`npm ci` at repo root and in `frontend/`).
-- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local` and fill `VITE_AUTH0_*` from secrets when available.
+- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local` and fill `VITE_AUTH0_*` from **Cursor secrets** when present (`VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`, or `AUTH0_DOMAIN` mapped to `VITE_AUTH0_DOMAIN`). Vite only reads `.env.local`, not process env, so copy secrets into that file and restart `npm run dev`.
 - **PostgreSQL** must be running on `localhost:5432` for `spring-boot:run` (Flyway migrations on startup). Tests use in-memory H2 and do not need Postgres. For local Postgres with password `postgres`, export `SPRING_DATASOURCE_PASSWORD=postgres` when starting the backend.
 
 ### Running the stack
 
 1. Ensure PostgreSQL is up (`pg_ctlcluster 16 main start` or `sudo service postgresql start` on Ubuntu).
-2. **Backend:** `cd backend && export SPRING_DATASOURCE_PASSWORD=postgres && ./mvnw spring-boot:run` — listens on `:8080`.
+2. **Backend:** `cd backend && export SPRING_DATASOURCE_PASSWORD=postgres`. For signed-in SPA calls to `/api/keys` and `/api/groups`, also export `AUTH0_AUDIENCE` and `AUTH0_ISSUER_URI` (`https://${AUTH0_DOMAIN}/` when `AUTH0_ISSUER_URI` is not injected). Without a non-blank issuer, JWT resource-server config is off and authenticated routes return **403**. Then `./mvnw spring-boot:run` — listens on `:8080`.
 3. **Frontend:** `cd frontend && npm run dev -- --host 0.0.0.0` — Vite dev server on `:5173`.
+4. **UI login:** use Cursor secrets `AUTH0_E2E_EMAIL` / `AUTH0_E2E_PASSWORD` on the Auth0 email/password form (not Google SSO).
 
 The Overview page health check (`GET /api/hello` → `ok`) and footer **API Connected** indicator confirm the backend is reachable.
 

@@ -24,6 +24,8 @@ export type UiLogContext = {
   filterCapability?: string
   tab?: string
   direction?: TabDirection
+  destinationKind?: string
+  ownerType?: string
 }
 
 const LOG_PREFIX = "[pgp-ui]"
@@ -80,6 +82,8 @@ export function logUiEvent(
     filterCapability: context.filterCapability,
     tab: context.tab,
     direction: context.direction,
+    destinationKind: context.destinationKind,
+    ownerType: context.ownerType,
   }
 
   switch (level) {

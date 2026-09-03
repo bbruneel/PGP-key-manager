@@ -56,6 +56,7 @@ export type PreviewImportSubkeysResponse = {
 }
 export type AlgorithmSpec = components["schemas"]["AlgorithmSpec"]
 export type UpdatePgpKeyRequest = components["schemas"]["UpdatePgpKeyRequest"]
+export type TransferOwnershipRequest = components["schemas"]["TransferOwnershipRequest"]
 
 export type GroupMembershipRole = "owner" | "member"
 

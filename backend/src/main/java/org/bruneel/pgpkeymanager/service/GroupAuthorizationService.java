@@ -45,6 +45,16 @@ public class GroupAuthorizationService {
         return groupMemberRepository.existsByGroupIdAndUserId(groupId, user.id());
     }
 
+    public boolean isUserMember(UUID groupId, UUID userId) {
+        if (groupId == null || userId == null) {
+            return false;
+        }
+        if (groupRepository.findById(groupId).isEmpty()) {
+            return false;
+        }
+        return groupMemberRepository.existsByGroupIdAndUserId(groupId, userId);
+    }
+
     public void requireKeyAccess(AppUser user, PgpKey key) {
         if (key.ownerType() == KeyOwnerType.USER) {
             if (key.userId() == null || !key.userId().equals(user.id())) {
