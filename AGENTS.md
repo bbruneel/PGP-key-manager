@@ -244,14 +244,15 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
   export PATH="$NVM_DIR/versions/node/v24.16.0/bin:$PATH"
   ```
 - Root and frontend dependencies are refreshed by the update script (`npm ci` at repo root and in `frontend/`).
-- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local` and fill `VITE_AUTH0_*` from secrets when available.
+- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local` and fill `VITE_AUTH0_*` from **Cursor secrets** when present (`VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`, or `AUTH0_DOMAIN` mapped to `VITE_AUTH0_DOMAIN`). Vite only reads `.env.local`, not process env, so copy secrets into that file and restart `npm run dev`.
 - **PostgreSQL** must be running on `localhost:5432` for `spring-boot:run` (Flyway migrations on startup). Tests use in-memory H2 and do not need Postgres. For local Postgres with password `postgres`, export `SPRING_DATASOURCE_PASSWORD=postgres` when starting the backend.
 
 ### Running the stack
 
 1. Ensure PostgreSQL is up (`pg_ctlcluster 16 main start` or `sudo service postgresql start` on Ubuntu).
-2. **Backend:** `cd backend && export SPRING_DATASOURCE_PASSWORD=postgres && ./mvnw spring-boot:run` — listens on `:8080`.
+2. **Backend:** `cd backend && export SPRING_DATASOURCE_PASSWORD=postgres`. For signed-in SPA calls to `/api/keys` and `/api/groups`, also export `AUTH0_AUDIENCE` and `AUTH0_ISSUER_URI` (`https://${AUTH0_DOMAIN}/` when `AUTH0_ISSUER_URI` is not injected). Without a non-blank issuer, JWT resource-server config is off and authenticated routes return **403**. Then `./mvnw spring-boot:run` — listens on `:8080`.
 3. **Frontend:** `cd frontend && npm run dev -- --host 0.0.0.0` — Vite dev server on `:5173`.
+4. **UI login:** use Cursor secrets `AUTH0_E2E_EMAIL` / `AUTH0_E2E_PASSWORD` on the Auth0 email/password form (not Google SSO).
 
 The Overview page health check (`GET /api/hello` → `ok`) and footer **API Connected** indicator confirm the backend is reachable.
 

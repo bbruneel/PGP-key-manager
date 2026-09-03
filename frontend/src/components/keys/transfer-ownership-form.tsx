@@ -2,13 +2,6 @@ import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import type {
   TransferDestinationKind,
   TransferOwnershipFieldErrors,
@@ -41,6 +34,9 @@ function FieldError({ message }: { message?: string }) {
   }
   return <p className="mt-1 text-xs text-destructive">{message}</p>
 }
+
+const nativeSelectClassName =
+  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
 
 export function TransferOwnershipForm({
   values,
@@ -109,56 +105,45 @@ export function TransferOwnershipForm({
 
       <div className="space-y-2">
         <Label htmlFor="transfer-destination-kind">Destination</Label>
-        <Select
+        <select
+          id="transfer-destination-kind"
+          className={nativeSelectClassName}
+          data-pgp-ui="keyDetail.transferOwnership.destinationKind"
+          aria-invalid={Boolean(fieldErrors.destinationKind)}
           value={values.destinationKind}
-          onValueChange={(value) => updateDestinationKind(value as TransferDestinationKind)}
           disabled={disabled || submitting}
+          onChange={(event) => updateDestinationKind(event.target.value as TransferDestinationKind)}
         >
-          <SelectTrigger
-            id="transfer-destination-kind"
-            className="w-full"
-            data-pgp-ui="keyDetail.transferOwnership.destinationKind"
-            aria-invalid={Boolean(fieldErrors.destinationKind)}
-          >
-            <SelectValue placeholder="Select destination" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="team">Team vault</SelectItem>
-            {allowPersonalDestination ? (
-              <SelectItem value="personal">Personal vault (pick recipient)</SelectItem>
-            ) : null}
-          </SelectContent>
-        </Select>
+          <option value="team">Team vault</option>
+          {allowPersonalDestination ? (
+            <option value="personal">Personal vault (pick recipient)</option>
+          ) : null}
+        </select>
         <FieldError message={fieldErrors.destinationKind} />
       </div>
 
       {values.destinationKind === "team" ? (
         <div className="space-y-2">
           <Label htmlFor="transfer-owner-group">Team vault</Label>
-          <Select
-            value={values.ownerGroupId || undefined}
-            onValueChange={(value) => {
-              setConfirming(false)
-              onChange({ ...values, ownerGroupId: value })
-            }}
+          <select
+            id="transfer-owner-group"
+            className={nativeSelectClassName}
+            data-pgp-ui="keyDetail.transferOwnership.ownerGroupId"
+            aria-invalid={Boolean(fieldErrors.ownerGroupId)}
+            value={values.ownerGroupId}
             disabled={disabled || submitting || availableGroups.length === 0}
+            onChange={(event) => {
+              setConfirming(false)
+              onChange({ ...values, ownerGroupId: event.target.value })
+            }}
           >
-            <SelectTrigger
-              id="transfer-owner-group"
-              className="w-full"
-              data-pgp-ui="keyDetail.transferOwnership.ownerGroupId"
-              aria-invalid={Boolean(fieldErrors.ownerGroupId)}
-            >
-              <SelectValue placeholder="Select team vault" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableGroups.map((group) => (
-                <SelectItem key={group.id} value={group.id}>
-                  {group.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="">{availableGroups.length === 0 ? "No team vaults" : "Select team vault"}</option>
+            {availableGroups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
           {availableGroups.length === 0 ? (
             <p className="text-xs text-muted-foreground">Join or create a team vault first.</p>
           ) : null}
@@ -167,33 +152,27 @@ export function TransferOwnershipForm({
       ) : (
         <div className="space-y-2">
           <Label htmlFor="transfer-target-user">Recipient (group member)</Label>
-          <Select
-            value={values.targetUserId || undefined}
-            onValueChange={(value) => {
-              setConfirming(false)
-              onChange({ ...values, targetUserId: value })
-            }}
+          <select
+            id="transfer-target-user"
+            className={nativeSelectClassName}
+            data-pgp-ui="keyDetail.transferOwnership.targetUserId"
+            aria-invalid={Boolean(fieldErrors.targetUserId)}
+            value={values.targetUserId}
             disabled={disabled || submitting || membersLoading || members.length === 0}
+            onChange={(event) => {
+              setConfirming(false)
+              onChange({ ...values, targetUserId: event.target.value })
+            }}
           >
-            <SelectTrigger
-              id="transfer-target-user"
-              className="w-full"
-              data-pgp-ui="keyDetail.transferOwnership.targetUserId"
-              aria-invalid={Boolean(fieldErrors.targetUserId)}
-            >
-              <SelectValue
-                placeholder={membersLoading ? "Loading members…" : "Select recipient"}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {members.map((member) => (
-                <SelectItem key={member.userId} value={member.userId}>
-                  <span className="font-mono text-xs">{member.userId}</span>
-                  <span className="ml-2 text-muted-foreground">({member.role})</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="">
+              {membersLoading ? "Loading members…" : "Select recipient"}
+            </option>
+            {members.map((member) => (
+              <option key={member.userId} value={member.userId}>
+                {member.userId} ({member.role})
+              </option>
+            ))}
+          </select>
           <FieldError message={fieldErrors.targetUserId} />
         </div>
       )}
