@@ -20,7 +20,9 @@
     <properties>
         <java.version>25</java.version>
         <maven.compiler.release>25</maven.compiler.release>
-        <bouncycastle.version>1.85</bouncycastle.version>
+        <!-- bcprov 1.85.2 is a security patch on Maven Central; bcpg-jdk18on latest artifact remains 1.85. -->
+        <bouncycastle.bcprov.version>1.85.2</bouncycastle.bcprov.version>
+        <bouncycastle.bcpg.version>1.85</bouncycastle.bcpg.version>
         <!-- Security-monitored dependencies (Spring Boot 4.1.1 BOM):
              postgresql 42.7.12 — CVE-2026-42198 (SCRAM PBKDF2 DoS), CVE-2026-54291 (channel-binding downgrade)
              logback 1.5.37 — CVE-2026-13006 (Janino condition bypass; Janino removed in 1.5.37), CVE-2026-10532, CVE-2026-9828 (deserialization)
@@ -76,12 +78,12 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
-            <version>${bouncycastle.version}</version>
+            <version>${bouncycastle.bcprov.version}</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpg-jdk18on</artifactId>
-            <version>${bouncycastle.version}</version>
+            <version>${bouncycastle.bcpg.version}</version>
         </dependency>
         <dependency>
             <groupId>net.lingala.zip4j</groupId>
