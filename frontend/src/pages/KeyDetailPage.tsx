@@ -264,6 +264,13 @@ function KeyDetailPageContent() {
         status: keyData.status,
       }),
   )
+  // SPA listGroups has no membership role; for team vaults show owner-only copy and disable
+  // download until we wire role-aware gating (avoids a confusing API 404 for members).
+  const canExportPrivate = Boolean(showExportPrivate && keyData?.ownerType !== "group")
+  const exportPrivateDisabledReason =
+    showExportPrivate && keyData?.ownerType === "group"
+      ? "Only a vault owner can export the private keyring from a team vault."
+      : null
   const ownerGroupName = useMemo(() => {
     if (!keyData || keyData.ownerType !== "group" || !keyData.ownerGroupId) {
       return null
@@ -1157,6 +1164,8 @@ function KeyDetailPageContent() {
             showSshPrivateExport={showSshPrivateExport}
             sshPackDisabledReason={sshPackDisabledReason}
             showExportPrivate={showExportPrivate}
+            canExportPrivate={canExportPrivate}
+            exportPrivateDisabledReason={exportPrivateDisabledReason}
             subkeysRefreshToken={subkeysRefreshToken}
             getAccessToken={getAccessToken}
             updateLabelValues={updateLabelValues}

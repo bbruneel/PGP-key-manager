@@ -42,6 +42,7 @@ describe("ExportPrivateCard", () => {
       <ExportPrivateCard
         keyId="primary-1"
         fingerprint="AABB"
+        canExport
         getAccessToken={async () => "token"}
       />,
     )
@@ -67,6 +68,7 @@ describe("ExportPrivateCard", () => {
         fingerprint="AABB"
         keyIdHex="ABCDEF01"
         label="Work key"
+        canExport
         getAccessToken={async () => "token"}
       />,
     )
@@ -88,5 +90,21 @@ describe("ExportPrivateCard", () => {
     )
 
     clickSpy.mockRestore()
+  })
+
+  it("shows vault-owner-only copy when export is disabled", () => {
+    render(
+      <ExportPrivateCard
+        keyId="primary-1"
+        canExport={false}
+        disabledReason="Only a vault owner can export the private keyring from a team vault."
+        getAccessToken={async () => "token"}
+      />,
+    )
+
+    expect(
+      screen.getByText(/Only a vault owner can export the private keyring from a team vault/i),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /download encrypted private keyring/i })).toBeNull()
   })
 })

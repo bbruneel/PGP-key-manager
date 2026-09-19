@@ -18,6 +18,8 @@ export type OverviewTabProps = {
   showSshPrivateExport: boolean
   sshPackDisabledReason?: string | null
   showExportPrivate: boolean
+  canExportPrivate: boolean
+  exportPrivateDisabledReason?: string | null
   subkeysRefreshToken: number
   getAccessToken: () => Promise<string>
   updateLabelValues: UpdateKeyLabelFormValues
@@ -38,6 +40,8 @@ export function OverviewTab({
   showSshPrivateExport,
   sshPackDisabledReason,
   showExportPrivate,
+  canExportPrivate,
+  exportPrivateDisabledReason,
   subkeysRefreshToken,
   getAccessToken,
   updateLabelValues,
@@ -111,6 +115,8 @@ export function OverviewTab({
                 fingerprint={keyData.fingerprint}
                 keyIdHex={keyData.keyId}
                 label={keyData.label}
+                canExport={canExportPrivate}
+                disabledReason={exportPrivateDisabledReason}
                 getAccessToken={getAccessToken}
               />
             </div>
