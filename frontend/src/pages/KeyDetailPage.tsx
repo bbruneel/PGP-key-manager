@@ -56,9 +56,10 @@ import {
   type TransferOwnershipFormValues,
 } from "@/lib/transfer-ownership-validation"
 import { isSshExportableKey } from "@/lib/ssh-export"
+import { isPrivateKeyringExportableKey } from "@/lib/private-keyring-export"
 import { logUiEvent } from "@/lib/ui-logger"
 import { Button } from "@/components/ui/button"
-import type { GroupMember, PgpKey } from "@/types/api"
+import type { GroupMember, GroupMembershipRole, PgpKey } from "@/types/api"
 import { groupsApi } from "@/lib/groups-api"
 import { cn } from "@/lib/utils"
 import { Info, Layers, ShieldAlert } from "lucide-react"
@@ -160,6 +161,8 @@ function KeyDetailPageContent() {
   const [transferMembers, setTransferMembers] = useState<GroupMember[]>([])
   const [transferMembersLoading, setTransferMembersLoading] = useState(false)
   const [transferSubkeyCount, setTransferSubkeyCount] = useState(0)
+  const [myGroupRole, setMyGroupRole] = useState<GroupMembershipRole | null>(null)
+  const [groupMembershipFailed, setGroupMembershipFailed] = useState(false)
 
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
@@ -181,6 +184,20 @@ function KeyDetailPageContent() {
       setTransferRequestId(null)
       if (loaded.ownerType === "group" && loaded.ownerGroupId) {
         setActiveGroupId(loaded.ownerGroupId)
+        try {
+          const membership = await groupsApi.getMyMembership({
+            accessToken: token,
+            groupId: loaded.ownerGroupId,
+          })
+          setMyGroupRole(membership.role)
+          setGroupMembershipFailed(false)
+        } catch {
+          setMyGroupRole(null)
+          setGroupMembershipFailed(true)
+        }
+      } else {
+        setMyGroupRole(null)
+        setGroupMembershipFailed(false)
       }
 
       if (loaded.role === "subkey" && loaded.parentKeyId) {
@@ -203,6 +220,8 @@ function KeyDetailPageContent() {
     } catch (error) {
       setKeyData(null)
       setPrimaryKey(null)
+      setMyGroupRole(null)
+      setGroupMembershipFailed(false)
       setLoadError(getApiErrorMessage(error))
       if (error instanceof ApiError && error.requestId) {
         setLoadRequestId(error.requestId)
@@ -254,6 +273,25 @@ function KeyDetailPageContent() {
     ? "Import private keyring material on the primary key to enable the SSH setup pack."
     : isRevoked
       ? "This key is revoked. Download a new pack from a replacement authenticate subkey."
+      : null
+  const showExportPrivate = Boolean(
+    keyData &&
+      isPrivateKeyringExportableKey({
+        role: keyData.role,
+        hasPrivateMaterial: requiresPassphrase,
+        status: keyData.status,
+      }),
+  )
+  // Team vault: enable download for group OWNER role (GET /members/me); members see owner-only copy.
+  const canExportPrivate = Boolean(
+    showExportPrivate &&
+      (keyData?.ownerType !== "group" || myGroupRole === "owner"),
+  )
+  const exportPrivateDisabledReason =
+    showExportPrivate && keyData?.ownerType === "group" && myGroupRole !== "owner"
+      ? groupMembershipFailed
+        ? "Couldn't verify your vault role. Refresh the page and try again."
+        : "Only a vault owner can export the private keyring from a team vault."
       : null
   const ownerGroupName = useMemo(() => {
     if (!keyData || keyData.ownerType !== "group" || !keyData.ownerGroupId) {
@@ -555,8 +593,21 @@ function KeyDetailPageContent() {
       setTransferValues(defaultTransferOwnershipFormValues(updated.ownerType))
       if (updated.ownerType === "group" && updated.ownerGroupId) {
         setActiveGroupId(updated.ownerGroupId)
+        try {
+          const membership = await groupsApi.getMyMembership({
+            accessToken: token,
+            groupId: updated.ownerGroupId,
+          })
+          setMyGroupRole(membership.role)
+          setGroupMembershipFailed(false)
+        } catch {
+          setMyGroupRole(null)
+          setGroupMembershipFailed(true)
+        }
       } else {
         setActiveGroupId(null)
+        setMyGroupRole(null)
+        setGroupMembershipFailed(false)
       }
       toast.success("Ownership transferred", {
         description:
@@ -1147,6 +1198,9 @@ function KeyDetailPageContent() {
             showSshExport={showSshExport}
             showSshPrivateExport={showSshPrivateExport}
             sshPackDisabledReason={sshPackDisabledReason}
+            showExportPrivate={showExportPrivate}
+            canExportPrivate={canExportPrivate}
+            exportPrivateDisabledReason={exportPrivateDisabledReason}
             subkeysRefreshToken={subkeysRefreshToken}
             getAccessToken={getAccessToken}
             updateLabelValues={updateLabelValues}

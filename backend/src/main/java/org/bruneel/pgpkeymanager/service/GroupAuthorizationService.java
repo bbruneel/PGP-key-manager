@@ -71,6 +71,39 @@ public class GroupAuthorizationService {
         }
     }
 
+    /**
+     * Personal key owner or group OWNER only. Unauthorized callers see {@link KeyNotFoundException}
+     * (hide-with-404) — never a 403 that would confirm the key exists.
+     */
+    public void requireKeyOwnerOrGroupOwner(AppUser user, PgpKey key) {
+        if (key.ownerType() == KeyOwnerType.USER) {
+            if (key.userId() == null || !key.userId().equals(user.id())) {
+                throw new KeyNotFoundException(key.id());
+            }
+            return;
+        }
+        UUID groupId = key.ownerGroupId();
+        if (groupId == null) {
+            throw new KeyNotFoundException(key.id());
+        }
+        GroupMember member =
+                groupMemberRepository
+                        .findByGroupIdAndUserId(groupId, user.id())
+                        .orElseThrow(() -> new KeyNotFoundException(key.id()));
+        if (member.role() != GroupMembershipRole.OWNER) {
+            throw new KeyNotFoundException(key.id());
+        }
+    }
+
+    public boolean canAccessPrivateCiphertext(AppUser user, PgpKey key) {
+        try {
+            requireKeyOwnerOrGroupOwner(user, key);
+            return true;
+        } catch (KeyNotFoundException ex) {
+            return false;
+        }
+    }
+
     private void ensureGroupExists(UUID groupId) {
         if (groupRepository.findById(groupId).isEmpty()) {
             throw new GroupNotFoundException(groupId);

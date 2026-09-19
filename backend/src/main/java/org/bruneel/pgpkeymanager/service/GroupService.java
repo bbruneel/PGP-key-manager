@@ -109,6 +109,10 @@ public class GroupService {
         return groupMemberRepository.findAllByGroupId(groupId);
     }
 
+    public GroupMember getMyMembership(AppUser user, UUID groupId) {
+        return groupAuthorizationService.requireGroupMember(user, groupId);
+    }
+
     public GroupInvite invite(
             AppUser user,
             UUID groupId,

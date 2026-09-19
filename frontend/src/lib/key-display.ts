@@ -58,9 +58,16 @@ export function formatRevokedAt(revokedAt: string | null | undefined): string | 
 }
 
 export function hasPrivateMaterial(key: {
+  hasPrivateMaterial?: boolean | null
   encryptedPrivateArmored?: string | null
   keyType?: string | null
 }): boolean {
+  if (key.hasPrivateMaterial === true) {
+    return true
+  }
+  if (key.hasPrivateMaterial === false) {
+    return false
+  }
   if (key.encryptedPrivateArmored) {
     return true
   }

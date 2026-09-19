@@ -333,6 +333,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/keys/{keyId}/export-private": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export private OpenPGP secret keyring (ciphertext) */
+        post: operations["exportPrivateKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/groups": {
         parameters: {
             query?: never;
@@ -411,7 +428,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get current user's membership */
+        get: operations["getMyGroupMembership"];
         put?: never;
         post?: never;
         /** Leave group */
@@ -719,6 +737,22 @@ export interface components {
         ExportSshPrivateRequest: {
             passphrase: components["schemas"]["PassphraseField"];
         };
+        /**
+         * Mode A: empty body or omit passphrase fields for ciphertext-only download.
+         *     Mode B (future): vault `passphrase` plus optional `newPassphrase` to rewrap.
+         */
+        ExportPrivateRequest: {
+            /**
+             * Reserved for Mode B vault unlock / rewrap. Sending a non-empty value before Mode B
+             *     ships returns 400.
+             */
+            passphrase?: components["schemas"]["PassphraseField"];
+            /**
+             * Reserved for Mode B transfer passphrase. Sending a non-empty value before Mode B
+             *     ships returns 400.
+             */
+            newPassphrase?: components["schemas"]["PassphraseField"];
+        };
         SshSetupPackResponse: {
             /** @description Suggested download filename for the zip */
             filename: string;
@@ -985,7 +1019,11 @@ export interface components {
         PgpKey: components["schemas"]["PgpKeySummary"] & {
             /** @description Present on primary keys; omitted on subkey list/detail responses. */
             armoredPublic?: string;
-            /** @description Present on primary detail when generated or imported with private material. */
+            /**
+             * Present only when `GET /api/keys/{keyId}?includePrivateCiphertext=true` and the
+             *     caller is the personal owner or group OWNER. Prefer `POST .../export-private` for
+             *     audited private keyring export. Omitted from list responses and default GET.
+             */
             encryptedPrivateArmored?: string;
             /**
              * @description Present on primary register responses when subkey rows were auto-imported from a
@@ -1133,7 +1171,14 @@ export interface operations {
     };
     getKey: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * When true, include `encryptedPrivateArmored` if the caller is the personal owner
+                 *     or group OWNER and the key row stores private material. Unauthorized callers still
+                 *     receive 200 with metadata; the ciphertext field is omitted.
+                 */
+                includePrivateCiphertext?: boolean;
+            };
             header?: never;
             path: {
                 keyId: components["parameters"]["KeyId"];
@@ -1544,6 +1589,35 @@ export interface operations {
             "4XX": components["responses"]["ErrorResponse"];
         };
     };
+    exportPrivateKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExportPrivateRequest"];
+            };
+        };
+        responses: {
+            /** @description OpenPGP encrypted secret keyring armor (Cache-Control: no-store) */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pgp-keys": string;
+                    "text/plain": string;
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
     listGroups: {
         parameters: {
             query?: never;
@@ -1702,6 +1776,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    getMyGroupMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: components["parameters"]["GroupId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user's membership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupMemberResponse"];
+                };
             };
             "4XX": components["responses"]["ErrorResponse"];
         };

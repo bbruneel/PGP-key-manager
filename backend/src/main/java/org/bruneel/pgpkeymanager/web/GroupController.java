@@ -84,6 +84,12 @@ public class GroupController {
         return groupService.listMembers(user, groupId).stream().map(GroupMemberResponse::from).toList();
     }
 
+    @GetMapping("/{groupId}/members/me")
+    public GroupMemberResponse getMyMembership(@PathVariable UUID groupId, Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return GroupMemberResponse.from(groupService.getMyMembership(user, groupId));
+    }
+
     @DeleteMapping("/{groupId}/members/{memberUserId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeMember(

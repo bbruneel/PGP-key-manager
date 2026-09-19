@@ -3,6 +3,7 @@ import type {
   CreatePgpKeyRequest,
   CreateSubkeyRequest,
   ExportSshPrivateRequest,
+  ExportPrivateRequest,
   ExtendExpiryRequest,
   KeyRole,
   KeyStatus,
@@ -105,6 +106,12 @@ export type ExportSshPrivateKeyOptions = {
   accessToken: string
   keyId: string
   body: ExportSshPrivateRequest
+}
+
+export type ExportPrivateKeyOptions = {
+  accessToken: string
+  keyId: string
+  body?: ExportPrivateRequest
 }
 
 export type UpdateKeyOptions = {
@@ -341,6 +348,16 @@ export const keysApi = {
         filename: pack.filename || "ssh-setup.zip",
         archivePassword: pack.archivePassword,
       }
+    })
+  },
+
+  exportPrivate(options: ExportPrivateKeyOptions): Promise<string> {
+    return requestText(`/api/keys/${options.keyId}/export-private`, {
+      operationId: "exportPrivateKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body ?? {},
+      headers: { Accept: "application/pgp-keys" },
     })
   },
 }

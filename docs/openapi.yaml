@@ -154,10 +154,27 @@ paths:
     get:
       tags: [Keys]
       summary: Get key
+      description: |
+        Returns key metadata for any caller with key access. Private ciphertext
+        (`encryptedPrivateArmored`) is omitted by default. Set
+        `includePrivateCiphertext=true` to request it; the field is included only for the
+        personal key owner or group OWNER, and inclusion is audited
+        (`get_key_private_ciphertext`). Prefer `POST /api/keys/{keyId}/export-private` for
+        deliberate private keyring export.
       operationId: getKey
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/KeyId'
+        - name: includePrivateCiphertext
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: |
+            When true, include `encryptedPrivateArmored` if the caller is the personal owner
+            or group OWNER and the key row stores private material. Unauthorized callers still
+            receive 200 with metadata; the ciphertext field is omitted.
       responses:
         '200':
           description: Key details
@@ -551,6 +568,51 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/{keyId}/export-private:
+    post:
+      tags: [Keys]
+      summary: Export private OpenPGP secret keyring (ciphertext)
+      description: |
+        Mode A (current): returns the stored OpenPGP encrypted **secret keyring** armor from the
+        primary (`encryptedPrivateArmored`, S2K-protected) without server unlock. Accepts a
+        **primary** `keyId` only — subkey ids receive 404 (hide-with-404). Requires private
+        material on the primary and authorization as the personal key owner or group OWNER.
+        Unauthorized callers and subkey ids receive 404. Revoked primaries and primaries without
+        private material return 4xx. There is no encrypt-capability requirement; the artifact is
+        the full stored ring (all capabilities present in that keyring).
+
+        Mode B (future): optional `passphrase` (vault unlock) and `newPassphrase` (rewrap) on the
+        same request schema; sending them today returns 400 until rewrap ships.
+
+        Audit operation: `export_private_keyring`.
+      operationId: exportPrivateKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportPrivateRequest'
+      responses:
+        '200':
+          description: "OpenPGP encrypted secret keyring armor (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/pgp-keys:
+              schema:
+                type: string
+            text/plain:
+              schema:
+                type: string
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/groups:
     get:
       tags: [Groups]
@@ -661,6 +723,37 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/groups/{groupId}/members/me:
+    get:
+      tags: [Groups]
+      summary: Get current user's membership
+      description: Returns the authenticated user's membership row for this group (including role).
+      operationId: getMyGroupMembership
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Current user's membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMemberResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Groups]
+      summary: Leave group
+      operationId: leaveGroup
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '204':
+          description: Current user removed from group
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/groups/{groupId}/members/{memberUserId}:
     delete:
       tags: [Groups]
@@ -673,20 +766,6 @@ paths:
       responses:
         '204':
           description: Member removed
-        '4XX':
-          $ref: '#/components/responses/ErrorResponse'
-
-  /api/groups/{groupId}/members/me:
-    delete:
-      tags: [Groups]
-      summary: Leave group
-      operationId: leaveGroup
-      x-implementation-status: implemented
-      parameters:
-        - $ref: '#/components/parameters/GroupId'
-      responses:
-        '204':
-          description: Current user removed from group
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
@@ -1207,6 +1286,22 @@ components:
         passphrase:
           $ref: '#/components/schemas/PassphraseField'
           description: Vault passphrase that unlocks the primary secret keyring.
+    ExportPrivateRequest:
+      type: object
+      description: |
+        Mode A: empty body or omit passphrase fields for ciphertext-only download.
+        Mode B (future): vault `passphrase` plus optional `newPassphrase` to rewrap.
+      properties:
+        passphrase:
+          $ref: '#/components/schemas/PassphraseField'
+          description: |
+            Reserved for Mode B vault unlock / rewrap. Sending a non-empty value before Mode B
+            ships returns 400.
+        newPassphrase:
+          $ref: '#/components/schemas/PassphraseField'
+          description: |
+            Reserved for Mode B transfer passphrase. Sending a non-empty value before Mode B
+            ships returns 400.
     SshSetupPackResponse:
       type: object
       required: [filename, archivePassword, content]
@@ -1673,7 +1768,10 @@ components:
               description: Present on primary keys; omitted on subkey list/detail responses.
             encryptedPrivateArmored:
               type: string
-              description: Present on primary detail when generated or imported with private material.
+              description: |
+                Present only when `GET /api/keys/{keyId}?includePrivateCiphertext=true` and the
+                caller is the personal owner or group OWNER. Prefer `POST .../export-private` for
+                audited private keyring export. Omitted from list responses and default GET.
             registeredSubkeyCount:
               type: integer
               description: |

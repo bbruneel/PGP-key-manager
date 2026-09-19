@@ -83,6 +83,40 @@ class GroupAuthorizationServiceTest {
     }
 
     @Test
+    void requireKeyOwnerOrGroupOwnerAllowsGroupOwner() {
+        AppUser user = appUser();
+        UUID groupId = UUID.randomUUID();
+        PgpKey key = groupOwnedKey(groupId);
+        when(groupMemberRepository.findByGroupIdAndUserId(groupId, user.id()))
+                .thenReturn(Optional.of(new GroupMember(groupId, user.id(), GroupMembershipRole.OWNER, null, Instant.now())));
+
+        assertThatCode(() -> service.requireKeyOwnerOrGroupOwner(user, key)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void requireKeyOwnerOrGroupOwnerRejectsGroupMemberWithNotFound() {
+        AppUser user = appUser();
+        UUID groupId = UUID.randomUUID();
+        PgpKey key = groupOwnedKey(groupId);
+        when(groupMemberRepository.findByGroupIdAndUserId(groupId, user.id()))
+                .thenReturn(Optional.of(new GroupMember(groupId, user.id(), GroupMembershipRole.MEMBER, null, Instant.now())));
+
+        assertThatThrownBy(() -> service.requireKeyOwnerOrGroupOwner(user, key))
+                .isInstanceOf(KeyNotFoundException.class);
+    }
+
+    @Test
+    void canAccessPrivateCiphertextFalseForGroupMember() {
+        AppUser user = appUser();
+        UUID groupId = UUID.randomUUID();
+        PgpKey key = groupOwnedKey(groupId);
+        when(groupMemberRepository.findByGroupIdAndUserId(groupId, user.id()))
+                .thenReturn(Optional.of(new GroupMember(groupId, user.id(), GroupMembershipRole.MEMBER, null, Instant.now())));
+
+        assertThat(service.canAccessPrivateCiphertext(user, key)).isFalse();
+    }
+
+    @Test
     void requireKeyAccessRejectsForeignPersonalKey() {
         AppUser user = appUser();
         PgpKey foreignKey =

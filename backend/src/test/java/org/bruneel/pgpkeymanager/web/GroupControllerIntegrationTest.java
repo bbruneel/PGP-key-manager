@@ -101,6 +101,25 @@ class GroupControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void getMyMembershipReturnsRoleForCurrentUser() throws Exception {
+        String groupId = createGroup("My Membership Group");
+
+        mockMvc.perform(get("/api/groups/{groupId}/members/me", groupId).with(jwtForSubject(PRIMARY_SUBJECT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.groupId").value(groupId))
+                .andExpect(jsonPath("$.role").value("owner"));
+
+        String token = createInvite(groupId, SECONDARY_SUBJECT + "@example.test");
+        mockMvc.perform(post("/api/invites/{token}/accept", token).with(jwtForSubject(SECONDARY_SUBJECT)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/groups/{groupId}/members/me", groupId).with(jwtForSubject(SECONDARY_SUBJECT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.groupId").value(groupId))
+                .andExpect(jsonPath("$.role").value("member"));
+    }
+
     private String createGroup(String name) throws Exception {
         MvcResult created =
                 mockMvc.perform(post("/api/groups")

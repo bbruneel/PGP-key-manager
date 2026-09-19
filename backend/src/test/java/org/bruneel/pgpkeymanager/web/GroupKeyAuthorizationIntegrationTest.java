@@ -5,6 +5,7 @@ import static org.bruneel.pgpkeymanager.TestJwtSupport.SECONDARY_SUBJECT;
 import static org.bruneel.pgpkeymanager.TestJwtSupport.jwtForSubject;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -56,12 +57,45 @@ class GroupKeyAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$[0].id").value(keyId));
     }
 
+    @Test
+    void exportPrivateRequiresGroupOwnerNotMember() throws Exception {
+        String groupId = createGroup();
+        String primaryId = createGroupOwnedPrivatePrimary(groupId);
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
+                        .with(jwtForSubject(PRIMARY_SUBJECT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PRIVATE KEY BLOCK")));
+
+        String token = inviteSecondaryUser(groupId);
+        mockMvc.perform(post("/api/invites/{token}/accept", token).with(jwtForSubject(SECONDARY_SUBJECT)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwtForSubject(SECONDARY_SUBJECT)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
+                        .with(jwtForSubject(SECONDARY_SUBJECT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId)
+                        .param("includePrivateCiphertext", "true")
+                        .with(jwtForSubject(SECONDARY_SUBJECT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.encryptedPrivateArmored").doesNotExist());
+    }
+
     private String createGroup() throws Exception {
+        String name = "Shared Key Group " + java.util.UUID.randomUUID();
         MvcResult result =
                 mockMvc.perform(post("/api/groups")
                                 .with(jwtForSubject(PRIMARY_SUBJECT))
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"name\":\"Shared Key Group\"}"))
+                                .content("{\"name\":\"" + name + "\"}"))
                         .andExpect(status().isCreated())
                         .andReturn();
         return readJsonField(result.getResponse().getContentAsString(), "id");
@@ -88,6 +122,30 @@ class GroupKeyAuthorizationIntegrationTest {
                         .andExpect(jsonPath("$.ownerType").value("group"))
                         .andReturn();
         return readJsonField(result.getResponse().getContentAsString(), "id");
+    }
+
+    private String createGroupOwnedPrivatePrimary(String groupId) throws Exception {
+        MvcResult createPrimary =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwtForSubject(PRIMARY_SUBJECT))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "team-private",
+                                          "keyType": "private",
+                                          "ownerGroupId": "%s",
+                                          "capabilities": ["certify", "sign"],
+                                          "algorithmSpec": { "algorithm": "ed25519" },
+                                          "validity": { "expiresAt": "2030-06-01T00:00:00Z" },
+                                          "userIds": [{ "name": "Team", "email": "team@example.com" }],
+                                          "passphrase": "group-export-pass-1"
+                                        }
+                                        """
+                                                .formatted(groupId)))
+                        .andExpect(status().isCreated())
+                        .andReturn();
+        return readJsonField(createPrimary.getResponse().getContentAsString(), "id");
     }
 
     private String inviteSecondaryUser(String groupId) throws Exception {
