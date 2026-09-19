@@ -64,6 +64,25 @@ describe("groupsApi", () => {
     expect(result).toEqual([{ groupId: "group-1", userId: "user-1", role: "owner" }])
   })
 
+  it("loads current user's membership", async () => {
+    const member = {
+      groupId: "group-1",
+      userId: "user-1",
+      role: "owner" as const,
+      joinedAt: "2026-01-01T00:00:00Z",
+    }
+    vi.mocked(requestJson).mockResolvedValue(member)
+
+    const result = await groupsApi.getMyMembership({ accessToken: "token-abc", groupId: "group-1" })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/groups/group-1/members/me", {
+      operationId: "getMyGroupMembership",
+      accessToken: "token-abc",
+      method: "GET",
+    })
+    expect(result).toEqual(member)
+  })
+
   it("removes a group member", async () => {
     vi.mocked(requestJson).mockResolvedValue(undefined)
 

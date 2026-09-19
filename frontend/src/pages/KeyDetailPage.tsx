@@ -59,7 +59,7 @@ import { isSshExportableKey } from "@/lib/ssh-export"
 import { isPrivateKeyringExportableKey } from "@/lib/private-keyring-export"
 import { logUiEvent } from "@/lib/ui-logger"
 import { Button } from "@/components/ui/button"
-import type { GroupMember, PgpKey } from "@/types/api"
+import type { GroupMember, GroupMembershipRole, PgpKey } from "@/types/api"
 import { groupsApi } from "@/lib/groups-api"
 import { cn } from "@/lib/utils"
 import { Info, Layers, ShieldAlert } from "lucide-react"
@@ -161,6 +161,7 @@ function KeyDetailPageContent() {
   const [transferMembers, setTransferMembers] = useState<GroupMember[]>([])
   const [transferMembersLoading, setTransferMembersLoading] = useState(false)
   const [transferSubkeyCount, setTransferSubkeyCount] = useState(0)
+  const [myGroupRole, setMyGroupRole] = useState<GroupMembershipRole | null>(null)
 
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
@@ -182,6 +183,17 @@ function KeyDetailPageContent() {
       setTransferRequestId(null)
       if (loaded.ownerType === "group" && loaded.ownerGroupId) {
         setActiveGroupId(loaded.ownerGroupId)
+        try {
+          const membership = await groupsApi.getMyMembership({
+            accessToken: token,
+            groupId: loaded.ownerGroupId,
+          })
+          setMyGroupRole(membership.role)
+        } catch {
+          setMyGroupRole(null)
+        }
+      } else {
+        setMyGroupRole(null)
       }
 
       if (loaded.role === "subkey" && loaded.parentKeyId) {
@@ -204,6 +216,7 @@ function KeyDetailPageContent() {
     } catch (error) {
       setKeyData(null)
       setPrimaryKey(null)
+      setMyGroupRole(null)
       setLoadError(getApiErrorMessage(error))
       if (error instanceof ApiError && error.requestId) {
         setLoadRequestId(error.requestId)
@@ -264,11 +277,13 @@ function KeyDetailPageContent() {
         status: keyData.status,
       }),
   )
-  // SPA listGroups has no membership role; for team vaults show owner-only copy and disable
-  // download until we wire role-aware gating (avoids a confusing API 404 for members).
-  const canExportPrivate = Boolean(showExportPrivate && keyData?.ownerType !== "group")
+  // Team vault: enable download for group OWNER role (GET /members/me); members see owner-only copy.
+  const canExportPrivate = Boolean(
+    showExportPrivate &&
+      (keyData?.ownerType !== "group" || myGroupRole === "owner"),
+  )
   const exportPrivateDisabledReason =
-    showExportPrivate && keyData?.ownerType === "group"
+    showExportPrivate && keyData?.ownerType === "group" && myGroupRole !== "owner"
       ? "Only a vault owner can export the private keyring from a team vault."
       : null
   const ownerGroupName = useMemo(() => {
@@ -571,8 +586,18 @@ function KeyDetailPageContent() {
       setTransferValues(defaultTransferOwnershipFormValues(updated.ownerType))
       if (updated.ownerType === "group" && updated.ownerGroupId) {
         setActiveGroupId(updated.ownerGroupId)
+        try {
+          const membership = await groupsApi.getMyMembership({
+            accessToken: token,
+            groupId: updated.ownerGroupId,
+          })
+          setMyGroupRole(membership.role)
+        } catch {
+          setMyGroupRole(null)
+        }
       } else {
         setActiveGroupId(null)
+        setMyGroupRole(null)
       }
       toast.success("Ownership transferred", {
         description:

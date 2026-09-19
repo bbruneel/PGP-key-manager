@@ -102,6 +102,14 @@ export const groupsApi = {
     })
   },
 
+  getMyMembership(options: GroupIdOptions): Promise<GroupMember> {
+    return requestJson<GroupMember>(`/api/groups/${options.groupId}/members/me`, {
+      operationId: "getMyGroupMembership",
+      accessToken: options.accessToken,
+      method: "GET",
+    })
+  },
+
   removeMember(options: RemoveGroupMemberOptions): Promise<void> {
     return requestJson<void>(`/api/groups/${options.groupId}/members/${options.memberUserId}`, {
       operationId: "removeGroupMember",

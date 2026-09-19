@@ -723,6 +723,37 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/groups/{groupId}/members/me:
+    get:
+      tags: [Groups]
+      summary: Get current user's membership
+      description: Returns the authenticated user's membership row for this group (including role).
+      operationId: getMyGroupMembership
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Current user's membership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupMemberResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+    delete:
+      tags: [Groups]
+      summary: Leave group
+      operationId: leaveGroup
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '204':
+          description: Current user removed from group
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/groups/{groupId}/members/{memberUserId}:
     delete:
       tags: [Groups]
@@ -735,20 +766,6 @@ paths:
       responses:
         '204':
           description: Member removed
-        '4XX':
-          $ref: '#/components/responses/ErrorResponse'
-
-  /api/groups/{groupId}/members/me:
-    delete:
-      tags: [Groups]
-      summary: Leave group
-      operationId: leaveGroup
-      x-implementation-status: implemented
-      parameters:
-        - $ref: '#/components/parameters/GroupId'
-      responses:
-        '204':
-          description: Current user removed from group
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 

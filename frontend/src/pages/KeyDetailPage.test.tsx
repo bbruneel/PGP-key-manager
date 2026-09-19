@@ -81,6 +81,7 @@ vi.mock("@/lib/keys-api", () => ({
 vi.mock("@/lib/groups-api", () => ({
   groupsApi: {
     listMembers: vi.fn(),
+    getMyMembership: vi.fn(),
   },
 }))
 
@@ -175,6 +176,7 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.delete).mockReset()
     vi.mocked(keysApi.transferOwnership).mockReset()
     vi.mocked(groupsApi.listMembers).mockReset()
+    vi.mocked(groupsApi.getMyMembership).mockReset()
     vi.mocked(copyTextToClipboard).mockReset()
     vi.mocked(logUiEvent).mockReset()
     setActiveGroupId.mockReset()
@@ -185,6 +187,12 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.get).mockResolvedValue(primaryKey)
     vi.mocked(keysApi.listSubkeys).mockResolvedValue([])
     vi.mocked(groupsApi.listMembers).mockResolvedValue([])
+    vi.mocked(groupsApi.getMyMembership).mockResolvedValue({
+      groupId: "group-1",
+      userId: "user-1",
+      role: "owner",
+      joinedAt: "2026-01-01T00:00:00Z",
+    })
   })
 
   it("keeps inactive tab panels in the DOM with hidden class", async () => {
@@ -837,6 +845,67 @@ describe("KeyDetailPage", () => {
       expect.objectContaining({ description: "Key is now in a team vault" }),
     )
     expect(setActiveGroupId).toHaveBeenCalledWith("group-1")
+    await waitFor(() => {
+      expect(groupsApi.getMyMembership).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        groupId: "group-1",
+      })
+    })
+  })
+
+  it("enables private keyring export for team vault owners", async () => {
+    vi.mocked(keysApi.get).mockResolvedValue({
+      ...primaryKey,
+      ownerType: "group",
+      ownerGroupId: "group-1",
+      hasPrivateMaterial: true,
+    })
+    vi.mocked(groupsApi.getMyMembership).mockResolvedValue({
+      groupId: "group-1",
+      userId: "user-1",
+      role: "owner",
+      joinedAt: "2026-01-01T00:00:00Z",
+    })
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+    const exportSection = screen.getByRole("region", { name: "Export private keyring" })
+    expect(
+      within(exportSection).getByRole("button", { name: /download encrypted private keyring/i }),
+    ).toBeInTheDocument()
+    expect(groupsApi.getMyMembership).toHaveBeenCalledWith({
+      accessToken: "access-token",
+      groupId: "group-1",
+    })
+  })
+
+  it("disables private keyring export for team vault members", async () => {
+    vi.mocked(keysApi.get).mockResolvedValue({
+      ...primaryKey,
+      ownerType: "group",
+      ownerGroupId: "group-1",
+      hasPrivateMaterial: true,
+    })
+    vi.mocked(groupsApi.getMyMembership).mockResolvedValue({
+      groupId: "group-1",
+      userId: "user-2",
+      role: "member",
+      joinedAt: "2026-01-01T00:00:00Z",
+    })
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+    const exportSection = screen.getByRole("region", { name: "Export private keyring" })
+    expect(
+      within(exportSection).getByText(
+        /Only a vault owner can export the private keyring from a team vault/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(exportSection).queryByRole("button", { name: /download encrypted private keyring/i }),
+    ).toBeNull()
   })
 })
 

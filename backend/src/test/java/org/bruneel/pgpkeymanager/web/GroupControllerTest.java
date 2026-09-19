@@ -132,6 +132,21 @@ class GroupControllerTest {
     }
 
     @Test
+    void getMyMembershipReturnsCurrentMember() throws Exception {
+        UUID groupId = group().id();
+        GroupMember member = new GroupMember(groupId, USER.id(), GroupMembershipRole.OWNER, USER.id(), Instant.now());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(groupService.getMyMembership(USER, groupId)).thenReturn(member);
+
+        mockMvc.perform(get("/api/groups/{groupId}/members/me", groupId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(USER.id().toString()))
+                .andExpect(jsonPath("$.role").value("owner"));
+
+        verify(groupService).getMyMembership(USER, groupId);
+    }
+
+    @Test
     void removeMemberReturnsNoContent() throws Exception {
         UUID groupId = group().id();
         UUID memberId = UUID.randomUUID();

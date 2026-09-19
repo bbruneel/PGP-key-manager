@@ -428,7 +428,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get current user's membership */
+        get: operations["getMyGroupMembership"];
         put?: never;
         post?: never;
         /** Leave group */
@@ -1775,6 +1776,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    getMyGroupMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: components["parameters"]["GroupId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current user's membership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupMemberResponse"];
+                };
             };
             "4XX": components["responses"]["ErrorResponse"];
         };
