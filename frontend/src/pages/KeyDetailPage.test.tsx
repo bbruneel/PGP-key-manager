@@ -907,5 +907,31 @@ describe("KeyDetailPage", () => {
       within(exportSection).queryByRole("button", { name: /download encrypted private keyring/i }),
     ).toBeNull()
   })
+
+  it("shows verify-role copy when membership fetch fails for a team vault key", async () => {
+    vi.mocked(keysApi.get).mockResolvedValue({
+      ...primaryKey,
+      ownerType: "group",
+      ownerGroupId: "group-1",
+      hasPrivateMaterial: true,
+    })
+    vi.mocked(groupsApi.getMyMembership).mockRejectedValue(new Error("network"))
+
+    renderDetail()
+
+    await screen.findByRole("heading", { name: "Work key" })
+    const exportSection = screen.getByRole("region", { name: "Export private keyring" })
+    expect(
+      within(exportSection).getByText(/Couldn't verify your vault role/i),
+    ).toBeInTheDocument()
+    expect(
+      within(exportSection).queryByText(
+        /Only a vault owner can export the private keyring from a team vault/i,
+      ),
+    ).toBeNull()
+    expect(
+      within(exportSection).queryByRole("button", { name: /download encrypted private keyring/i }),
+    ).toBeNull()
+  })
 })
 

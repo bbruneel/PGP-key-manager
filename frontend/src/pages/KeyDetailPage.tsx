@@ -162,6 +162,7 @@ function KeyDetailPageContent() {
   const [transferMembersLoading, setTransferMembersLoading] = useState(false)
   const [transferSubkeyCount, setTransferSubkeyCount] = useState(0)
   const [myGroupRole, setMyGroupRole] = useState<GroupMembershipRole | null>(null)
+  const [groupMembershipFailed, setGroupMembershipFailed] = useState(false)
 
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
@@ -189,11 +190,14 @@ function KeyDetailPageContent() {
             groupId: loaded.ownerGroupId,
           })
           setMyGroupRole(membership.role)
+          setGroupMembershipFailed(false)
         } catch {
           setMyGroupRole(null)
+          setGroupMembershipFailed(true)
         }
       } else {
         setMyGroupRole(null)
+        setGroupMembershipFailed(false)
       }
 
       if (loaded.role === "subkey" && loaded.parentKeyId) {
@@ -217,6 +221,7 @@ function KeyDetailPageContent() {
       setKeyData(null)
       setPrimaryKey(null)
       setMyGroupRole(null)
+      setGroupMembershipFailed(false)
       setLoadError(getApiErrorMessage(error))
       if (error instanceof ApiError && error.requestId) {
         setLoadRequestId(error.requestId)
@@ -284,7 +289,9 @@ function KeyDetailPageContent() {
   )
   const exportPrivateDisabledReason =
     showExportPrivate && keyData?.ownerType === "group" && myGroupRole !== "owner"
-      ? "Only a vault owner can export the private keyring from a team vault."
+      ? groupMembershipFailed
+        ? "Couldn't verify your vault role. Refresh the page and try again."
+        : "Only a vault owner can export the private keyring from a team vault."
       : null
   const ownerGroupName = useMemo(() => {
     if (!keyData || keyData.ownerType !== "group" || !keyData.ownerGroupId) {
@@ -592,12 +599,15 @@ function KeyDetailPageContent() {
             groupId: updated.ownerGroupId,
           })
           setMyGroupRole(membership.role)
+          setGroupMembershipFailed(false)
         } catch {
           setMyGroupRole(null)
+          setGroupMembershipFailed(true)
         }
       } else {
         setActiveGroupId(null)
         setMyGroupRole(null)
+        setGroupMembershipFailed(false)
       }
       toast.success("Ownership transferred", {
         description:
