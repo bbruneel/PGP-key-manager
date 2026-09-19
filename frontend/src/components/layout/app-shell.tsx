@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { Link, NavLink, useSearchParams } from "react-router-dom"
+import { Link, NavLink, useLocation, useSearchParams } from "react-router-dom"
 import {
   ChevronDown,
   Download,
@@ -116,21 +116,19 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
                 Team vault
               </p>
               <p className="px-3 pb-1 text-xs text-sidebar-foreground">{activeGroup.name}</p>
-              <NavLink
-                to={`/groups/${activeGroup.id}/keys`}
-                onClick={isMobile ? closeMobileNav : undefined}
-                className={({ isActive }) =>
-                  cn(
-                    "flex min-w-0 items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-                  )
-                }
-              >
-                <KeyRound className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
-                <span className="flex-1 text-left">Group keys</span>
-              </NavLink>
+              <NavRow
+                item={{
+                  label: "Group keys",
+                  to: `/groups/${activeGroup.id}/keys`,
+                  icon: KeyRound,
+                  children: [
+                    { label: "Public", to: `/groups/${activeGroup.id}/keys?view=public` },
+                    { label: "Private", to: `/groups/${activeGroup.id}/keys?view=private` },
+                    { label: "Subkeys", to: `/groups/${activeGroup.id}/keys?view=subkeys` },
+                  ],
+                }}
+                onNavigate={isMobile ? closeMobileNav : undefined}
+              />
               <NavLink
                 to={`/groups/${activeGroup.id}/members`}
                 onClick={isMobile ? closeMobileNav : undefined}
@@ -214,6 +212,7 @@ function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }
   const hasChildren = Boolean(item.children?.length)
   const [expanded, setExpanded] = useState(true)
   const [searchParams] = useSearchParams()
+  const { pathname } = useLocation()
 
   if (item.to) {
     return (
@@ -251,12 +250,13 @@ function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }
         {hasChildren && expanded ? (
           <ul className="mt-0.5 ml-5 space-y-0.5 border-l border-sidebar-border/80 pl-6">
             {item.children!.map((child) => {
-              const childView = new URL(child.to, "http://local").searchParams.get("view")
+              const childUrl = new URL(child.to, "http://local")
+              const childView = childUrl.searchParams.get("view")
               const activeView = searchParams.get("view") ?? "all"
-              const isChildActive = childView === activeView
+              const isChildActive = pathname === childUrl.pathname && childView === activeView
 
               return (
-                <li key={child.label}>
+                <li key={`${item.label}-${child.label}`}>
                   <NavLink
                     to={child.to}
                     onClick={onNavigate}
