@@ -29,7 +29,7 @@ export function validateExportPrivateForm(
   const fieldErrors: ExportPrivateFieldErrors = {}
   if (!values.confirmed) {
     fieldErrors.confirmed =
-      "Confirm that you understand this download can decrypt data encrypted to this key"
+      "Confirm that you understand this download is the full secret keyring for this identity"
   }
   return {
     valid: Object.keys(fieldErrors).length === 0,

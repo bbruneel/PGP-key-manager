@@ -57,7 +57,7 @@ export function ExportPrivateCard({
   async function handleSubmit() {
     logUiEvent("info", {
       eventId: "keyDetail.exportPrivate.submit",
-      message: "Private encryption-key export submitted",
+      message: "Private keyring export submitted",
       operationId: "exportPrivateKey",
       keyId,
     })
@@ -67,7 +67,7 @@ export function ExportPrivateCard({
       setFieldErrors(validation.fieldErrors)
       logUiEvent("warn", {
         eventId: "keyDetail.exportPrivate.validationFailed",
-        message: "Private encryption-key export validation failed",
+        message: "Private keyring export validation failed",
         keyId,
       })
       return
@@ -93,18 +93,18 @@ export function ExportPrivateCard({
       const fallbackName = `${(label ?? keyIdHex ?? fingerprint ?? keyId)
         .toString()
         .toLowerCase()
-        .replace(/[^a-z0-9._-]+/g, "-")}-private.asc`
+        .replace(/[^a-z0-9._-]+/g, "-")}-secret-keyring.asc`
       anchor.download = fallbackName
       anchor.click()
       URL.revokeObjectURL(url)
 
-      toast.success("Encrypted private key downloaded", {
+      toast.success("Encrypted private keyring downloaded", {
         description:
-          "The file remains passphrase-protected OpenPGP armor. Do not store it in chat, email, or screenshots.",
+          "The file is the full OpenPGP secret keyring and remains passphrase-protected. Do not store it in chat, email, or screenshots.",
       })
       logUiEvent("info", {
         eventId: "keyDetail.exportPrivate.success",
-        message: "Private encryption-key export downloaded",
+        message: "Private keyring export downloaded",
         operationId: "exportPrivateKey",
         keyId,
         fingerprint: fingerprint ?? undefined,
@@ -117,7 +117,7 @@ export function ExportPrivateCard({
       }
       logUiEvent("error", {
         eventId: "keyDetail.exportPrivate.error",
-        message: "Private encryption-key export failed",
+        message: "Private keyring export failed",
         operationId: error instanceof ApiError ? error.operationId : "exportPrivateKey",
         requestId: error instanceof ApiError ? error.requestId : undefined,
         status: error instanceof ApiError ? error.status : undefined,
@@ -131,15 +131,16 @@ export function ExportPrivateCard({
   return (
     <section
       role="region"
-      aria-label="Export private encryption key"
+      aria-label="Export private keyring"
       className="space-y-4"
       data-pgp-ui="keyDetail.exportPrivate"
     >
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Export private encryption key</h3>
+        <h3 className="text-sm font-semibold text-foreground">Export private keyring</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Download the stored OpenPGP encrypted secret for backup or use in GnuPG, Thunderbird, or
-          other OpenPGP tools. Anyone who unlocks this file can decrypt data encrypted to this key.
+          Download the stored OpenPGP encrypted secret keyring for backup or use in GnuPG,
+          Thunderbird, or other OpenPGP tools. This file includes the primary and every secret
+          subkey in the ring (decrypt, sign, and authenticate as applicable).
         </p>
       </div>
 
@@ -166,7 +167,8 @@ export function ExportPrivateCard({
               data-pgp-ui="keyDetail.exportPrivate.confirm"
             />
             <Label htmlFor="export-private-confirm" className="text-sm font-normal leading-snug">
-              I understand this download can decrypt data encrypted to this key.
+              I understand this download is the full secret keyring and can decrypt, sign, or
+              authenticate as this identity where those capabilities exist in the ring.
             </Label>
           </div>
           <FieldError message={fieldErrors.confirmed} />
@@ -181,12 +183,12 @@ export function ExportPrivateCard({
           ) : null}
 
           <Button type="submit" disabled={submitting} data-pgp-ui="keyDetail.exportPrivate.download">
-            {submitting ? "Downloading…" : "Download encrypted private key"}
+            {submitting ? "Downloading…" : "Download encrypted private keyring"}
           </Button>
         </form>
       ) : (
         <p className="text-sm text-muted-foreground" data-pgp-ui="keyDetail.exportPrivate.disabled">
-          {disabledReason ?? "Private encryption-key export is not available for this key."}
+          {disabledReason ?? "Private keyring export is not available for this key."}
         </p>
       )}
     </section>

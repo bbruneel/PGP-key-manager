@@ -40,14 +40,14 @@ describe("ExportPrivateCard", () => {
     const user = userEvent.setup()
     render(
       <ExportPrivateCard
-        keyId="enc-1"
+        keyId="primary-1"
         fingerprint="AABB"
         canExport
         getAccessToken={async () => "token"}
       />,
     )
 
-    await user.click(screen.getByRole("button", { name: /download encrypted private key/i }))
+    await user.click(screen.getByRole("button", { name: /download encrypted private keyring/i }))
     expect(keysApi.exportPrivate).not.toHaveBeenCalled()
     expect(logUiEvent).toHaveBeenCalledWith(
       "warn",
@@ -64,22 +64,22 @@ describe("ExportPrivateCard", () => {
 
     render(
       <ExportPrivateCard
-        keyId="enc-1"
+        keyId="primary-1"
         fingerprint="AABB"
         keyIdHex="ABCDEF01"
-        label="Encrypt Subkey"
+        label="Work key"
         canExport
         getAccessToken={async () => "token"}
       />,
     )
 
-    await user.click(screen.getByLabelText(/I understand this download can decrypt/i))
-    await user.click(screen.getByRole("button", { name: /download encrypted private key/i }))
+    await user.click(screen.getByLabelText(/I understand this download is the full secret keyring/i))
+    await user.click(screen.getByRole("button", { name: /download encrypted private keyring/i }))
 
     await waitFor(() => {
       expect(keysApi.exportPrivate).toHaveBeenCalledWith({
         accessToken: "token",
-        keyId: "enc-1",
+        keyId: "primary-1",
         body: {},
       })
     })
@@ -95,16 +95,14 @@ describe("ExportPrivateCard", () => {
   it("shows disabled reason when export is unavailable", () => {
     render(
       <ExportPrivateCard
-        keyId="enc-1"
+        keyId="primary-1"
         canExport={false}
-        disabledReason="Import private keyring material on the primary key to enable export."
+        disabledReason="Import private keyring material to enable export."
         getAccessToken={async () => "token"}
       />,
     )
 
-    expect(
-      screen.getByText(/Import private keyring material on the primary key to enable export/i),
-    ).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /download encrypted private key/i })).toBeNull()
+    expect(screen.getByText(/Import private keyring material to enable export/i)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /download encrypted private keyring/i })).toBeNull()
   })
 })

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 
+import { isPrivateKeyringExportableKey } from "@/lib/private-keyring-export"
 import {
   buildExportPrivateRequest,
   defaultExportPrivateFormValues,
   validateExportPrivateForm,
 } from "@/lib/export-private-validation"
-import { isEncryptPrivateExportableKey } from "@/lib/encrypt-private-export"
 
 describe("validateExportPrivateForm", () => {
   it("requires confirmation", () => {
@@ -26,9 +26,35 @@ describe("validateExportPrivateForm", () => {
   })
 })
 
-describe("isEncryptPrivateExportableKey", () => {
-  it("requires encrypt capability", () => {
-    expect(isEncryptPrivateExportableKey(["authenticate"])).toBe(false)
-    expect(isEncryptPrivateExportableKey(["encrypt"])).toBe(true)
+describe("isPrivateKeyringExportableKey", () => {
+  it("requires primary with private material and not revoked", () => {
+    expect(
+      isPrivateKeyringExportableKey({
+        role: "subkey",
+        hasPrivateMaterial: true,
+        status: "active",
+      }),
+    ).toBe(false)
+    expect(
+      isPrivateKeyringExportableKey({
+        role: "primary",
+        hasPrivateMaterial: false,
+        status: "active",
+      }),
+    ).toBe(false)
+    expect(
+      isPrivateKeyringExportableKey({
+        role: "primary",
+        hasPrivateMaterial: true,
+        status: "revoked",
+      }),
+    ).toBe(false)
+    expect(
+      isPrivateKeyringExportableKey({
+        role: "primary",
+        hasPrivateMaterial: true,
+        status: "active",
+      }),
+    ).toBe(true)
   })
 })

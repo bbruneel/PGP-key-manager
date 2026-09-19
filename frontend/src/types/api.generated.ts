@@ -342,7 +342,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export private OpenPGP encryption key (ciphertext) */
+        /** Export private OpenPGP secret keyring (ciphertext) */
         post: operations["exportPrivateKey"];
         delete?: never;
         options?: never;
@@ -1603,7 +1603,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OpenPGP encrypted secret armor (Cache-Control: no-store) */
+            /** @description OpenPGP encrypted secret keyring armor (Cache-Control: no-store) */
             200: {
                 headers: {
                     "Cache-Control"?: string;

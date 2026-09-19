@@ -584,13 +584,14 @@ public class PgpKeyService {
     }
 
     /**
-     * Mode A: return stored OpenPGP encrypted secret armor (no server unlock). Requires owner or
-     * group OWNER, encrypt capability, and private material on the primary keyring. Mode B fields
-     * ({@code passphrase}, {@code newPassphrase}) are reserved and rejected until rewrap ships.
+     * Mode A: return stored OpenPGP encrypted secret keyring armor (no server unlock).
+     * Accepts primary key ids only (subkey → hide-with-404). Requires owner or group OWNER,
+     * private material on the primary, and not revoked. Mode B fields ({@code passphrase},
+     * {@code newPassphrase}) are reserved and rejected until rewrap ships.
      */
     public String exportPrivate(AppUser user, UUID keyId, ExportPrivateRequest request) {
         long start = System.currentTimeMillis();
-        operationLogger.started("export_encrypt_private", user.id(), keyId);
+        operationLogger.started("export_private_keyring", user.id(), keyId);
         int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
         char[] passphrase = request != null ? request.passphrase() : null;
         char[] newPassphrase = request != null ? request.newPassphrase() : null;
@@ -603,29 +604,27 @@ public class PgpKeyService {
             PgpKey key = getForUser(user, keyId);
             openpgpVersion = key.openpgpVersion();
             groupAuthorizationService.requireKeyOwnerOrGroupOwner(user, key);
-            ensureNotRevoked(key);
-            PgpKeyValidator.validateEncryptPrivateExportable(key);
-
-            UUID primaryId = key.isPrimary() ? key.id() : key.parentKeyId();
-            if (primaryId == null) {
-                throw new BadRequestException("Subkey has no parent primary key");
+            if (!key.isPrimary()) {
+                throw new KeyNotFoundException(keyId);
             }
-            PgpKey primary = requirePrimaryWithPrivate(user, primaryId);
-            openpgpVersion = primary.openpgpVersion();
+            ensureNotRevoked(key);
+            if (!key.hasPrivateMaterial()) {
+                throw new BadRequestException("Primary key has no private material for export");
+            }
 
-            String armor = primary.encryptedPrivateArmored();
+            String armor = key.encryptedPrivateArmored();
             log.info(
-                    "export_encrypt_private_ready mode=ciphertext_download algorithm={} keyIdHex={} hasPrivateMaterial=true",
+                    "export_private_keyring_ready mode=ciphertext_download algorithm={} keyIdHex={} hasPrivateMaterial=true",
                     key.algorithm(),
                     key.keyId() != null ? key.keyId().toLowerCase() : null);
-            completeSuccess("export_encrypt_private", user.id(), keyId, openpgpVersion, start);
+            completeSuccess("export_private_keyring", user.id(), keyId, openpgpVersion, start);
             return armor;
         } catch (RuntimeException ex) {
-            completeFailure("export_encrypt_private", user.id(), keyId, openpgpVersion, start, ex);
+            completeFailure("export_private_keyring", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
         } finally {
-            PassphraseUtil.wipe(passphrase, "export_encrypt_private");
-            PassphraseUtil.wipe(newPassphrase, "export_encrypt_private");
+            PassphraseUtil.wipe(passphrase, "export_private_keyring");
+            PassphraseUtil.wipe(newPassphrase, "export_private_keyring");
         }
     }
 

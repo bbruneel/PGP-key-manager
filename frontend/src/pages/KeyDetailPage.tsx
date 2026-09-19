@@ -56,7 +56,7 @@ import {
   type TransferOwnershipFormValues,
 } from "@/lib/transfer-ownership-validation"
 import { isSshExportableKey } from "@/lib/ssh-export"
-import { isEncryptPrivateExportableKey } from "@/lib/encrypt-private-export"
+import { isPrivateKeyringExportableKey } from "@/lib/private-keyring-export"
 import { logUiEvent } from "@/lib/ui-logger"
 import { Button } from "@/components/ui/button"
 import type { GroupMember, PgpKey } from "@/types/api"
@@ -257,14 +257,15 @@ function KeyDetailPageContent() {
       ? "This key is revoked. Download a new pack from a replacement authenticate subkey."
       : null
   const showExportPrivate = Boolean(
-    keyData && isEncryptPrivateExportableKey(keyData.capabilities),
+    keyData &&
+      isPrivateKeyringExportableKey({
+        role: keyData.role,
+        hasPrivateMaterial: requiresPassphrase,
+        status: keyData.status,
+      }),
   )
-  const canExportPrivate = Boolean(showExportPrivate && requiresPassphrase && !isRevoked)
-  const exportPrivateDisabledReason = !requiresPassphrase
-    ? "Import private keyring material on the primary key to enable private encryption-key export."
-    : isRevoked
-      ? "This key is revoked. Export from a replacement encrypt subkey instead."
-      : null
+  const canExportPrivate = showExportPrivate
+  const exportPrivateDisabledReason = null
   const ownerGroupName = useMemo(() => {
     if (!keyData || keyData.ownerType !== "group" || !keyData.ownerGroupId) {
       return null

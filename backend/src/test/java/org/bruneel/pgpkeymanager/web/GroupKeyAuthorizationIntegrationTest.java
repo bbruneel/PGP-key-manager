@@ -60,9 +60,9 @@ class GroupKeyAuthorizationIntegrationTest {
     @Test
     void exportPrivateRequiresGroupOwnerNotMember() throws Exception {
         String groupId = createGroup();
-        String encryptSubkeyId = createGroupOwnedEncryptSubkey(groupId);
+        String primaryId = createGroupOwnedPrivatePrimary(groupId);
 
-        mockMvc.perform(post("/api/keys/{keyId}/export-private", encryptSubkeyId)
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
                         .with(jwtForSubject(PRIMARY_SUBJECT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
@@ -73,16 +73,16 @@ class GroupKeyAuthorizationIntegrationTest {
         mockMvc.perform(post("/api/invites/{token}/accept", token).with(jwtForSubject(SECONDARY_SUBJECT)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/keys/{keyId}", encryptSubkeyId).with(jwtForSubject(SECONDARY_SUBJECT)))
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwtForSubject(SECONDARY_SUBJECT)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/keys/{keyId}/export-private", encryptSubkeyId)
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
                         .with(jwtForSubject(SECONDARY_SUBJECT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isNotFound());
 
-        mockMvc.perform(get("/api/keys/{keyId}", encryptSubkeyId)
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId)
                         .param("includePrivateCiphertext", "true")
                         .with(jwtForSubject(SECONDARY_SUBJECT)))
                 .andExpect(status().isOk())
@@ -124,7 +124,7 @@ class GroupKeyAuthorizationIntegrationTest {
         return readJsonField(result.getResponse().getContentAsString(), "id");
     }
 
-    private String createGroupOwnedEncryptSubkey(String groupId) throws Exception {
+    private String createGroupOwnedPrivatePrimary(String groupId) throws Exception {
         MvcResult createPrimary =
                 mockMvc.perform(post("/api/keys")
                                 .with(jwtForSubject(PRIMARY_SUBJECT))
@@ -145,24 +145,7 @@ class GroupKeyAuthorizationIntegrationTest {
                                                 .formatted(groupId)))
                         .andExpect(status().isCreated())
                         .andReturn();
-        String primaryId = readJsonField(createPrimary.getResponse().getContentAsString(), "id");
-
-        MvcResult createSubkey =
-                mockMvc.perform(post("/api/keys/{primaryKeyId}/subkeys", primaryId)
-                                .with(jwtForSubject(PRIMARY_SUBJECT))
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(
-                                        """
-                                        {
-                                          "capabilities": ["encrypt"],
-                                          "algorithm": { "algorithm": "cv25519" },
-                                          "validity": { "expiresAt": "2029-06-01T00:00:00Z" },
-                                          "passphrase": "group-export-pass-1"
-                                        }
-                                        """))
-                        .andExpect(status().isCreated())
-                        .andReturn();
-        return readJsonField(createSubkey.getResponse().getContentAsString(), "id");
+        return readJsonField(createPrimary.getResponse().getContentAsString(), "id");
     }
 
     private String inviteSecondaryUser(String groupId) throws Exception {

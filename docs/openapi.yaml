@@ -571,16 +571,20 @@ paths:
   /api/keys/{keyId}/export-private:
     post:
       tags: [Keys]
-      summary: Export private OpenPGP encryption key (ciphertext)
+      summary: Export private OpenPGP secret keyring (ciphertext)
       description: |
-        Mode A (current): returns the stored OpenPGP encrypted secret armor from the primary
-        keyring (S2K-protected ciphertext) without server unlock. Requires the `encrypt`
-        capability on the target key, private material on the primary, and authorization as the
-        personal key owner or group OWNER. Unauthorized callers receive 404 (hide-with-404).
-        Revoked keys and keys without encrypt return 4xx.
+        Mode A (current): returns the stored OpenPGP encrypted **secret keyring** armor from the
+        primary (`encryptedPrivateArmored`, S2K-protected) without server unlock. Accepts a
+        **primary** `keyId` only — subkey ids receive 404 (hide-with-404). Requires private
+        material on the primary and authorization as the personal key owner or group OWNER.
+        Unauthorized callers and subkey ids receive 404. Revoked primaries and primaries without
+        private material return 4xx. There is no encrypt-capability requirement; the artifact is
+        the full stored ring (all capabilities present in that keyring).
 
         Mode B (future): optional `passphrase` (vault unlock) and `newPassphrase` (rewrap) on the
         same request schema; sending them today returns 400 until rewrap ships.
+
+        Audit operation: `export_private_keyring`.
       operationId: exportPrivateKey
       x-implementation-status: implemented
       parameters:
@@ -593,7 +597,7 @@ paths:
               $ref: '#/components/schemas/ExportPrivateRequest'
       responses:
         '200':
-          description: "OpenPGP encrypted secret armor (Cache-Control: no-store)"
+          description: "OpenPGP encrypted secret keyring armor (Cache-Control: no-store)"
           headers:
             Cache-Control:
               schema:
