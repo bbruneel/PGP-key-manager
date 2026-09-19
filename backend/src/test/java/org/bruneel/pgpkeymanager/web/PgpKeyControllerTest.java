@@ -471,7 +471,7 @@ class PgpKeyControllerTest {
         UUID groupId = UUID.fromString("00000000-0000-0000-0000-00000000000a");
         PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
-        when(pgpKeyService.transferOwnership(eq(USER), eq(keyId), eq(groupId))).thenReturn(key);
+        when(pgpKeyService.transferOwnership(eq(USER), eq(keyId), eq(groupId), isNull())).thenReturn(key);
 
         mockMvc.perform(post("/api/keys/{keyId}/transfer-ownership", keyId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -479,6 +479,23 @@ class PgpKeyControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(key.id().toString()));
 
-        verify(pgpKeyService).transferOwnership(eq(USER), eq(keyId), eq(groupId));
+        verify(pgpKeyService).transferOwnership(eq(USER), eq(keyId), eq(groupId), isNull());
+    }
+
+    @Test
+    void transferOwnershipToPersonalPassesTargetUserId() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID targetUserId = UUID.fromString("00000000-0000-0000-0000-0000000000bb");
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.transferOwnership(eq(USER), eq(keyId), isNull(), eq(targetUserId))).thenReturn(key);
+
+        mockMvc.perform(post("/api/keys/{keyId}/transfer-ownership", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetUserId\":\"" + targetUserId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(key.id().toString()));
+
+        verify(pgpKeyService).transferOwnership(eq(USER), eq(keyId), isNull(), eq(targetUserId));
     }
 }

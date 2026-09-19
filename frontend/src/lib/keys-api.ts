@@ -18,6 +18,7 @@ import type {
   RotateKeyResponse,
   SshSetupPackResponse,
   UpdatePgpKeyRequest,
+  TransferOwnershipRequest,
 } from "@/types/api"
 
 export type ListKeysOptions = {
@@ -110,6 +111,12 @@ export type UpdateKeyOptions = {
   accessToken: string
   keyId: string
   body: UpdatePgpKeyRequest
+}
+
+export type TransferOwnershipOptions = {
+  accessToken: string
+  keyId: string
+  body: TransferOwnershipRequest
 }
 
 export type DeleteKeyOptions = {
@@ -208,6 +215,15 @@ export const keysApi = {
       operationId: "updateKey",
       accessToken: options.accessToken,
       method: "PATCH",
+      body: options.body,
+    })
+  },
+
+  transferOwnership(options: TransferOwnershipOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>(`/api/keys/${options.keyId}/transfer-ownership`, {
+      operationId: "transferOwnership",
+      accessToken: options.accessToken,
+      method: "POST",
       body: options.body,
     })
   },

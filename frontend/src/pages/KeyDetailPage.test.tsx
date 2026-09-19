@@ -15,6 +15,17 @@ vi.mock("sonner", () => ({
 
 const getAccessToken = vi.fn()
 const navigate = vi.fn()
+const setActiveGroupId = vi.fn()
+const groupContext = {
+  groups: [] as Group[],
+  activeGroup: null as Group | null,
+  activeGroupId: null as string | null,
+  isLoading: false,
+  error: null as string | null,
+  requestId: null as string | null,
+  refreshGroups: vi.fn(),
+  setActiveGroupId,
+}
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom")
@@ -35,16 +46,7 @@ vi.mock("@/hooks/use-api-access-token", () => ({
 }))
 
 vi.mock("@/hooks/use-group-context", () => ({
-  useGroupContext: () => ({
-    groups: [],
-    activeGroup: null,
-    activeGroupId: null,
-    isLoading: false,
-    error: null,
-    requestId: null,
-    refreshGroups: vi.fn(),
-    setActiveGroupId: vi.fn(),
-  }),
+  useGroupContext: () => groupContext,
 }))
 
 vi.mock("@/lib/ui-logger", () => ({
@@ -71,14 +73,22 @@ vi.mock("@/lib/keys-api", () => ({
     exportSshSetupPack: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    transferOwnership: vi.fn(),
+  },
+}))
+
+vi.mock("@/lib/groups-api", () => ({
+  groupsApi: {
+    listMembers: vi.fn(),
   },
 }))
 
 import { toast } from "sonner"
 
 import { copyTextToClipboard } from "@/lib/clipboard"
+import { groupsApi } from "@/lib/groups-api"
 import { KeyDetailPage } from "@/pages/KeyDetailPage"
-import type { PgpKey } from "@/types/api"
+import type { Group, PgpKey } from "@/types/api"
 
 const primaryKey: PgpKey = {
   id: "primary-1",
@@ -162,11 +172,18 @@ describe("KeyDetailPage", () => {
     vi.mocked(keysApi.exportSshPublic).mockReset()
     vi.mocked(keysApi.update).mockReset()
     vi.mocked(keysApi.delete).mockReset()
+    vi.mocked(keysApi.transferOwnership).mockReset()
+    vi.mocked(groupsApi.listMembers).mockReset()
     vi.mocked(copyTextToClipboard).mockReset()
     vi.mocked(logUiEvent).mockReset()
+    setActiveGroupId.mockReset()
+    groupContext.groups = []
+    groupContext.activeGroup = null
+    groupContext.activeGroupId = null
     getAccessToken.mockResolvedValue("access-token")
     vi.mocked(keysApi.get).mockResolvedValue(primaryKey)
     vi.mocked(keysApi.listSubkeys).mockResolvedValue([])
+    vi.mocked(groupsApi.listMembers).mockResolvedValue([])
   })
 
   it("keeps inactive tab panels in the DOM with hidden class", async () => {
@@ -733,6 +750,92 @@ describe("KeyDetailPage", () => {
       expect(document.activeElement).toBe(actionsTab)
     })
     expect(screen.getByRole("region", { name: "Revoke key" })).toBeVisible()
+  })
+
+  it("opens the Actions tab from ?tab=actions", async () => {
+    renderDetail("/keys/primary-1?tab=actions")
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    const actionsTab = screen.getByRole("tab", { name: /actions & lifecycle/i })
+    expect(actionsTab).toHaveAttribute("aria-selected", "true")
+    expect(document.getElementById("key-detail-actions-panel")).not.toHaveClass("hidden")
+    expect(document.getElementById("key-detail-overview-panel")).toHaveClass("hidden")
+    expect(screen.getByRole("region", { name: "Transfer ownership" })).toBeVisible()
+    expect(logUiEvent).toHaveBeenCalledWith(
+      "debug",
+      expect.objectContaining({
+        eventId: "keyDetail.transferOwnership.pageView",
+        keyId: "primary-1",
+      }),
+    )
+  })
+
+  it("writes tab=actions to the URL when Actions is selected", async () => {
+    const user = userEvent.setup()
+    const router = createMemoryRouter(
+      [{ path: "/keys/:id", element: <KeyDetailPage /> }],
+      { initialEntries: ["/keys/primary-1"] },
+    )
+    render(<RouterProvider router={router} />)
+
+    await screen.findByRole("heading", { name: "Work key" })
+    await user.click(screen.getByRole("tab", { name: /actions & lifecycle/i }))
+
+    await waitFor(() => {
+      expect(router.state.location.search).toBe("?tab=actions")
+    })
+    expect(screen.getByRole("tab", { name: /actions & lifecycle/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+  })
+
+  it("falls back to overview when ?tab= is not a visible tab", async () => {
+    renderDetail("/keys/primary-1?tab=not-a-tab")
+
+    await screen.findByRole("heading", { name: "Work key" })
+
+    expect(screen.getByRole("tab", { name: /^overview$/i })).toHaveAttribute("aria-selected", "true")
+    expect(document.getElementById("key-detail-overview-panel")).not.toHaveClass("hidden")
+  })
+
+  it("transfers a personal primary into a team vault from the Actions tab", async () => {
+    const user = userEvent.setup()
+    const team: Group = {
+      id: "group-1",
+      name: "Platform",
+      ownerUserId: "user-1",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    }
+    groupContext.groups = [team]
+    vi.mocked(keysApi.transferOwnership).mockResolvedValue({
+      ...primaryKey,
+      ownerType: "group",
+      ownerGroupId: "group-1",
+    })
+
+    renderDetail("/keys/primary-1?tab=actions")
+
+    await screen.findByRole("heading", { name: "Work key" })
+    const transferSection = screen.getByRole("region", { name: "Transfer ownership" })
+    await user.selectOptions(within(transferSection).getByLabelText(/^team vault$/i), "group-1")
+    await user.click(within(transferSection).getByRole("button", { name: /^transfer ownership$/i }))
+    await user.click(within(transferSection).getByRole("button", { name: /confirm transfer/i }))
+
+    await waitFor(() => {
+      expect(keysApi.transferOwnership).toHaveBeenCalledWith({
+        accessToken: "access-token",
+        keyId: "primary-1",
+        body: { ownerGroupId: "group-1" },
+      })
+    })
+    expect(toast.success).toHaveBeenCalledWith(
+      "Ownership transferred",
+      expect.objectContaining({ description: "Key is now in a team vault" }),
+    )
+    expect(setActiveGroupId).toHaveBeenCalledWith("group-1")
   })
 })
 

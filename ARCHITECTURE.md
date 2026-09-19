@@ -152,7 +152,7 @@ Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in
 - Keys listing now supports `GET /api/keys?groupId={uuid}&scope=personal|group|all`.
 - Create/import requests can include `ownerGroupId` so new keys are written directly to a team vault.
 - Key detail resolves ownership (`ownerType`, `ownerGroupId`) and shows badge context (`Personal vault` or `Owned by {group}`).
-- Ownership transfer has parity with other key operations: any current key operator can transfer, and destination team transfer requires membership in the target group.
+- **Phase 19:** Ownership transfer (primary + cascaded subkeys) is available on **Actions & Lifecycle** in an Ownership card (not Danger Zone). Personal sources require the personal owner; team sources require the group **owner** role. Destinations: any team the caller belongs to (including team → team), or team → personal with a required `targetUserId` that is a source-group member. Revoked and subkey-only transfers are rejected.
 
 ### Auth0 organization mapping note
 
@@ -214,6 +214,15 @@ Phase 17a introduces the **connection registry** only — no S3 or STS calls yet
 5. Lower-level `POST /api/keys/{keyId}/export-ssh-private` remains available (text PEM) and is used internally by the pack builder.
 6. Logging: `export_ssh_private` / `export_ssh_setup_pack` + `export_ssh_private_ready` / `ssh_setup_pack_built` (never log the archive password or key bytes).
 7. `[pgp-ui]`: `keyDetail.sshSetup.pack.*`, `keyDetail.sshSetup.password.shown|copied|dismissed`.
+
+## Transfer ownership (Phase 19)
+
+1. On primary key detail **Actions & Lifecycle**, the **Transfer ownership** card (not Danger Zone) moves the primary and all subkeys between vaults without rewriting crypto material.
+2. Destinations: any team vault the caller belongs to (personal → team or team → team), or team → personal with a required recipient (`targetUserId`) who is a member of the source team.
+3. Authorization is stricter than other key ops: personal owner only for personal keys; group **owner** role for team keys. Revoked keys and subkey-only transfers are rejected.
+4. `keysApi.transferOwnership()` → `POST /api/keys/{keyId}/transfer-ownership` with `operationId: transferOwnership`.
+5. Logging: `transfer_ownership` via `KeyOperationLogger` / metrics, plus `transfer_ownership_completed` / `transfer_ownership_noop` detail lines (never key material).
+6. `[pgp-ui]`: `keyDetail.transferOwnership.pageView|submit|confirm|validationFailed|apiSuccess|apiError`.
 
 ## Add subkey (Phase 4)
 

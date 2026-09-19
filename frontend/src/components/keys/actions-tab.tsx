@@ -3,10 +3,15 @@ import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
 import { KeyDetailTabPanel } from "@/components/keys/key-detail-tab-panel"
 import { RevokeKeyForm } from "@/components/keys/revoke-key-form"
 import { RotateKeyForm } from "@/components/keys/rotate-key-form"
+import { TransferOwnershipForm } from "@/components/keys/transfer-ownership-form"
 import type { ExtendExpiryFieldErrors, ExtendExpiryFormValues } from "@/lib/extend-key-validation"
 import type { RevokeKeyFieldErrors, RevokeKeyFormValues } from "@/lib/revoke-key-validation"
 import type { RotateKeyFieldErrors, RotateKeyFormValues } from "@/lib/rotate-key-validation"
-import type { PgpKey } from "@/types/api"
+import type {
+  TransferOwnershipFieldErrors,
+  TransferOwnershipFormValues,
+} from "@/lib/transfer-ownership-validation"
+import type { Group, GroupMember, PgpKey } from "@/types/api"
 
 export type ActionsTabProps = {
   isActive: boolean
@@ -42,6 +47,21 @@ export type ActionsTabProps = {
     previousValues: RotateKeyFormValues,
   ) => void
   onRotateSubmit: () => void
+  transferValues: TransferOwnershipFormValues
+  transferFieldErrors: TransferOwnershipFieldErrors
+  transferApiError: string | null
+  transferRequestId: string | null
+  transferSubmitting: boolean
+  transferDisabled: boolean
+  transferDisabledReason: string | null
+  transferCurrentOwnerLabel: string
+  transferAvailableGroups: Group[]
+  transferMembers: GroupMember[]
+  transferMembersLoading: boolean
+  transferSubkeyCount: number
+  transferAllowPersonalDestination: boolean
+  onTransferChange: (nextValues: TransferOwnershipFormValues) => void
+  onTransferConfirm: () => void
   deleteApiError: string | null
   deleteRequestId: string | null
   deleteSubmitting: boolean
@@ -79,6 +99,21 @@ export function ActionsTab({
   onRotateChange,
   onRotateAlgorithmAdjusted,
   onRotateSubmit,
+  transferValues,
+  transferFieldErrors,
+  transferApiError,
+  transferRequestId,
+  transferSubmitting,
+  transferDisabled,
+  transferDisabledReason,
+  transferCurrentOwnerLabel,
+  transferAvailableGroups,
+  transferMembers,
+  transferMembersLoading,
+  transferSubkeyCount,
+  transferAllowPersonalDestination,
+  onTransferChange,
+  onTransferConfirm,
   deleteApiError,
   deleteRequestId,
   deleteSubmitting,
@@ -134,6 +169,28 @@ export function ActionsTab({
             onChange={onRotateChange}
             onAlgorithmAdjusted={onRotateAlgorithmAdjusted}
             onSubmit={onRotateSubmit}
+          />
+        </div>
+      ) : null}
+
+      {!isSubkey ? (
+        <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
+          <TransferOwnershipForm
+            values={transferValues}
+            fieldErrors={transferFieldErrors}
+            apiError={transferApiError}
+            requestId={transferRequestId}
+            submitting={transferSubmitting}
+            disabled={transferDisabled}
+            disabledReason={transferDisabledReason}
+            currentOwnerLabel={transferCurrentOwnerLabel}
+            availableGroups={transferAvailableGroups}
+            members={transferMembers}
+            membersLoading={transferMembersLoading}
+            subkeyCount={transferSubkeyCount}
+            allowPersonalDestination={transferAllowPersonalDestination}
+            onChange={onTransferChange}
+            onConfirm={onTransferConfirm}
           />
         </div>
       ) : null}

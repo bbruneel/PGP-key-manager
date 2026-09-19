@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { notifyAlgorithmAdjusted } from "@/lib/algorithm-adjustment-toast"
@@ -48,10 +48,18 @@ import {
   type UpdateKeyLabelFieldErrors,
   type UpdateKeyLabelFormValues,
 } from "@/lib/update-key-label-validation"
+import {
+  buildTransferOwnershipRequest,
+  defaultTransferOwnershipFormValues,
+  validateTransferOwnershipForm,
+  type TransferOwnershipFieldErrors,
+  type TransferOwnershipFormValues,
+} from "@/lib/transfer-ownership-validation"
 import { isSshExportableKey } from "@/lib/ssh-export"
 import { logUiEvent } from "@/lib/ui-logger"
 import { Button } from "@/components/ui/button"
-import type { PgpKey } from "@/types/api"
+import type { GroupMember, PgpKey } from "@/types/api"
+import { groupsApi } from "@/lib/groups-api"
 import { cn } from "@/lib/utils"
 import { Info, Layers, ShieldAlert } from "lucide-react"
 
@@ -70,6 +78,13 @@ function tabButtonClassName(isActive: boolean) {
 
 type KeyDetailTab = "overview" | "subkeys" | "actions"
 
+function parseKeyDetailTab(value: string | null): KeyDetailTab | null {
+  if (value === "overview" || value === "subkeys" || value === "actions") {
+    return value
+  }
+  return null
+}
+
 export function KeyDetailPage() {
   const { id } = useParams<{ id: string }>()
   if (!id) {
@@ -80,6 +95,7 @@ export function KeyDetailPage() {
 
 function KeyDetailPageContent() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { getAccessToken, isAuthenticated, isConfigured, authError } = useApiAccessToken()
   const { groups, setActiveGroupId } = useGroupContext()
@@ -134,7 +150,16 @@ function KeyDetailPageContent() {
   const [deleteRequestId, setDeleteRequestId] = useState<string | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<KeyDetailTab>("overview")
+  const [transferValues, setTransferValues] = useState<TransferOwnershipFormValues>(
+    defaultTransferOwnershipFormValues("user"),
+  )
+  const [transferFieldErrors, setTransferFieldErrors] = useState<TransferOwnershipFieldErrors>({})
+  const [transferApiError, setTransferApiError] = useState<string | null>(null)
+  const [transferRequestId, setTransferRequestId] = useState<string | null>(null)
+  const [transferSubmitting, setTransferSubmitting] = useState(false)
+  const [transferMembers, setTransferMembers] = useState<GroupMember[]>([])
+  const [transferMembersLoading, setTransferMembersLoading] = useState(false)
+  const [transferSubkeyCount, setTransferSubkeyCount] = useState(0)
 
   const loadKey = useCallback(async () => {
     if (!id || !isConfigured || !isAuthenticated) {
@@ -150,6 +175,10 @@ function KeyDetailPageContent() {
       const loaded = await keysApi.get({ accessToken: token, keyId: id })
       setKeyData(loaded)
       setUpdateLabelValues({ label: loaded.label ?? "" })
+      setTransferValues(defaultTransferOwnershipFormValues(loaded.ownerType))
+      setTransferFieldErrors({})
+      setTransferApiError(null)
+      setTransferRequestId(null)
       if (loaded.ownerType === "group" && loaded.ownerGroupId) {
         setActiveGroupId(loaded.ownerGroupId)
       }
@@ -157,8 +186,19 @@ function KeyDetailPageContent() {
       if (loaded.role === "subkey" && loaded.parentKeyId) {
         const parent = await keysApi.get({ accessToken: token, keyId: loaded.parentKeyId })
         setPrimaryKey(parent)
+        setTransferSubkeyCount(0)
       } else {
         setPrimaryKey(loaded)
+        if (loaded.role === "primary") {
+          if (!loaded.id) {
+            setTransferSubkeyCount(0)
+          } else {
+            const subkeys = await keysApi.listSubkeys({ accessToken: token, primaryKeyId: loaded.id })
+            setTransferSubkeyCount(subkeys.length)
+          }
+        } else {
+          setTransferSubkeyCount(0)
+        }
       }
     } catch (error) {
       setKeyData(null)
@@ -222,15 +262,126 @@ function KeyDetailPageContent() {
     return groups.find((group) => group.id === keyData.ownerGroupId)?.name ?? null
   }, [groups, keyData])
 
+  const transferCurrentOwnerLabel = useMemo(() => {
+    if (!keyData) {
+      return "Unknown vault"
+    }
+    if (keyData.ownerType === "group") {
+      return `Owned by ${ownerGroupName ?? "team vault"}`
+    }
+    return "Personal vault"
+  }, [keyData, ownerGroupName])
+
+  const transferAvailableGroups = useMemo(() => {
+    if (!keyData) {
+      return groups
+    }
+    if (keyData.ownerType === "group" && keyData.ownerGroupId) {
+      return groups.filter((group) => group.id !== keyData.ownerGroupId)
+    }
+    return groups
+  }, [groups, keyData])
+
+  const transferDisabled = Boolean(isRevoked)
+  const transferDisabledReason = isRevoked ? "Revoked keys cannot be transferred." : null
+  const transferAllowPersonalDestination = keyData?.ownerType === "group"
+
+  useEffect(() => {
+    const sourceGroupId = keyData?.ownerGroupId
+    const shouldLoadMembers =
+      Boolean(isPrimary) &&
+      keyData?.ownerType === "group" &&
+      Boolean(sourceGroupId) &&
+      transferValues.destinationKind === "personal" &&
+      isConfigured &&
+      isAuthenticated
+
+    if (!shouldLoadMembers || !sourceGroupId) {
+      return
+    }
+
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) {
+        return
+      }
+      setTransferMembersLoading(true)
+      void (async () => {
+        try {
+          const token = await getAccessToken()
+          const members = await groupsApi.listMembers({
+            accessToken: token,
+            groupId: sourceGroupId,
+          })
+          if (!cancelled) {
+            setTransferMembers(members)
+          }
+        } catch {
+          if (!cancelled) {
+            setTransferMembers([])
+          }
+        } finally {
+          if (!cancelled) {
+            setTransferMembersLoading(false)
+          }
+        }
+      })()
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    getAccessToken,
+    isAuthenticated,
+    isConfigured,
+    isPrimary,
+    keyData?.ownerGroupId,
+    keyData?.ownerType,
+    transferValues.destinationKind,
+  ])
+
   const visibleTabs = useMemo<readonly KeyDetailTab[]>(
     () => (isPrimary ? ["overview", "subkeys", "actions"] : ["overview", "actions"]),
     [isPrimary],
   )
 
+  const requestedTab = parseKeyDetailTab(searchParams.get("tab")) ?? "overview"
+  const activeTab = visibleTabs.includes(requestedTab) ? requestedTab : "overview"
+
+  const activateTab = useCallback(
+    (tab: KeyDetailTab) => {
+      const nextTab = visibleTabs.includes(tab) ? tab : "overview"
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current)
+          if (nextTab === "overview") {
+            next.delete("tab")
+          } else {
+            next.set("tab", nextTab)
+          }
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams, visibleTabs],
+  )
+
+  useEffect(() => {
+    if (activeTab === "actions" && isPrimary) {
+      logUiEvent("debug", {
+        eventId: "keyDetail.transferOwnership.pageView",
+        message: "Transfer ownership card viewed",
+        keyId: id,
+      })
+    }
+  }, [activeTab, id, isPrimary])
+
   const { getTabProps } = useRovingTablist<KeyDetailTab>({
     tabs: visibleTabs,
     activeTab,
-    onActivate: setActiveTab,
+    onActivate: activateTab,
     getTabElementId: (tab) => `key-detail-${tab}-tab`,
     onKeyboardNav: ({ to, direction }) => {
       logUiEvent("debug", {
@@ -361,6 +512,91 @@ function KeyDetailPageContent() {
       setDeleteSubmitting(false)
     }
   }, [getAccessToken, id, navigate])
+
+  const handleTransferConfirm = useCallback(async () => {
+    if (!id || !keyData) {
+      return
+    }
+
+    logUiEvent("info", {
+      eventId: "keyDetail.transferOwnership.confirm",
+      message: "Transfer ownership confirmed",
+      keyId: id,
+      destinationKind: transferValues.destinationKind,
+    })
+
+    const errors = validateTransferOwnershipForm(transferValues, {
+      keyOwnerType: keyData.ownerType,
+      currentOwnerGroupId: keyData.ownerGroupId,
+      availableGroups: transferAvailableGroups,
+      members: transferMembers,
+    })
+    setTransferFieldErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      logUiEvent("warn", {
+        eventId: "keyDetail.transferOwnership.validationFailed",
+        message: "Client-side transfer ownership validation failed",
+        keyId: id,
+        count: Object.keys(errors).length,
+      })
+      return
+    }
+
+    setTransferApiError(null)
+    setTransferRequestId(null)
+    setTransferSubmitting(true)
+
+    try {
+      const token = await getAccessToken()
+      const body = buildTransferOwnershipRequest(transferValues)
+      const updated = await keysApi.transferOwnership({ accessToken: token, keyId: id, body })
+      setKeyData(updated)
+      setPrimaryKey(updated)
+      setTransferValues(defaultTransferOwnershipFormValues(updated.ownerType))
+      if (updated.ownerType === "group" && updated.ownerGroupId) {
+        setActiveGroupId(updated.ownerGroupId)
+      } else {
+        setActiveGroupId(null)
+      }
+      toast.success("Ownership transferred", {
+        description:
+          updated.ownerType === "group" ? "Key is now in a team vault" : "Key is now in a personal vault",
+      })
+      logUiEvent("info", {
+        eventId: "keyDetail.transferOwnership.apiSuccess",
+        message: "Ownership transferred",
+        keyId: id,
+        operationId: "transferOwnership",
+        ownerType: updated.ownerType,
+        groupId: updated.ownerGroupId ?? undefined,
+      })
+    } catch (error) {
+      setTransferApiError(getApiErrorMessage(error))
+      if (error instanceof ApiError) {
+        if (error.requestId) {
+          setTransferRequestId(error.requestId)
+        }
+        logUiEvent("error", {
+          eventId: "keyDetail.transferOwnership.apiError",
+          message: "Transfer ownership failed",
+          keyId: id,
+          operationId: error.operationId,
+          requestId: error.requestId,
+          status: error.status,
+        })
+      }
+    } finally {
+      setTransferSubmitting(false)
+    }
+  }, [
+    getAccessToken,
+    id,
+    keyData,
+    setActiveGroupId,
+    transferAvailableGroups,
+    transferMembers,
+    transferValues,
+  ])
 
   const handleCreateSubkeySubmit = useCallback(async () => {
     if (!id || !keyData || keyData.role !== "primary" || !keyData.id) {
@@ -867,7 +1103,7 @@ function KeyDetailPageContent() {
               aria-controls="key-detail-overview-panel"
               className={tabButtonClassName(activeTab === "overview")}
               {...getTabProps("overview")}
-              onClick={() => setActiveTab("overview")}
+              onClick={() => activateTab("overview")}
             >
               <Info className="size-4" />
               Overview
@@ -881,7 +1117,7 @@ function KeyDetailPageContent() {
                 aria-controls="key-detail-subkeys-panel"
                 className={tabButtonClassName(activeTab === "subkeys")}
                 {...getTabProps("subkeys")}
-                onClick={() => setActiveTab("subkeys")}
+                onClick={() => activateTab("subkeys")}
               >
                 <Layers className="size-4" />
                 Subkeys
@@ -895,7 +1131,7 @@ function KeyDetailPageContent() {
               aria-controls="key-detail-actions-panel"
               className={tabButtonClassName(activeTab === "actions")}
               {...getTabProps("actions")}
-              onClick={() => setActiveTab("actions")}
+              onClick={() => activateTab("actions")}
             >
               <ShieldAlert className="size-4" />
               Actions & Lifecycle
@@ -1020,6 +1256,34 @@ function KeyDetailPageContent() {
               })
             }}
             onRotateSubmit={() => void handleRotateSubmit()}
+            transferValues={transferValues}
+            transferFieldErrors={transferFieldErrors}
+            transferApiError={transferApiError}
+            transferRequestId={transferRequestId}
+            transferSubmitting={transferSubmitting}
+            transferDisabled={transferDisabled}
+            transferDisabledReason={transferDisabledReason}
+            transferCurrentOwnerLabel={transferCurrentOwnerLabel}
+            transferAvailableGroups={transferAvailableGroups}
+            transferMembers={
+              transferValues.destinationKind === "personal" ? transferMembers : []
+            }
+            transferMembersLoading={
+              transferValues.destinationKind === "personal" ? transferMembersLoading : false
+            }
+            transferSubkeyCount={transferSubkeyCount}
+            transferAllowPersonalDestination={Boolean(transferAllowPersonalDestination)}
+            onTransferChange={(nextValues) => {
+              setTransferValues(nextValues)
+              setTransferFieldErrors({})
+              logUiEvent("debug", {
+                eventId: "keyDetail.transferOwnership.submit",
+                message: "Transfer ownership form updated",
+                keyId: id,
+                destinationKind: nextValues.destinationKind,
+              })
+            }}
+            onTransferConfirm={() => void handleTransferConfirm()}
             deleteApiError={deleteApiError}
             deleteRequestId={deleteRequestId}
             deleteSubmitting={deleteSubmitting}

@@ -380,6 +380,47 @@ describe("keysApi.delete", () => {
   })
 })
 
+describe("keysApi.transferOwnership", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/transfer-ownership with transferOwnership operationId", async () => {
+    const body = { ownerGroupId: "group-1" }
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-1", ownerType: "group", ownerGroupId: "group-1" })
+
+    const result = await keysApi.transferOwnership({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body,
+    })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1/transfer-ownership", {
+      operationId: "transferOwnership",
+      accessToken: "token-abc",
+      method: "POST",
+      body,
+    })
+    expect(result).toEqual({ id: "key-1", ownerType: "group", ownerGroupId: "group-1" })
+  })
+
+  it("passes targetUserId for personal destination", async () => {
+    const body = { targetUserId: "user-2" }
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-1", ownerType: "user" })
+
+    await keysApi.transferOwnership({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body,
+    })
+
+    expect(requestJson).toHaveBeenCalledWith(
+      "/api/keys/key-1/transfer-ownership",
+      expect.objectContaining({ body }),
+    )
+  })
+})
+
 describe("keysApi.exportPublic", () => {
   beforeEach(() => {
     vi.mocked(requestText).mockReset()

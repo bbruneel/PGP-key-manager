@@ -237,10 +237,21 @@ export interface paths {
         put?: never;
         /**
          * Transfer key ownership
-         * @description Transfers ownership between personal and team vault scopes. When `ownerGroupId` is provided,
-         *     the key becomes group-owned. When omitted, ownership returns to the current user.
-         *     Authorization parity with other key operations: any current key operator may transfer ownership,
-         *     and transfer to a group requires membership in the target group.
+         * @description Transfers ownership of a **primary** key (and all of its subkeys) between personal and team
+         *     vault scopes (Phase 19).
+         *
+         *     - When `ownerGroupId` is provided, the key becomes group-owned (personal → team or team → team).
+         *       The caller must be a member of the destination group. `targetUserId` is ignored.
+         *     - When `ownerGroupId` is omitted or null, the key moves to a personal vault. This is only
+         *       allowed from a team vault. `targetUserId` is required and must identify a member of the
+         *       **source** group.
+         *
+         *     Authorization (stricter than other key operations):
+         *     - Personal source: only the personal owner may transfer.
+         *     - Team source: only a group **owner** may transfer.
+         *
+         *     Rejects non-primary keys, revoked keys, personal→personal transfers, and fingerprint
+         *     conflicts in the destination vault (409).
          */
         post: operations["transferOwnership"];
         delete?: never;
@@ -684,9 +695,15 @@ export interface components {
             /**
              * Format: uuid
              * @description Target group ID for team vault ownership. Set to `null` or omit to transfer the key
-             *     back to personal ownership.
+             *     to a personal vault (requires `targetUserId`).
              */
             ownerGroupId?: string | null;
+            /**
+             * Format: uuid
+             * @description Required when transferring to a personal vault. Must be a member of the source team.
+             *     Ignored when `ownerGroupId` is set.
+             */
+            targetUserId?: string | null;
         };
         RevokeKeyRequest: {
             /** @enum {string} */
