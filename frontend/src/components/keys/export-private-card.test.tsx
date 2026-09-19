@@ -42,7 +42,6 @@ describe("ExportPrivateCard", () => {
       <ExportPrivateCard
         keyId="primary-1"
         fingerprint="AABB"
-        canExport
         getAccessToken={async () => "token"}
       />,
     )
@@ -68,7 +67,6 @@ describe("ExportPrivateCard", () => {
         fingerprint="AABB"
         keyIdHex="ABCDEF01"
         label="Work key"
-        canExport
         getAccessToken={async () => "token"}
       />,
     )
@@ -90,19 +88,5 @@ describe("ExportPrivateCard", () => {
     )
 
     clickSpy.mockRestore()
-  })
-
-  it("shows disabled reason when export is unavailable", () => {
-    render(
-      <ExportPrivateCard
-        keyId="primary-1"
-        canExport={false}
-        disabledReason="Import private keyring material to enable export."
-        getAccessToken={async () => "token"}
-      />,
-    )
-
-    expect(screen.getByText(/Import private keyring material to enable export/i)).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /download encrypted private keyring/i })).toBeNull()
   })
 })

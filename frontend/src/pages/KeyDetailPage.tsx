@@ -264,8 +264,6 @@ function KeyDetailPageContent() {
         status: keyData.status,
       }),
   )
-  const canExportPrivate = showExportPrivate
-  const exportPrivateDisabledReason = null
   const ownerGroupName = useMemo(() => {
     if (!keyData || keyData.ownerType !== "group" || !keyData.ownerGroupId) {
       return null
@@ -1159,8 +1157,6 @@ function KeyDetailPageContent() {
             showSshPrivateExport={showSshPrivateExport}
             sshPackDisabledReason={sshPackDisabledReason}
             showExportPrivate={showExportPrivate}
-            canExportPrivate={canExportPrivate}
-            exportPrivateDisabledReason={exportPrivateDisabledReason}
             subkeysRefreshToken={subkeysRefreshToken}
             getAccessToken={getAccessToken}
             updateLabelValues={updateLabelValues}

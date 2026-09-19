@@ -19,8 +19,6 @@ type ExportPrivateCardProps = {
   fingerprint?: string | null
   keyIdHex?: string | null
   label?: string | null
-  canExport: boolean
-  disabledReason?: string | null
   getAccessToken: () => Promise<string>
 }
 
@@ -36,8 +34,6 @@ export function ExportPrivateCard({
   fingerprint,
   keyIdHex,
   label,
-  canExport,
-  disabledReason,
   getAccessToken,
 }: ExportPrivateCardProps) {
   const [values, setValues] = useState<ExportPrivateFormValues>(defaultExportPrivateFormValues)
@@ -144,53 +140,47 @@ export function ExportPrivateCard({
         </p>
       </div>
 
-      {canExport ? (
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void handleSubmit()
-          }}
-          noValidate
-        >
-          <p className="text-sm text-muted-foreground">
-            This download is still passphrase-protected OpenPGP armor (no server unlock). Do not
-            paste it into chat, email, or screenshots.
-          </p>
-          <div className="flex items-start gap-2">
-            <input
-              id="export-private-confirm"
-              type="checkbox"
-              className="mt-1 size-4 rounded border-border"
-              checked={values.confirmed}
-              onChange={(event) => updateField("confirmed", event.target.checked)}
-              data-pgp-ui="keyDetail.exportPrivate.confirm"
-            />
-            <Label htmlFor="export-private-confirm" className="text-sm font-normal leading-snug">
-              I understand this download is the full secret keyring and can decrypt, sign, or
-              authenticate as this identity where those capabilities exist in the ring.
-            </Label>
-          </div>
-          <FieldError message={fieldErrors.confirmed} />
-
-          {apiError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {apiError}
-              {requestId ? (
-                <span className="mt-1 block text-xs text-muted-foreground">Request ID: {requestId}</span>
-              ) : null}
-            </p>
-          ) : null}
-
-          <Button type="submit" disabled={submitting} data-pgp-ui="keyDetail.exportPrivate.download">
-            {submitting ? "Downloading…" : "Download encrypted private keyring"}
-          </Button>
-        </form>
-      ) : (
-        <p className="text-sm text-muted-foreground" data-pgp-ui="keyDetail.exportPrivate.disabled">
-          {disabledReason ?? "Private keyring export is not available for this key."}
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void handleSubmit()
+        }}
+        noValidate
+      >
+        <p className="text-sm text-muted-foreground">
+          This download is still passphrase-protected OpenPGP armor (no server unlock). Do not
+          paste it into chat, email, or screenshots.
         </p>
-      )}
+        <div className="flex items-start gap-2">
+          <input
+            id="export-private-confirm"
+            type="checkbox"
+            className="mt-1 size-4 rounded border-border"
+            checked={values.confirmed}
+            onChange={(event) => updateField("confirmed", event.target.checked)}
+            data-pgp-ui="keyDetail.exportPrivate.confirm"
+          />
+          <Label htmlFor="export-private-confirm" className="text-sm font-normal leading-snug">
+            I understand this download is the full secret keyring and can decrypt, sign, or
+            authenticate as this identity where those capabilities exist in the ring.
+          </Label>
+        </div>
+        <FieldError message={fieldErrors.confirmed} />
+
+        {apiError ? (
+          <p className="text-sm text-destructive" role="alert">
+            {apiError}
+            {requestId ? (
+              <span className="mt-1 block text-xs text-muted-foreground">Request ID: {requestId}</span>
+            ) : null}
+          </p>
+        ) : null}
+
+        <Button type="submit" disabled={submitting} data-pgp-ui="keyDetail.exportPrivate.download">
+          {submitting ? "Downloading…" : "Download encrypted private keyring"}
+        </Button>
+      </form>
     </section>
   )
 }

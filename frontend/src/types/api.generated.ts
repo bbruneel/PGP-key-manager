@@ -1021,7 +1021,7 @@ export interface components {
             /**
              * Present only when `GET /api/keys/{keyId}?includePrivateCiphertext=true` and the
              *     caller is the personal owner or group OWNER. Prefer `POST .../export-private` for
-             *     audited private encryption-key export. Omitted from list responses and default GET.
+             *     audited private keyring export. Omitted from list responses and default GET.
              */
             encryptedPrivateArmored?: string;
             /**

@@ -160,7 +160,7 @@ paths:
         `includePrivateCiphertext=true` to request it; the field is included only for the
         personal key owner or group OWNER, and inclusion is audited
         (`get_key_private_ciphertext`). Prefer `POST /api/keys/{keyId}/export-private` for
-        deliberate private encryption-key export.
+        deliberate private keyring export.
       operationId: getKey
       x-implementation-status: implemented
       parameters:
@@ -1754,7 +1754,7 @@ components:
               description: |
                 Present only when `GET /api/keys/{keyId}?includePrivateCiphertext=true` and the
                 caller is the personal owner or group OWNER. Prefer `POST .../export-private` for
-                audited private encryption-key export. Omitted from list responses and default GET.
+                audited private keyring export. Omitted from list responses and default GET.
             registeredSubkeyCount:
               type: integer
               description: |

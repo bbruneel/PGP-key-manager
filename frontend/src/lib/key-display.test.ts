@@ -49,6 +49,17 @@ describe("formatRevokedAt", () => {
 })
 
 describe("hasPrivateMaterial", () => {
+  it("prefers the API hasPrivateMaterial boolean when present", () => {
+    expect(hasPrivateMaterial({ hasPrivateMaterial: true, keyType: "public" })).toBe(true)
+    expect(
+      hasPrivateMaterial({
+        hasPrivateMaterial: false,
+        keyType: "private",
+        encryptedPrivateArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+      }),
+    ).toBe(false)
+  })
+
   it("returns true when encrypted private armored is present", () => {
     expect(hasPrivateMaterial({ encryptedPrivateArmored: "-----BEGIN PGP PRIVATE KEY BLOCK-----" })).toBe(
       true,
