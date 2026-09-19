@@ -125,7 +125,7 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/keys` | List keys for the signed-in user | Current |
 | `/keys/new` | Create primary key (Ed25519 default; advanced RSA/ECDSA/Ed448, OpenPGP v4/v6) | Phase 1 + 6 (implemented) |
 | `/keys/import` | Import/register existing key (public or private armored blocks + fingerprint) | Phase 2 (implemented) |
-| `/keys/:id` | Key detail (tabbed: Overview / Subkeys / Actions), subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, export) | Phase 3 + 4 + 6 + PR #33 (implemented) |
+| `/keys/:id` | Key detail (tabbed: Overview / Subkeys / Actions), subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, public export, private keyring export, SSH setup) | Phase 3 + 4 + 6 + 18 + 20 + PR #33 (implemented) |
 | `/groups/new` | Create a team vault group | Phase 16 (implemented) |
 | `/groups/:groupId/keys` | List keys scoped to a team vault (`scope=group`) | Phase 16 (implemented) |
 | `/groups/:groupId/members` | View group members and summary metrics | Phase 16 (implemented) |
@@ -143,7 +143,7 @@ Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `ap
 - **`X-Request-Id`** — client-generated UUID; echoed by the backend `RequestIdFilter` for correlation in logs and error UI.
 - **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
 
-Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`; Phase 4 adds `keysApi.createSubkey()`. Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text.
+Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`; Phase 4 adds `keysApi.createSubkey()`; Phase 20 adds `keysApi.exportPrivate()`. Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text; Mode A private keyring export also uses `requestText()` (`application/pgp-keys`, `Cache-Control: no-store`).
 
 ## Team vault architecture (Phase 16)
 
@@ -223,6 +223,17 @@ Phase 17a introduces the **connection registry** only — no S3 or STS calls yet
 4. `keysApi.transferOwnership()` → `POST /api/keys/{keyId}/transfer-ownership` with `operationId: transferOwnership`.
 5. Logging: `transfer_ownership` via `KeyOperationLogger` / metrics, plus `transfer_ownership_completed` / `transfer_ownership_noop` detail lines (never key material).
 6. `[pgp-ui]`: `keyDetail.transferOwnership.pageView|submit|confirm|validationFailed|apiSuccess|apiError`.
+
+## Private keyring export (Phase 20)
+
+Mode A ciphertext download of the stored primary **full secret keyring** — backup / migrate OpenPGP material, not SSH setup (Phase 18) and not encrypt-subkey-only packets.
+
+1. On **primary** Overview, when the key has private material and is not revoked, `ExportPrivateCard` offers **Download encrypted private keyring** (confirm dialog covers full-ring blast radius).
+2. Personal owner or group **OWNER** only (hide-with-404 for others). Team vault UI calls `groupsApi.getMyGroupMembership()` (`GET /api/groups/{groupId}/members/me`) so members see owner-only copy while owners can download.
+3. `keysApi.exportPrivate()` → `POST /api/keys/{keyId}/export-private` with primary `keyId` only (subkey → 404). Mode A body omits passphrase fields; returns stored passphrase-protected secret armor with `Cache-Control: no-store`. No encrypt-capability gate.
+4. `GET /api/keys/{keyId}?includePrivateCiphertext=true` uses the same owner/OWNER ACL and audits `get_key_private_ciphertext`; prefer the dedicated export endpoint for deliberate download.
+5. Logging: `export_private_keyring` via `KeyOperationLogger` / metrics (never key material). Mode B rewrap / pack / step-up remain deferred.
+6. `[pgp-ui]`: `keyDetail.exportPrivate.*`.
 
 ## Add subkey (Phase 4)
 
