@@ -155,6 +155,34 @@ class PgpKeyLifecycleIntegrationTest {
                                         .formatted(PASSPHRASE)))
                 .andExpect(status().isBadRequest());
 
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", subkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PRIVATE KEY BLOCK")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"));
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", authSubkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.encryptedPrivateArmored").doesNotExist())
+                .andExpect(jsonPath("$.hasPrivateMaterial").value(true));
+
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId)
+                        .param("includePrivateCiphertext", "true")
+                        .with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.encryptedPrivateArmored").value(org.hamcrest.Matchers.containsString(
+                        "BEGIN PGP PRIVATE KEY BLOCK")));
+
         MvcResult packResult =
                 mockMvc.perform(post("/api/keys/{keyId}/export-ssh-setup-pack", authSubkeyId)
                                 .with(jwt())
@@ -250,6 +278,12 @@ class PgpKeyLifecycleIntegrationTest {
                                 .formatted(PASSPHRASE)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("revoked"));
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", subkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

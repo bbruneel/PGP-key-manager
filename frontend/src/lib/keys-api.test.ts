@@ -537,3 +537,28 @@ describe("keysApi.exportSshSetupPack", () => {
     ).rejects.toThrow(/missing archive password/i)
   })
 })
+
+describe("keysApi.exportPrivate", () => {
+  beforeEach(() => {
+    vi.mocked(requestText).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/export-private with exportPrivateKey operationId", async () => {
+    vi.mocked(requestText).mockResolvedValue("-----BEGIN PGP PRIVATE KEY BLOCK-----\n")
+
+    const result = await keysApi.exportPrivate({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: {},
+    })
+
+    expect(requestText).toHaveBeenCalledWith("/api/keys/key-1/export-private", {
+      operationId: "exportPrivateKey",
+      accessToken: "token-abc",
+      method: "POST",
+      body: {},
+      headers: { Accept: "application/pgp-keys" },
+    })
+    expect(result).toContain("BEGIN PGP PRIVATE KEY BLOCK")
+  })
+})

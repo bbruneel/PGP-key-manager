@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 
 import { EditKeyLabelForm } from "@/components/keys/edit-key-label-form"
+import { ExportPrivateCard } from "@/components/keys/export-private-card"
 import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
 import { KeyDetailTabPanel } from "@/components/keys/key-detail-tab-panel"
 import { KeyExportAction } from "@/components/keys/key-export-action"
@@ -16,6 +17,9 @@ export type OverviewTabProps = {
   showSshExport: boolean
   showSshPrivateExport: boolean
   sshPackDisabledReason?: string | null
+  showExportPrivate: boolean
+  canExportPrivate: boolean
+  exportPrivateDisabledReason?: string | null
   subkeysRefreshToken: number
   getAccessToken: () => Promise<string>
   updateLabelValues: UpdateKeyLabelFormValues
@@ -35,6 +39,9 @@ export function OverviewTab({
   showSshExport,
   showSshPrivateExport,
   sshPackDisabledReason,
+  showExportPrivate,
+  canExportPrivate,
+  exportPrivateDisabledReason,
   subkeysRefreshToken,
   getAccessToken,
   updateLabelValues,
@@ -98,6 +105,19 @@ export function OverviewTab({
                 packDisabledReason={sshPackDisabledReason}
                 getAccessToken={getAccessToken}
                 invalidateToken={subkeysRefreshToken}
+              />
+            </div>
+          ) : null}
+          {showExportPrivate ? (
+            <div className="border-t border-border pt-5">
+              <ExportPrivateCard
+                keyId={keyData.id!}
+                fingerprint={keyData.fingerprint}
+                keyIdHex={keyData.keyId}
+                label={keyData.label}
+                canExport={canExportPrivate}
+                disabledReason={exportPrivateDisabledReason}
+                getAccessToken={getAccessToken}
               />
             </div>
           ) : null}

@@ -244,6 +244,20 @@ class PgpKeyValidatorTest {
         PgpKeyValidator.validateSshExportable(ed25519Auth);
     }
 
+    @Test
+    void validateEncryptPrivateExportableRequiresEncryptCapability() {
+        PgpKey authOnly = authenticateSubkey("ed25519");
+        assertThatThrownBy(() -> PgpKeyValidator.validateEncryptPrivateExportable(authOnly))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("encrypt");
+    }
+
+    @Test
+    void validateEncryptPrivateExportableAcceptsEncrypt() {
+        PgpKey encrypt = authenticateSubkey("cv25519", List.of(PgpCapability.ENCRYPT));
+        PgpKeyValidator.validateEncryptPrivateExportable(encrypt);
+    }
+
     private static PgpKey authenticateSubkey(String algorithm) {
         return authenticateSubkey(algorithm, List.of(PgpCapability.AUTHENTICATE));
     }

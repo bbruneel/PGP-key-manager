@@ -158,4 +158,11 @@ public final class PgpKeyValidator {
                     "OpenSSH export requires ed25519, rsa, or ecdsa; got " + key.algorithm());
         }
     }
+
+    public static void validateEncryptPrivateExportable(PgpKey key) {
+        if (key.capabilities() == null || !key.capabilities().contains(PgpCapability.ENCRYPT)) {
+            throw new BadRequestException(
+                    "Private encryption-key export requires the encrypt capability on this key");
+        }
+    }
 }

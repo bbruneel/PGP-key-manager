@@ -33,8 +33,10 @@ import org.bruneel.pgpkeymanager.repo.PgpKeyRepository.PgpKeyInsert;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.ExportPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExportSshPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
+import org.bruneel.pgpkeymanager.web.dto.PgpKeyResponse;
 import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyEntry;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
@@ -99,6 +101,23 @@ public class PgpKeyService {
         PgpKey key = pgpKeyRepository.findById(id).orElseThrow(() -> new KeyNotFoundException(id));
         groupAuthorizationService.requireKeyAccess(user, key);
         return key;
+    }
+
+    /**
+     * Detail GET with optional private ciphertext. Ciphertext is included only when the caller
+     * explicitly requests it and is the personal owner or group OWNER; otherwise the field is
+     * omitted (members still receive metadata). Audits when armor is returned.
+     */
+    public PgpKeyResponse getAccessibleKeyDetail(AppUser user, UUID id, boolean includePrivateCiphertext) {
+        PgpKey key = getAccessibleKey(user, id);
+        boolean include =
+                includePrivateCiphertext && groupAuthorizationService.canAccessPrivateCiphertext(user, key);
+        if (include && key.hasPrivateMaterial()) {
+            long start = System.currentTimeMillis();
+            operationLogger.started("get_key_private_ciphertext", user.id(), id, key.openpgpVersion());
+            completeSuccess("get_key_private_ciphertext", user.id(), id, key.openpgpVersion(), start);
+        }
+        return PgpKeyResponse.from(key, include);
     }
 
     public PgpKey getForUser(AppUser user, UUID id) {
@@ -561,6 +580,52 @@ public class PgpKeyService {
             throw ex;
         } finally {
             PassphraseUtil.wipe(passphrase, "export_ssh_setup_pack");
+        }
+    }
+
+    /**
+     * Mode A: return stored OpenPGP encrypted secret armor (no server unlock). Requires owner or
+     * group OWNER, encrypt capability, and private material on the primary keyring. Mode B fields
+     * ({@code passphrase}, {@code newPassphrase}) are reserved and rejected until rewrap ships.
+     */
+    public String exportPrivate(AppUser user, UUID keyId, ExportPrivateRequest request) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("export_encrypt_private", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
+        char[] passphrase = request != null ? request.passphrase() : null;
+        char[] newPassphrase = request != null ? request.newPassphrase() : null;
+        try {
+            if (!PassphraseUtil.isBlank(passphrase) || !PassphraseUtil.isBlank(newPassphrase)) {
+                throw new BadRequestException(
+                        "Passphrase rewrap export is not yet supported; omit passphrase and newPassphrase for ciphertext download");
+            }
+
+            PgpKey key = getForUser(user, keyId);
+            openpgpVersion = key.openpgpVersion();
+            groupAuthorizationService.requireKeyOwnerOrGroupOwner(user, key);
+            ensureNotRevoked(key);
+            PgpKeyValidator.validateEncryptPrivateExportable(key);
+
+            UUID primaryId = key.isPrimary() ? key.id() : key.parentKeyId();
+            if (primaryId == null) {
+                throw new BadRequestException("Subkey has no parent primary key");
+            }
+            PgpKey primary = requirePrimaryWithPrivate(user, primaryId);
+            openpgpVersion = primary.openpgpVersion();
+
+            String armor = primary.encryptedPrivateArmored();
+            log.info(
+                    "export_encrypt_private_ready mode=ciphertext_download algorithm={} keyIdHex={} hasPrivateMaterial=true",
+                    key.algorithm(),
+                    key.keyId() != null ? key.keyId().toLowerCase() : null);
+            completeSuccess("export_encrypt_private", user.id(), keyId, openpgpVersion, start);
+            return armor;
+        } catch (RuntimeException ex) {
+            completeFailure("export_encrypt_private", user.id(), keyId, openpgpVersion, start, ex);
+            throw ex;
+        } finally {
+            PassphraseUtil.wipe(passphrase, "export_encrypt_private");
+            PassphraseUtil.wipe(newPassphrase, "export_encrypt_private");
         }
     }
 

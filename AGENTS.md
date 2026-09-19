@@ -149,6 +149,7 @@ For `PgpKeyController`, every path under `/api/keys` must appear in `PgpKeyContr
 - `GET /api/keys/{keyId}/export-ssh-public`
 - `POST /api/keys/{keyId}/export-ssh-private`
 - `POST /api/keys/{keyId}/export-ssh-setup-pack`
+- `POST /api/keys/{keyId}/export-private`
 - `POST /api/keys/{keyId}/transfer-ownership`
 
 For `GroupController`, every documented path under `/api/groups` must appear in `GroupControllerTest`:

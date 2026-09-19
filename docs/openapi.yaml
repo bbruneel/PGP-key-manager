@@ -154,10 +154,27 @@ paths:
     get:
       tags: [Keys]
       summary: Get key
+      description: |
+        Returns key metadata for any caller with key access. Private ciphertext
+        (`encryptedPrivateArmored`) is omitted by default. Set
+        `includePrivateCiphertext=true` to request it; the field is included only for the
+        personal key owner or group OWNER, and inclusion is audited
+        (`get_key_private_ciphertext`). Prefer `POST /api/keys/{keyId}/export-private` for
+        deliberate private encryption-key export.
       operationId: getKey
       x-implementation-status: implemented
       parameters:
         - $ref: '#/components/parameters/KeyId'
+        - name: includePrivateCiphertext
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: |
+            When true, include `encryptedPrivateArmored` if the caller is the personal owner
+            or group OWNER and the key row stores private material. Unauthorized callers still
+            receive 200 with metadata; the ciphertext field is omitted.
       responses:
         '200':
           description: Key details
@@ -548,6 +565,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SshSetupPackResponse'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/keys/{keyId}/export-private:
+    post:
+      tags: [Keys]
+      summary: Export private OpenPGP encryption key (ciphertext)
+      description: |
+        Mode A (current): returns the stored OpenPGP encrypted secret armor from the primary
+        keyring (S2K-protected ciphertext) without server unlock. Requires the `encrypt`
+        capability on the target key, private material on the primary, and authorization as the
+        personal key owner or group OWNER. Unauthorized callers receive 404 (hide-with-404).
+        Revoked keys and keys without encrypt return 4xx.
+
+        Mode B (future): optional `passphrase` (vault unlock) and `newPassphrase` (rewrap) on the
+        same request schema; sending them today returns 400 until rewrap ships.
+      operationId: exportPrivateKey
+      x-implementation-status: implemented
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportPrivateRequest'
+      responses:
+        '200':
+          description: "OpenPGP encrypted secret armor (Cache-Control: no-store)"
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/pgp-keys:
+              schema:
+                type: string
+            text/plain:
+              schema:
+                type: string
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
@@ -1207,6 +1265,22 @@ components:
         passphrase:
           $ref: '#/components/schemas/PassphraseField'
           description: Vault passphrase that unlocks the primary secret keyring.
+    ExportPrivateRequest:
+      type: object
+      description: |
+        Mode A: empty body or omit passphrase fields for ciphertext-only download.
+        Mode B (future): vault `passphrase` plus optional `newPassphrase` to rewrap.
+      properties:
+        passphrase:
+          $ref: '#/components/schemas/PassphraseField'
+          description: |
+            Reserved for Mode B vault unlock / rewrap. Sending a non-empty value before Mode B
+            ships returns 400.
+        newPassphrase:
+          $ref: '#/components/schemas/PassphraseField'
+          description: |
+            Reserved for Mode B transfer passphrase. Sending a non-empty value before Mode B
+            ships returns 400.
     SshSetupPackResponse:
       type: object
       required: [filename, archivePassword, content]
@@ -1673,7 +1747,10 @@ components:
               description: Present on primary keys; omitted on subkey list/detail responses.
             encryptedPrivateArmored:
               type: string
-              description: Present on primary detail when generated or imported with private material.
+              description: |
+                Present only when `GET /api/keys/{keyId}?includePrivateCiphertext=true` and the
+                caller is the personal owner or group OWNER. Prefer `POST .../export-private` for
+                audited private encryption-key export. Omitted from list responses and default GET.
             registeredSubkeyCount:
               type: integer
               description: |

@@ -30,6 +30,7 @@ import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
+import org.bruneel.pgpkeymanager.web.dto.ExportPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExportSshPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
 import org.bruneel.pgpkeymanager.web.dto.ImportSubkeysResponse;
@@ -72,9 +73,12 @@ public class PgpKeyController {
     }
 
     @GetMapping("/{keyId}")
-    public PgpKeyResponse get(@PathVariable UUID keyId, Authentication authentication) {
+    public PgpKeyResponse get(
+            @PathVariable UUID keyId,
+            @RequestParam(required = false, defaultValue = "false") boolean includePrivateCiphertext,
+            Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
-        return PgpKeyResponse.from(pgpKeyService.getAccessibleKey(user, keyId), true);
+        return pgpKeyService.getAccessibleKeyDetail(user, keyId, includePrivateCiphertext);
     }
 
     @PostMapping(path = "/preview", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -245,5 +249,20 @@ public class PgpKeyController {
         } finally {
             PassphraseUtil.wipe(pack.archivePassword());
         }
+    }
+
+    @PostMapping(
+            path = "/{keyId}/export-private",
+            produces = {MediaType.TEXT_PLAIN_VALUE, "application/pgp-keys"})
+    public ResponseEntity<String> exportPrivate(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody(required = false) ExportPrivateRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        String armor = pgpKeyService.exportPrivate(user, keyId, request);
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store")
+                .contentType(MediaType.parseMediaType("application/pgp-keys"))
+                .body(armor);
     }
 }

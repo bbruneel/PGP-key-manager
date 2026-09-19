@@ -39,6 +39,7 @@ import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExportSshPrivateRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExtendExpiryRequest;
+import org.bruneel.pgpkeymanager.web.dto.PgpKeyResponse;
 import org.bruneel.pgpkeymanager.web.dto.PreviewImportSubkeysResponse;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyEntry;
 import org.bruneel.pgpkeymanager.web.dto.PreviewKeyringResponse;
@@ -74,15 +75,33 @@ class PgpKeyControllerTest {
         UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
         PgpKey key = TestPgpKeys.samplePublic(USER.id());
         when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
-        when(pgpKeyService.getAccessibleKey(USER, keyId)).thenReturn(key);
+        when(pgpKeyService.getAccessibleKeyDetail(USER, keyId, false))
+                .thenReturn(PgpKeyResponse.from(key, false));
 
         mockMvc.perform(get("/api/keys/{keyId}", keyId).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(keyId.toString()))
                 .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"))
-                .andExpect(jsonPath("$.role").value("primary"));
+                .andExpect(jsonPath("$.role").value("primary"))
+                .andExpect(jsonPath("$.encryptedPrivateArmored").doesNotExist());
 
-        verify(pgpKeyService).getAccessibleKey(USER, keyId);
+        verify(pgpKeyService).getAccessibleKeyDetail(USER, keyId, false);
+    }
+
+    @Test
+    void getWithIncludePrivateCiphertextPassesFlag() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.getAccessibleKeyDetail(USER, keyId, true))
+                .thenReturn(PgpKeyResponse.from(key, true));
+
+        mockMvc.perform(get("/api/keys/{keyId}", keyId)
+                        .param("includePrivateCiphertext", "true")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+
+        verify(pgpKeyService).getAccessibleKeyDetail(USER, keyId, true);
     }
 
     @Test
@@ -437,6 +456,25 @@ class PgpKeyControllerTest {
                         new byte[] {0x50, 0x4b, 0x03, 0x04})));
 
         verify(pgpKeyService).exportSshSetupPack(eq(USER), eq(keyId), any(ExportSshPrivateRequest.class));
+    }
+
+    @Test
+    void exportPrivateReturnsArmoredSecret() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.exportPrivate(eq(USER), eq(keyId), any()))
+                .thenReturn("-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: test\n-----END PGP PRIVATE KEY BLOCK-----\n");
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                .andExpect(content().string(containsString("BEGIN PGP PRIVATE KEY BLOCK")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"));
+
+        verify(pgpKeyService).exportPrivate(eq(USER), eq(keyId), any());
     }
 
     @Test

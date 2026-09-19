@@ -71,6 +71,7 @@ vi.mock("@/lib/keys-api", () => ({
     exportSshPublic: vi.fn(),
     exportSshPrivate: vi.fn(),
     exportSshSetupPack: vi.fn(),
+    exportPrivate: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
     transferOwnership: vi.fn(),
