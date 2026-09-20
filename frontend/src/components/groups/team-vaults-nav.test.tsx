@@ -59,12 +59,11 @@ describe("TeamVaultsNav", () => {
       "href",
       "/groups/group-1/keys?view=public",
     )
-    expect(screen.queryByRole("link", { name: "Public", hidden: false })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Expand beta" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Collapse alpha" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Collapse alpha" })).toBeDisabled()
   })
 
-  it("expands a collapsed team via the chevron without requiring a route change", async () => {
+  it("expands a collapsed team via the chevron without changing active vault context", async () => {
     const user = userEvent.setup()
     setLastExpandedTeamVaultId("group-1")
     renderNav("/keys")
@@ -72,11 +71,38 @@ describe("TeamVaultsNav", () => {
     expect(screen.getByRole("button", { name: "Collapse alpha" })).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Expand beta" }))
 
-    expect(setActiveGroupId).toHaveBeenCalledWith("group-2")
+    expect(setActiveGroupId).not.toHaveBeenCalled()
     expect(screen.getByRole("link", { name: "Private" })).toHaveAttribute(
       "href",
       "/groups/group-2/keys?view=private",
     )
     expect(window.localStorage.getItem("pgp.lastExpandedTeamVaultId")).toBe("group-2")
+  })
+
+  it("keeps the route team expanded when collapse is attempted", async () => {
+    const user = userEvent.setup()
+    renderNav("/groups/group-1/keys")
+
+    const collapse = screen.getByRole("button", { name: "Collapse alpha" })
+    expect(collapse).toBeDisabled()
+    await user.click(collapse)
+
+    expect(screen.getByRole("link", { name: "Public" })).toHaveAttribute(
+      "href",
+      "/groups/group-1/keys?view=public",
+    )
+    expect(screen.getByRole("link", { name: "Members" })).toHaveAttribute(
+      "href",
+      "/groups/group-1/members",
+    )
+    expect(setActiveGroupId).not.toHaveBeenCalled()
+  })
+
+  it("sets active vault only when selecting a team link", async () => {
+    const user = userEvent.setup()
+    renderNav("/keys")
+
+    await user.click(screen.getByRole("link", { name: "beta" }))
+    expect(setActiveGroupId).toHaveBeenCalledWith("group-2")
   })
 })

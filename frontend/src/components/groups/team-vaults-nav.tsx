@@ -34,7 +34,7 @@ export function TeamVaultsNav({ onNavigate }: TeamVaultsNavProps) {
     }
   }
 
-  const resolvedExpandedId =
+  const rememberedExpandedId =
     expandedId && groups.some((group) => group.id === expandedId)
       ? expandedId
       : (() => {
@@ -84,46 +84,55 @@ export function TeamVaultsNav({ onNavigate }: TeamVaultsNavProps) {
       ) : null}
 
       <ul className="space-y-0.5">
-        {groups.map((group) => (
-          <li key={group.id}>
-            <TeamVaultRow
-              group={group}
-              expanded={resolvedExpandedId === group.id}
-              onNavigate={onNavigate}
-              onToggleExpand={() => {
-                const next = resolvedExpandedId === group.id ? null : group.id
-                setExpandedId(next)
-                if (next) {
-                  setLastExpandedTeamVaultId(next)
-                  setActiveGroupId(next)
+        {groups.map((group) => {
+          const pinnedOpen = routeGroupId === group.id
+          const expanded = pinnedOpen || rememberedExpandedId === group.id
+
+          return (
+            <li key={group.id}>
+              <TeamVaultRow
+                group={group}
+                expanded={expanded}
+                collapseDisabled={pinnedOpen}
+                onNavigate={onNavigate}
+                onToggleExpand={() => {
+                  if (pinnedOpen) {
+                    return
+                  }
+
+                  const next = rememberedExpandedId === group.id ? null : group.id
+                  setExpandedId(next)
+                  if (next) {
+                    setLastExpandedTeamVaultId(next)
+                    logUiEvent("info", {
+                      eventId: "teamVaultsNav.expanded",
+                      message: "Expanded team vault in sidebar",
+                      groupId: next,
+                    })
+                  } else {
+                    setLastExpandedTeamVaultId(null)
+                    logUiEvent("info", {
+                      eventId: "teamVaultsNav.collapsed",
+                      message: "Collapsed team vault in sidebar",
+                      groupId: group.id,
+                    })
+                  }
+                }}
+                onSelect={() => {
+                  setExpandedId(group.id)
+                  setLastExpandedTeamVaultId(group.id)
+                  setActiveGroupId(group.id)
+                  onNavigate?.()
                   logUiEvent("info", {
-                    eventId: "teamVaultsNav.expanded",
-                    message: "Expanded team vault in sidebar",
-                    groupId: next,
-                  })
-                } else {
-                  setLastExpandedTeamVaultId(null)
-                  logUiEvent("info", {
-                    eventId: "teamVaultsNav.collapsed",
-                    message: "Collapsed team vault in sidebar",
+                    eventId: "teamVaultsNav.selected",
+                    message: "Selected team vault from sidebar",
                     groupId: group.id,
                   })
-                }
-              }}
-              onSelect={() => {
-                setExpandedId(group.id)
-                setLastExpandedTeamVaultId(group.id)
-                setActiveGroupId(group.id)
-                onNavigate?.()
-                logUiEvent("info", {
-                  eventId: "teamVaultsNav.selected",
-                  message: "Selected team vault from sidebar",
-                  groupId: group.id,
-                })
-              }}
-            />
-          </li>
-        ))}
+                }}
+              />
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
@@ -132,12 +141,20 @@ export function TeamVaultsNav({ onNavigate }: TeamVaultsNavProps) {
 type TeamVaultRowProps = {
   group: Group
   expanded: boolean
+  collapseDisabled?: boolean
   onNavigate?: () => void
   onToggleExpand: () => void
   onSelect: () => void
 }
 
-function TeamVaultRow({ group, expanded, onNavigate, onToggleExpand, onSelect }: TeamVaultRowProps) {
+function TeamVaultRow({
+  group,
+  expanded,
+  collapseDisabled = false,
+  onNavigate,
+  onToggleExpand,
+  onSelect,
+}: TeamVaultRowProps) {
   const [searchParams] = useSearchParams()
   const { pathname } = useLocation()
   const keysBase = `/groups/${group.id}/keys`
@@ -169,9 +186,12 @@ function TeamVaultRow({ group, expanded, onNavigate, onToggleExpand, onSelect }:
         </NavLink>
         <button
           type="button"
-          className="mr-2 rounded p-0.5 text-sidebar-foreground hover:bg-sidebar-accent/60"
+          className="mr-2 rounded p-0.5 text-sidebar-foreground hover:bg-sidebar-accent/60 disabled:pointer-events-none disabled:opacity-40"
           aria-label={expanded ? `Collapse ${group.name}` : `Expand ${group.name}`}
           aria-expanded={expanded}
+          aria-disabled={collapseDisabled || undefined}
+          disabled={collapseDisabled}
+          title={collapseDisabled ? "Current team stays expanded while you are viewing it" : undefined}
           onClick={onToggleExpand}
           data-pgp-ui="teamVaultsNav.toggle"
         >
