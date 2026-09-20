@@ -63,6 +63,7 @@ export function validateExportPrivateForm(
   if (values.rewrapEnabled) {
     const passphrase = values.passphrase.trim()
     const newPassphrase = values.newPassphrase.trim()
+    const confirmNewPassphrase = values.confirmNewPassphrase.trim()
 
     if (!passphrase) {
       fieldErrors.passphrase = "Vault passphrase is required to export with a new passphrase"
@@ -83,9 +84,9 @@ export function validateExportPrivateForm(
       }
     }
 
-    if (newPassphrase && newPassphrase !== values.confirmNewPassphrase) {
+    if (newPassphrase && newPassphrase !== confirmNewPassphrase) {
       fieldErrors.confirmNewPassphrase = "Passphrases do not match"
-    } else if (!values.confirmNewPassphrase) {
+    } else if (!confirmNewPassphrase) {
       fieldErrors.confirmNewPassphrase = "Confirm the new transfer passphrase"
     }
   }

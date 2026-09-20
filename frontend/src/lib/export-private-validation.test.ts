@@ -93,6 +93,30 @@ describe("validateExportPrivateForm", () => {
       newPassphrase: "transfer-pass-99",
     })
   })
+
+  it("accepts confirm match when both sides have surrounding whitespace", () => {
+    const result = validateExportPrivateForm({
+      ...defaultExportPrivateFormValues,
+      confirmed: true,
+      rewrapEnabled: true,
+      passphrase: "vault-passphrase-1",
+      newPassphrase: "  transfer-pass-99  ",
+      confirmNewPassphrase: " transfer-pass-99 ",
+    })
+    expect(result.valid).toBe(true)
+    expect(
+      buildExportPrivateRequest({
+        ...defaultExportPrivateFormValues,
+        rewrapEnabled: true,
+        passphrase: "vault-passphrase-1",
+        newPassphrase: "  transfer-pass-99  ",
+        confirmNewPassphrase: " transfer-pass-99 ",
+      }),
+    ).toEqual({
+      passphrase: "vault-passphrase-1",
+      newPassphrase: "transfer-pass-99",
+    })
+  })
 })
 
 describe("isPrivateKeyringExportableKey", () => {

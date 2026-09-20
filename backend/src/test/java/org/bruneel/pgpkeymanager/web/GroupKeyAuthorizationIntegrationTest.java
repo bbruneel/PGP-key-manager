@@ -82,6 +82,16 @@ class GroupKeyAuthorizationIntegrationTest {
                         .content("{}"))
                 .andExpect(status().isNotFound());
 
+        // One Mode B field must not leak a pairing 400 before hide-with-404.
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
+                        .with(jwtForSubject(SECONDARY_SUBJECT))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                { "passphrase": "member-should-not-see-pairing" }
+                                """))
+                .andExpect(status().isNotFound());
+
         mockMvc.perform(get("/api/keys/{keyId}", primaryId)
                         .param("includePrivateCiphertext", "true")
                         .with(jwtForSubject(SECONDARY_SUBJECT)))

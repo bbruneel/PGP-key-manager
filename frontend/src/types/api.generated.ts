@@ -342,7 +342,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export private OpenPGP secret keyring (ciphertext) */
+        /** Export private OpenPGP secret keyring */
         post: operations["exportPrivateKey"];
         delete?: never;
         options?: never;

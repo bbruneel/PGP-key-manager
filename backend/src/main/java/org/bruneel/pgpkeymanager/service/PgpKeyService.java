@@ -597,14 +597,6 @@ public class PgpKeyService {
         char[] passphrase = request != null ? request.passphrase() : null;
         char[] newPassphrase = request != null ? request.newPassphrase() : null;
         try {
-            boolean hasVaultPassphrase = PassphraseUtil.isPresent(passphrase);
-            boolean hasTransferPassphrase = PassphraseUtil.isPresent(newPassphrase);
-            if (hasVaultPassphrase != hasTransferPassphrase) {
-                throw new BadRequestException(
-                        "Both passphrase and newPassphrase are required for rewrap export, or omit both for ciphertext download");
-            }
-            boolean rewrap = hasVaultPassphrase && hasTransferPassphrase;
-
             PgpKey key = getForUser(user, keyId);
             openpgpVersion = key.openpgpVersion();
             groupAuthorizationService.requireKeyOwnerOrGroupOwner(user, key);
@@ -615,6 +607,15 @@ public class PgpKeyService {
             if (!key.hasPrivateMaterial()) {
                 throw new BadRequestException("Primary key has no private material for export");
             }
+
+            // Mode B field pairing after ACL so unauthorized callers still get hide-with-404.
+            boolean hasVaultPassphrase = PassphraseUtil.isPresent(passphrase);
+            boolean hasTransferPassphrase = PassphraseUtil.isPresent(newPassphrase);
+            if (hasVaultPassphrase != hasTransferPassphrase) {
+                throw new BadRequestException(
+                        "Both passphrase and newPassphrase are required for rewrap export, or omit both for ciphertext download");
+            }
+            boolean rewrap = hasVaultPassphrase && hasTransferPassphrase;
 
             String armor;
             if (rewrap) {
