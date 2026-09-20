@@ -125,7 +125,7 @@ Key management flows use dedicated routes (not modals) so multi-field PGP forms 
 | `/keys` | List keys for the signed-in user | Current |
 | `/keys/new` | Create primary key (Ed25519 default; advanced RSA/ECDSA/Ed448, OpenPGP v4/v6) | Phase 1 + 6 (implemented) |
 | `/keys/import` | Import/register existing key (public or private armored blocks + fingerprint) | Phase 2 (implemented) |
-| `/keys/:id` | Key detail (tabbed: Overview / Subkeys / Actions), subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, public export, private keyring export, SSH setup) | Phase 3 + 4 + 6 + 18 + 20 + PR #33 (implemented) |
+| `/keys/:id` | Key detail (tabbed: Overview / Subkeys / Actions), subkeys list, add subkey, lifecycle actions (revoke, extend, rotate, public export, private keyring export, SSH setup, revocation cert generate/apply) | Phase 3 + 4 + 6 + 18 + 20 + 21 + PR #33 (implemented) |
 | `/groups/new` | Create a team vault group | Phase 16 (implemented) |
 | `/groups/:groupId/keys` | List keys scoped to a team vault (`scope=group`) | Phase 16 (implemented) |
 | `/groups/:groupId/members` | View group members and summary metrics | Phase 16 (implemented) |
@@ -143,7 +143,7 @@ Browser calls use `requestJson` (`frontend/src/lib/api-client.ts`) on top of `ap
 - **`X-Request-Id`** — client-generated UUID; echoed by the backend `RequestIdFilter` for correlation in logs and error UI.
 - **RFC 7807 errors** — non-2xx responses parse `application/problem+json` into `ApiError` with human-readable `detail`.
 
-Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/`. Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`; Phase 4 adds `keysApi.createSubkey()`; Phase 20 adds `keysApi.exportPrivate()` (Mode A ciphertext download; Mode B unlock+rewrap via the same endpoint). Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text; private keyring export also uses `requestText()` (`application/pgp-keys`, `Cache-Control: no-store`).
+Types are generated from `docs/openapi.yaml` via `npm run generate:api-types` in `frontend/` (or from the repo root when frontend Redocly/js-yaml resolution fails). Phase 1 exposes `keysApi.create()`; Phase 2 adds `keysApi.register()` (same `POST /api/keys`, register path); Phase 3 adds `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, and `exportPublic()`; Phase 4 adds `keysApi.createSubkey()`; Phase 20 adds `keysApi.exportPrivate()` (Mode A ciphertext download; Mode B unlock+rewrap via the same endpoint); Phase 21 adds `keysApi.exportRevocationCert()` and `keysApi.applyRevocationCert()`. Armored public export uses `requestText()` because the API returns `application/pgp-keys` plain text; private keyring export and revocation-cert export also use `requestText()` (`application/pgp-keys`, `Cache-Control: no-store`).
 
 ## Team vault architecture (Phase 16)
 
@@ -234,6 +234,16 @@ Primary **full secret keyring** export — backup / migrate OpenPGP material, no
 4. `GET /api/keys/{keyId}?includePrivateCiphertext=true` uses the same owner/OWNER ACL and audits `get_key_private_ciphertext`; prefer the dedicated export endpoint for deliberate download.
 5. Logging: `export_private_keyring` via `KeyOperationLogger` / metrics with `mode=ciphertext_download` or `mode=rewrap` (never key material). AES pack / step-up remain deferred.
 6. `[pgp-ui]`: `keyDetail.exportPrivate.*` (including `.rewrap.*` for Mode B).
+
+## Revocation certificates (Phase 21)
+
+Offline kill-switch for **primary** keys — distinct from immediate **Revoke now** (Phase 3).
+
+1. On primary **Actions & Lifecycle**, **Generate revocation certificate** downloads a GnuPG-compatible armored public key block with a `KEY_REVOCATION` signature. Does **not** update vault keyring or `revokedAt`. Requires stored private material + passphrase. Disabled when revoked or public-only.
+2. **Apply revocation certificate** pastes armor (no passphrase), verifies fingerprint + signature, merges into stored public (and private when present) rings, and marks the primary revoked. When the DB is already revoked but stored armor lacks a `KEY_REVOCATION` (metadata-only revoke), apply still merges the cert (`revocation_synced`). True no-op only when rings are already cryptographically revoked.
+3. `keysApi.exportRevocationCert()` → `POST /api/keys/{keyId}/export-revocation-cert`; `keysApi.applyRevocationCert()` → `POST /api/keys/{keyId}/apply-revocation-cert`. Subkeys → hide-with-404. Certificates are download-only (not stored server-side).
+4. Logging: `export_revocation_cert` / `apply_revocation_cert` (+ `_ready` / `_completed`); never logs armor or passphrase.
+5. `[pgp-ui]`: `keyDetail.exportRevocationCert.*`, `keyDetail.applyRevocationCert.*`.
 
 ## Add subkey (Phase 4)
 

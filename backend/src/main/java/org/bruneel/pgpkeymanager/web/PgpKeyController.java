@@ -28,6 +28,7 @@ import org.bruneel.pgpkeymanager.service.PassphraseUtil;
 import org.bruneel.pgpkeymanager.service.PgpKeyService;
 import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
+import org.bruneel.pgpkeymanager.web.dto.ApplyRevocationCertRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExportPrivateRequest;
@@ -168,6 +169,31 @@ public class PgpKeyController {
             Authentication authentication) {
         AppUser user = currentUserService.requireCurrentUser(authentication);
         return PgpKeyResponse.from(pgpKeyService.revoke(user, keyId, request), true);
+    }
+
+    @PostMapping(
+            path = "/{keyId}/export-revocation-cert",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = {MediaType.TEXT_PLAIN_VALUE, "application/pgp-keys"})
+    public ResponseEntity<String> exportRevocationCert(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody RevokeKeyRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        String cert = pgpKeyService.exportRevocationCert(user, keyId, request);
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store")
+                .contentType(MediaType.parseMediaType("application/pgp-keys"))
+                .body(cert);
+    }
+
+    @PostMapping(path = "/{keyId}/apply-revocation-cert", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public PgpKeyResponse applyRevocationCert(
+            @PathVariable UUID keyId,
+            @Valid @RequestBody ApplyRevocationCertRequest request,
+            Authentication authentication) {
+        AppUser user = currentUserService.requireCurrentUser(authentication);
+        return PgpKeyResponse.from(pgpKeyService.applyRevocationCert(user, keyId, request), true);
     }
 
     @PostMapping(path = "/{keyId}/extend-expiry", consumes = MediaType.APPLICATION_JSON_VALUE)

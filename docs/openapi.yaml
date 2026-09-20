@@ -362,6 +362,75 @@ paths:
         '4XX':
           $ref: '#/components/responses/ErrorResponse'
 
+  /api/keys/{keyId}/export-revocation-cert:
+    post:
+      tags: [Key lifecycle]
+      summary: Export primary revocation certificate
+      operationId: exportRevocationCert
+      x-implementation-status: implemented
+      description: |
+        Phase 21: generates a GnuPG-compatible armored **revocation certificate** for a **primary**
+        key (public key block with a `KEY_REVOCATION` signature). Does **not** revoke the key or
+        update stored keyring material. Requires stored private material and `passphrase`.
+        Subkeys return hide-with-404. Already-revoked keys return 409. Certificate is download-only
+        (not stored server-side).
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeKeyRequest'
+      responses:
+        '200':
+          description: Armored revocation certificate
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/pgp-keys:
+              schema:
+                type: string
+            text/plain:
+              schema:
+                type: string
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /api/keys/{keyId}/apply-revocation-cert:
+    post:
+      tags: [Key lifecycle]
+      summary: Apply primary revocation certificate
+      operationId: applyRevocationCert
+      x-implementation-status: implemented
+      description: |
+        Phase 21: applies an armored primary **revocation certificate** (from export or external
+        GnuPG) to the stored keyring and marks the primary revoked. Does **not** require a
+        passphrase. Fingerprint must match; `KEY_REVOCATION` signature must verify. When the key is
+        already revoked in the DB but stored armor lacks a cryptographic revocation (metadata-only
+        revoke), the certificate is still merged into the keyring. Already cryptographically
+        revoked keys with a valid matching cert return 200 idempotently. Subkeys return hide-with-404.
+      parameters:
+        - $ref: '#/components/parameters/KeyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyRevocationCertRequest'
+      responses:
+        '200':
+          description: Key after applying revocation (or already-revoked key on idempotent apply)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+        '4XX':
+          $ref: '#/components/responses/ErrorResponse'
+
   /api/keys/{keyId}/extend-expiry:
     post:
       tags: [Key lifecycle]
@@ -1274,6 +1343,16 @@ components:
           type: string
         passphrase:
           $ref: '#/components/schemas/PassphraseField'
+    ApplyRevocationCertRequest:
+      type: object
+      required: [armoredCertificate]
+      properties:
+        armoredCertificate:
+          type: string
+          description: |
+            Armored OpenPGP public key block containing a primary KEY_REVOCATION signature
+            (GnuPG-style revocation certificate).
+          maxLength: 524288
     ExtendExpiryRequest:
       type: object
       required: [expiresAt]

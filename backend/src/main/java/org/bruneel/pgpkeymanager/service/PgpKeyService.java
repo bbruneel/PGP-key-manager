@@ -31,6 +31,7 @@ import org.bruneel.pgpkeymanager.domain.RevocationReason;
 import org.bruneel.pgpkeymanager.repo.PgpKeyRepository;
 import org.bruneel.pgpkeymanager.repo.PgpKeyRepository.PgpKeyInsert;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
+import org.bruneel.pgpkeymanager.web.dto.ApplyRevocationCertRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExportPrivateRequest;
@@ -366,6 +367,131 @@ public class PgpKeyService {
             return revoked;
         } catch (RuntimeException ex) {
             completeFailure("revoke_key", user.id(), keyId, openpgpVersion, start, ex);
+            throw ex;
+        }
+    }
+
+    /**
+     * Phase 21: download a GnuPG-compatible primary revocation certificate without mutating the
+     * vault keyring. Primary-only; requires private material + passphrase.
+     */
+    public String exportRevocationCert(AppUser user, UUID keyId, RevokeKeyRequest request) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("export_revocation_cert", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
+        char[] passphrase = null;
+        try {
+            PgpKey key = getForUser(user, keyId);
+            openpgpVersion = key.openpgpVersion();
+            if (!key.isPrimary()) {
+                throw new KeyNotFoundException(keyId);
+            }
+            ensureNotRevoked(key);
+            if (!key.hasPrivateMaterial()) {
+                throw new BadRequestException(
+                        "Primary key has no private material for generating a revocation certificate");
+            }
+            RevocationReason reason = parseRevocationReason(request.reason());
+            passphrase = PassphraseUtil.require(request.passphrase());
+            String cert =
+                    pgpCryptoService.generateRevocationCertificate(
+                            key.encryptedPrivateArmored(),
+                            passphrase,
+                            revocationReasonCode(reason),
+                            request.description());
+            log.info(
+                    "export_revocation_cert_ready algorithm={} keyIdHex={} fingerprint={}",
+                    key.algorithm(),
+                    key.keyId() != null ? key.keyId().toLowerCase() : null,
+                    key.fingerprint());
+            completeSuccess("export_revocation_cert", user.id(), keyId, openpgpVersion, start);
+            return cert;
+        } catch (RuntimeException ex) {
+            completeFailure("export_revocation_cert", user.id(), keyId, openpgpVersion, start, ex);
+            throw ex;
+        } finally {
+            PassphraseUtil.wipe(passphrase, "export_revocation_cert");
+        }
+    }
+
+    /**
+     * Phase 21: apply an armored primary revocation certificate (download or external). Does not
+     * require passphrase. When the key is already revoked in the DB and the stored rings already
+     * contain a cryptographic KEY_REVOCATION, verify-only (idempotent). When the DB is revoked but
+     * armor is metadata-only (no KEY_REVOCATION), merge the certificate into stored rings.
+     */
+    public PgpKey applyRevocationCert(AppUser user, UUID keyId, ApplyRevocationCertRequest request) {
+        long start = System.currentTimeMillis();
+        operationLogger.started("apply_revocation_cert", user.id(), keyId);
+        int openpgpVersion = PgpKeyValidator.OPENPGP_V4;
+        try {
+            PgpKey key = getForUser(user, keyId);
+            openpgpVersion = key.openpgpVersion();
+            if (!key.isPrimary()) {
+                throw new KeyNotFoundException(keyId);
+            }
+            String armoredPublic = key.armoredPublic();
+            if (armoredPublic == null || armoredPublic.isBlank()) {
+                throw new BadRequestException(
+                        "Primary key has no public material to apply a revocation certificate");
+            }
+
+            boolean alreadyRevoked = key.revokedAt() != null;
+            boolean ringsCryptographicallyRevoked =
+                    pgpCryptoService.primaryKeyIsCryptographicallyRevoked(armoredPublic);
+
+            if (alreadyRevoked && ringsCryptographicallyRevoked) {
+                pgpCryptoService.verifyRevocationCertificate(
+                        request.armoredCertificate(), key.fingerprint(), armoredPublic);
+                log.info(
+                        "apply_revocation_cert_completed status=idempotent fingerprint={}",
+                        key.fingerprint());
+                completeSuccess("apply_revocation_cert", user.id(), keyId, openpgpVersion, start);
+                return key;
+            }
+
+            PgpCryptoService.AppliedRevocation applied =
+                    pgpCryptoService.applyRevocationCertificate(
+                            request.armoredCertificate(),
+                            key.fingerprint(),
+                            armoredPublic,
+                            key.encryptedPrivateArmored());
+
+            if (applied.materialChanged()) {
+                pgpKeyRepository.updateKeyringMaterial(
+                        key.id(),
+                        applied.armoredPublic(),
+                        applied.armoredPrivate(),
+                        null,
+                        alreadyRevoked ? null : applied.revokedAt(),
+                        applied.reason());
+            }
+
+            PgpKey result;
+            if (alreadyRevoked) {
+                result =
+                        pgpKeyRepository
+                                .findById(key.id())
+                                .orElseThrow(() -> new KeyNotFoundException(keyId));
+                log.info(
+                        "apply_revocation_cert_completed status={} fingerprint={} reason={}",
+                        applied.materialChanged() ? "revocation_synced" : "idempotent",
+                        result.fingerprint(),
+                        applied.reason());
+            } else {
+                result =
+                        pgpKeyRepository
+                                .markRevoked(key.id(), applied.revokedAt(), applied.reason())
+                                .orElseThrow(() -> new KeyNotFoundException(keyId));
+                log.info(
+                        "apply_revocation_cert_completed status=revoked fingerprint={} reason={}",
+                        result.fingerprint(),
+                        applied.reason());
+            }
+            completeSuccess("apply_revocation_cert", user.id(), keyId, openpgpVersion, start);
+            return result;
+        } catch (RuntimeException ex) {
+            completeFailure("apply_revocation_cert", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
         }
     }

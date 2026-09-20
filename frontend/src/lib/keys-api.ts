@@ -15,6 +15,7 @@ import type {
   PreviewKeyringResponse,
   RegisterPgpKeyRequest,
   RevokeKeyRequest,
+  ApplyRevocationCertRequest,
   RotateKeyRequest,
   RotateKeyResponse,
   SshSetupPackResponse,
@@ -78,6 +79,18 @@ export type RevokeKeyOptions = {
   accessToken: string
   keyId: string
   body: RevokeKeyRequest
+}
+
+export type ExportRevocationCertOptions = {
+  accessToken: string
+  keyId: string
+  body: RevokeKeyRequest
+}
+
+export type ApplyRevocationCertOptions = {
+  accessToken: string
+  keyId: string
+  body: ApplyRevocationCertRequest
 }
 
 export type ExtendExpiryOptions = {
@@ -276,6 +289,25 @@ export const keysApi = {
   revoke(options: RevokeKeyOptions): Promise<PgpKey> {
     return requestJson<PgpKey>(`/api/keys/${options.keyId}/revoke`, {
       operationId: "revokeKey",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+    })
+  },
+
+  exportRevocationCert(options: ExportRevocationCertOptions): Promise<string> {
+    return requestText(`/api/keys/${options.keyId}/export-revocation-cert`, {
+      operationId: "exportRevocationCert",
+      accessToken: options.accessToken,
+      method: "POST",
+      body: options.body,
+      headers: { Accept: "application/pgp-keys" },
+    })
+  },
+
+  applyRevocationCert(options: ApplyRevocationCertOptions): Promise<PgpKey> {
+    return requestJson<PgpKey>(`/api/keys/${options.keyId}/apply-revocation-cert`, {
+      operationId: "applyRevocationCert",
       accessToken: options.accessToken,
       method: "POST",
       body: options.body,

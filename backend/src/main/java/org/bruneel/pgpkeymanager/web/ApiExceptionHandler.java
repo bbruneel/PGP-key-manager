@@ -120,7 +120,9 @@ public class ApiExceptionHandler {
                 || message.startsWith("Algorithm cannot be exported")
                 || message.startsWith("Unsupported ")
                 || message.startsWith("Keyring OpenPGP version")
-                || message.startsWith("ed448 and x448 require")) {
+                || message.startsWith("ed448 and x448 require")
+                || message.startsWith("Revocation certificate")
+                || message.startsWith("Stored public key material is required")) {
             return message;
         }
         return genericCryptoDetail();

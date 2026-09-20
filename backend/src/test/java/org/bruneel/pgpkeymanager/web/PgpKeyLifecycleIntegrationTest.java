@@ -1,11 +1,15 @@
 package org.bruneel.pgpkeymanager.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +22,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import org.bruneel.pgpkeymanager.TestJwtConfiguration;
+import org.bruneel.pgpkeymanager.crypto.GeneratedKeyMaterial;
+import org.bruneel.pgpkeymanager.crypto.PgpCryptoService;
+import org.bruneel.pgpkeymanager.domain.PgpCapability;
+import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
+import org.bruneel.pgpkeymanager.web.dto.UserIdSpecDto;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -575,6 +584,185 @@ class PgpKeyLifecycleIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void exportAndApplyRevocationCertificateRoundTrip() throws Exception {
+        String primaryId = createPrimaryForRotate();
+
+        MvcResult export =
+                mockMvc.perform(post("/api/keys/{keyId}/export-revocation-cert", primaryId)
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "reason": "key_compromised",
+                                          "description": "offline insurance",
+                                          "passphrase": "%s"
+                                        }
+                                        """
+                                        .formatted(PASSPHRASE)))
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                        .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PUBLIC KEY BLOCK")))
+                        .andReturn();
+
+        String cert = export.getResponse().getContentAsString();
+
+        mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("active"))
+                .andExpect(jsonPath("$.revokedAt").doesNotExist());
+
+        String escapedCert = cert.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+
+        mockMvc.perform(post("/api/keys/{keyId}/apply-revocation-cert", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"armoredCertificate\":\"" + escapedCert + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"))
+                .andExpect(jsonPath("$.revokedAt").exists());
+
+        mockMvc.perform(post("/api/keys/{keyId}/apply-revocation-cert", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"armoredCertificate\":\"" + escapedCert + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"));
+    }
+
+    @Test
+    void exportRevocationCertificateWorksForOpenpgpV6() throws Exception {
+        MvcResult created =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "changed passphrase",
+                                          "keyType": "private",
+                                          "capabilities": ["certify", "sign"],
+                                          "algorithmSpec": { "algorithm": "ed25519" },
+                                          "openpgpVersion": 6,
+                                          "validity": { "expiresAt": "2030-06-01T00:00:00Z" },
+                                          "passphrase": "%s"
+                                        }
+                                        """
+                                        .formatted(PASSPHRASE)))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.openpgpVersion").value(6))
+                        .andReturn();
+        String primaryId = readJsonField(created.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-revocation-cert", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "reason": "key_compromised",
+                                  "description": "nothing special",
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PUBLIC KEY BLOCK")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsStringIgnoringCase("revocation certificate")));
+    }
+
+    @Test
+    void exportRevocationCertOnSubkeyReturnsNotFound() throws Exception {
+        String primaryId = createPrimaryForRotate();
+        String subkeyId = createEncryptSubkey(primaryId);
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-revocation-cert", subkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "reason": "key_retired",
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void applyRevocationCertMergesArmorAfterMetadataOnlyRevoke() throws Exception {
+        PgpCryptoService crypto = new PgpCryptoService();
+        char[] passphrase = "metadata-revoke-pass".toCharArray();
+        GeneratedKeyMaterial material =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Meta Revoke", "meta@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-06-01T00:00:00Z"),
+                        passphrase);
+
+        String cert =
+                crypto.generateRevocationCertificate(
+                        material.armoredPrivate(), passphrase, 2, "sync after metadata revoke");
+        assertThat(crypto.primaryKeyIsCryptographicallyRevoked(material.armoredPublic())).isFalse();
+
+        MvcResult register =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "public-only-meta-revoke",
+                                          "keyType": "public",
+                                          "armoredPublic": "%s"
+                                        }
+                                        """
+                                        .formatted(jsonEscape(material.armoredPublic()))))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.hasPrivateMaterial").value(false))
+                        .andReturn();
+        String primaryId = readJsonField(register.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(post("/api/keys/{keyId}/revoke", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"key_retired\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"));
+
+        MvcResult afterMetadataRevoke =
+                mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwt()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.status").value("revoked"))
+                        .andReturn();
+        String publicBeforeApply =
+                readJsonField(afterMetadataRevoke.getResponse().getContentAsString(), "armoredPublic")
+                        .replace("\\n", "\n");
+        assertThat(crypto.primaryKeyIsCryptographicallyRevoked(publicBeforeApply)).isFalse();
+
+        mockMvc.perform(post("/api/keys/{keyId}/apply-revocation-cert", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"armoredCertificate\":\"" + jsonEscape(cert) + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"));
+
+        MvcResult afterApply =
+                mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwt()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.status").value("revoked"))
+                        .andReturn();
+        String publicAfterApply =
+                readJsonField(afterApply.getResponse().getContentAsString(), "armoredPublic")
+                        .replace("\\n", "\n");
+        assertThat(crypto.primaryKeyIsCryptographicallyRevoked(publicAfterApply)).isTrue();
+    }
+
     private String createPrimaryForRotate() throws Exception {
         MvcResult result =
                 mockMvc.perform(post("/api/keys")
@@ -634,5 +822,9 @@ class PgpKeyLifecycleIntegrationTest {
         start += marker.length();
         int end = json.indexOf('"', start);
         return json.substring(start, end);
+    }
+
+    private static String jsonEscape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
     }
 }

@@ -1268,6 +1268,11 @@ function KeyDetailPageContent() {
             canExtend={canExtend}
             canRotate={canRotate}
             primaryOpenpgpVersion={primaryOpenpgpVersion}
+            getAccessToken={getAccessToken}
+            onKeyMaterialChanged={async () => {
+              await loadKey()
+              setSubkeysRefreshToken((value) => value + 1)
+            }}
             revokeValues={revokeValues}
             revokeFieldErrors={revokeFieldErrors}
             revokeApiError={revokeApiError}

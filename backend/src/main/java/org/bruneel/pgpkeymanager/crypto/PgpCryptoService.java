@@ -29,7 +29,9 @@ import org.bouncycastle.openpgp.PGPSignatureSubpacketGenerator;
 import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
 import org.bouncycastle.openpgp.operator.PBESecretKeyEncryptor;
 import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
+import org.bouncycastle.bcpg.sig.RevocationReasonTags;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder;
 import org.bouncycastle.openpgp.operator.PGPKeyPairGenerator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair;
@@ -37,6 +39,7 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPairGeneratorProvider;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyEncryptorBuilder;
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
+import org.bruneel.pgpkeymanager.domain.RevocationReason;
 import org.bruneel.pgpkeymanager.service.CryptoException;
 import org.bruneel.pgpkeymanager.service.PgpKeyValidator;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
@@ -169,29 +172,292 @@ public class PgpCryptoService {
             }
 
             PGPPublicKey masterPublic = masterSecret.getPublicKey();
-            PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
-                    new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA512)
-                            .setProvider(PROVIDER));
-            int revocationType = target.isMasterKey() ? PGPSignature.KEY_REVOCATION : PGPSignature.SUBKEY_REVOCATION;
-            sigGen.init(revocationType, unlockSecret(masterSecret, passphrase));
-
-            PGPSignatureSubpacketGenerator spGen = new PGPSignatureSubpacketGenerator();
-            spGen.setRevocationReason(false, (byte) revocationReasonCode, "revoked via API");
-            sigGen.setHashedSubpackets(spGen.generate());
-
             PGPSignature revocation =
-                    target.isMasterKey()
-                            ? sigGen.generateCertification(target)
-                            : sigGen.generateCertification(masterPublic, target);
+                    createRevocationSignature(
+                            masterSecret,
+                            masterPublic,
+                            target,
+                            passphrase,
+                            revocationReasonCode,
+                            "revoked via API");
             PGPPublicKey revokedPublic = PGPPublicKey.addCertification(target, revocation);
             PGPSecretKeyRing updated = replacePublicKeyInRing(ring, targetKeyId, revokedPublic);
             PGPPublicKeyRing publicRing = PgpCryptoSupport.publicRingFromSecret(updated);
             return new KeyRingUpdate(
                     PgpCryptoSupport.armorPublicRing(publicRing),
                     PgpCryptoSupport.armorSecretRing(updated));
+        } catch (CryptoException e) {
+            throw e;
         } catch (Exception e) {
+            if (PgpCryptoSupport.isPassphraseMismatch(e)) {
+                throw new CryptoException("Passphrase does not unlock the private key");
+            }
             throw new CryptoException("Failed to revoke key in keyring", e);
         }
+    }
+
+    /**
+     * Builds a GnuPG-compatible armored revocation certificate (public key block containing the
+     * primary key plus a {@code KEY_REVOCATION} signature). Does not mutate the vault keyring.
+     */
+    public String generateRevocationCertificate(
+            String armoredPrivate,
+            char[] passphrase,
+            int revocationReasonCode,
+            String reasonDescription) {
+        try {
+            PGPSecretKeyRing ring = PgpCryptoSupport.loadSecretKeyRing(armoredPrivate, passphrase);
+            PGPSecretKey masterSecret = ring.getSecretKey();
+            PGPPublicKey masterPublic = masterSecret.getPublicKey();
+            String description =
+                    reasonDescription != null && !reasonDescription.isBlank()
+                            ? reasonDescription
+                            : "revocation certificate";
+            PGPSignature revocation =
+                    createRevocationSignature(
+                            masterSecret,
+                            masterPublic,
+                            masterPublic,
+                            passphrase,
+                            revocationReasonCode,
+                            description);
+            PGPPublicKey revokedPrimary = PGPPublicKey.addCertification(masterPublic, revocation);
+            return PgpCryptoSupport.armorPublicRing(
+                    new PGPPublicKeyRing(List.of(revokedPrimary)),
+                    "This is a revocation certificate");
+        } catch (CryptoException e) {
+            throw e;
+        } catch (Exception e) {
+            if (PgpCryptoSupport.isPassphraseMismatch(e)) {
+                throw new CryptoException("Passphrase does not unlock the private key");
+            }
+            throw new CryptoException("Failed to generate revocation certificate", e);
+        }
+    }
+
+    /**
+     * Verifies an armored revocation certificate matches {@code expectedFingerprint} and contains
+     * a valid {@code KEY_REVOCATION} for the stored primary public key.
+     */
+    public void verifyRevocationCertificate(
+            String armoredCertificate, String expectedFingerprint, String armoredPublic) {
+        extractVerifiedPrimaryRevocation(armoredCertificate, expectedFingerprint, armoredPublic);
+    }
+
+    /** True when the master public key in {@code armoredPublic} carries a KEY_REVOCATION signature. */
+    public boolean primaryKeyIsCryptographicallyRevoked(String armoredPublic) {
+        try {
+            if (armoredPublic == null || armoredPublic.isBlank()) {
+                return false;
+            }
+            PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            return ring.getPublicKey().isRevoked();
+        } catch (Exception e) {
+            throw new CryptoException("Failed to inspect public key revocation state", e);
+        }
+    }
+
+    /**
+     * Merges a verified primary revocation certificate into stored public (and optional private)
+     * keyring armor. Returns updated armor plus reason/time from the certificate. Equivalent
+     * KEY_REVOCATION signatures already present on the master key are not duplicated.
+     */
+    public AppliedRevocation applyRevocationCertificate(
+            String armoredCertificate,
+            String expectedFingerprint,
+            String armoredPublic,
+            String armoredPrivate) {
+        try {
+            VerifiedRevocation verified =
+                    extractVerifiedPrimaryRevocation(armoredCertificate, expectedFingerprint, armoredPublic);
+            PGPPublicKeyRing storedPublic = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            PGPPublicKey master = storedPublic.getPublicKey();
+            PGPPublicKey updatedMaster = master;
+            boolean materialChanged = false;
+            for (PGPSignature revocation : verified.revocations()) {
+                if (hasEquivalentRevocation(updatedMaster, revocation)) {
+                    continue;
+                }
+                updatedMaster = PGPPublicKey.addCertification(updatedMaster, revocation);
+                materialChanged = true;
+            }
+            if (!materialChanged) {
+                return new AppliedRevocation(
+                        armoredPublic,
+                        armoredPrivate != null && !armoredPrivate.isBlank() ? armoredPrivate : null,
+                        verified.revokedAt(),
+                        verified.reason(),
+                        false);
+            }
+            PGPPublicKeyRing updatedPublic =
+                    replacePublicKeyInPublicRing(storedPublic, master.getKeyID(), updatedMaster);
+
+            String updatedPrivateArmor = null;
+            if (armoredPrivate != null && !armoredPrivate.isBlank()) {
+                PGPSecretKeyRing secretRing =
+                        PgpCryptoSupport.loadSecretKeyRing(armoredPrivate, new char[0]);
+                PGPSecretKeyRing updatedSecret =
+                        replacePublicKeyInRing(secretRing, master.getKeyID(), updatedMaster);
+                updatedPrivateArmor = PgpCryptoSupport.armorSecretRing(updatedSecret);
+            }
+
+            return new AppliedRevocation(
+                    PgpCryptoSupport.armorPublicRing(updatedPublic),
+                    updatedPrivateArmor,
+                    verified.revokedAt(),
+                    verified.reason(),
+                    true);
+        } catch (CryptoException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CryptoException("Failed to apply revocation certificate", e);
+        }
+    }
+
+    public record AppliedRevocation(
+            String armoredPublic,
+            String armoredPrivate,
+            Instant revokedAt,
+            RevocationReason reason,
+            boolean materialChanged) {}
+
+    private record VerifiedRevocation(
+            List<PGPSignature> revocations, Instant revokedAt, RevocationReason reason) {}
+
+    private boolean hasEquivalentRevocation(PGPPublicKey key, PGPSignature candidate) throws IOException {
+        byte[] candidateEncoded = candidate.getEncoded();
+        Iterator<PGPSignature> existing = key.getSignaturesOfType(PGPSignature.KEY_REVOCATION);
+        while (existing.hasNext()) {
+            if (java.util.Arrays.equals(existing.next().getEncoded(), candidateEncoded)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    private VerifiedRevocation extractVerifiedPrimaryRevocation(
+            String armoredCertificate, String expectedFingerprint, String armoredPublic) {
+        try {
+            if (armoredCertificate == null || armoredCertificate.isBlank()) {
+                throw new CryptoException("Revocation certificate is required");
+            }
+            if (armoredPublic == null || armoredPublic.isBlank()) {
+                throw new CryptoException("Stored public key material is required to apply a revocation certificate");
+            }
+            PGPPublicKeyRing certRing = PgpCryptoSupport.loadPublicKeyRing(armoredCertificate);
+            PGPPublicKey certMaster = certRing.getPublicKey();
+            String certFingerprint = PgpCryptoSupport.fingerprintHex(certMaster);
+            if (expectedFingerprint == null
+                    || !certFingerprint.equalsIgnoreCase(expectedFingerprint.trim())) {
+                throw new CryptoException("Revocation certificate fingerprint does not match key");
+            }
+
+            PGPPublicKeyRing storedPublic = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            PGPPublicKey storedMaster = storedPublic.getPublicKey();
+            String storedFingerprint = PgpCryptoSupport.fingerprintHex(storedMaster);
+            if (!storedFingerprint.equalsIgnoreCase(certFingerprint)) {
+                throw new CryptoException("Revocation certificate fingerprint does not match key");
+            }
+
+            Iterator<PGPSignature> revocations = certMaster.getSignaturesOfType(PGPSignature.KEY_REVOCATION);
+            List<PGPSignature> verified = new ArrayList<>();
+            Instant revokedAt = null;
+            RevocationReason reason = RevocationReason.NO_REASON;
+            while (revocations.hasNext()) {
+                PGPSignature signature = revocations.next();
+                signature.init(
+                        new JcaPGPContentVerifierBuilderProvider().setProvider(PROVIDER), storedMaster);
+                if (!signature.verifyCertification(storedMaster)) {
+                    throw new CryptoException("Revocation certificate signature is invalid");
+                }
+                verified.add(signature);
+                if (revokedAt == null && signature.getCreationTime() != null) {
+                    revokedAt = signature.getCreationTime().toInstant();
+                }
+                RevocationReason parsed = parseRevocationReasonFromSignature(signature);
+                if (parsed != RevocationReason.NO_REASON) {
+                    reason = parsed;
+                }
+            }
+            if (verified.isEmpty()) {
+                throw new CryptoException("Revocation certificate has no key revocation signature");
+            }
+            if (revokedAt == null) {
+                revokedAt = Instant.now();
+            }
+            return new VerifiedRevocation(verified, revokedAt, reason);
+        } catch (CryptoException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CryptoException("Failed to parse revocation certificate", e);
+        }
+    }
+
+    private PGPSignature createRevocationSignature(
+            PGPSecretKey masterSecret,
+            PGPPublicKey masterPublic,
+            PGPPublicKey target,
+            char[] passphrase,
+            int revocationReasonCode,
+            String reasonDescription)
+            throws PGPException {
+        // Pass signing key so BC emits v4/v6 signatures matching the master key version.
+        PGPSignatureGenerator sigGen = signatureGeneratorFor(masterPublic);
+        int revocationType = target.isMasterKey() ? PGPSignature.KEY_REVOCATION : PGPSignature.SUBKEY_REVOCATION;
+        sigGen.init(revocationType, unlockSecret(masterSecret, passphrase));
+
+        PGPSignatureSubpacketGenerator spGen = new PGPSignatureSubpacketGenerator();
+        spGen.setRevocationReason(
+                false,
+                (byte) revocationReasonCode,
+                reasonDescription != null ? reasonDescription : "");
+        sigGen.setHashedSubpackets(spGen.generate());
+
+        if (target.isMasterKey()) {
+            return sigGen.generateCertification(target);
+        }
+        return sigGen.generateCertification(masterPublic, target);
+    }
+
+    /** Signature generator whose packet version matches {@code signingKey} (required for OpenPGP v6). */
+    private PGPSignatureGenerator signatureGeneratorFor(PGPPublicKey signingKey) {
+        return new PGPSignatureGenerator(
+                new JcaPGPContentSignerBuilder(signingKey.getAlgorithm(), HashAlgorithmTags.SHA512)
+                        .setProvider(PROVIDER),
+                signingKey);
+    }
+
+    private PGPPublicKeyRing replacePublicKeyInPublicRing(
+            PGPPublicKeyRing ring, long keyId, PGPPublicKey newPublic) {
+        List<PGPPublicKey> keys = new ArrayList<>();
+        Iterator<PGPPublicKey> it = ring.getPublicKeys();
+        while (it.hasNext()) {
+            PGPPublicKey pk = it.next();
+            if (pk.getKeyID() == keyId) {
+                keys.add(newPublic);
+            } else {
+                keys.add(pk);
+            }
+        }
+        return new PGPPublicKeyRing(keys);
+    }
+
+    private RevocationReason parseRevocationReasonFromSignature(PGPSignature signature) {
+        PGPSignatureSubpacketVector hashed = signature.getHashedSubPackets();
+        if (hashed == null || !hashed.hasSubpacket(org.bouncycastle.bcpg.SignatureSubpacketTags.REVOCATION_REASON)) {
+            return RevocationReason.NO_REASON;
+        }
+        org.bouncycastle.bcpg.SignatureSubpacket subpacket =
+                hashed.getSubpacket(org.bouncycastle.bcpg.SignatureSubpacketTags.REVOCATION_REASON);
+        if (!(subpacket instanceof org.bouncycastle.bcpg.sig.RevocationReason revocationReason)) {
+            return RevocationReason.NO_REASON;
+        }
+        return switch (revocationReason.getRevocationReason()) {
+            case RevocationReasonTags.KEY_SUPERSEDED -> RevocationReason.KEY_SUPERSEDED;
+            case RevocationReasonTags.KEY_COMPROMISED -> RevocationReason.KEY_COMPROMISED;
+            case RevocationReasonTags.KEY_RETIRED -> RevocationReason.KEY_RETIRED;
+            case RevocationReasonTags.USER_NO_LONGER_VALID -> RevocationReason.USER_ID_INVALID;
+            default -> RevocationReason.NO_REASON;
+        };
     }
 
     public KeyRingUpdate extendExpiryInRing(
@@ -206,9 +472,7 @@ public class PgpCryptoService {
             }
 
             PGPPublicKey masterPublic = masterSecret.getPublicKey();
-            PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
-                    new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA512)
-                            .setProvider(PROVIDER));
+            PGPSignatureGenerator sigGen = signatureGeneratorFor(masterPublic);
             int signatureType =
                     target.isMasterKey() ? PGPSignature.POSITIVE_CERTIFICATION : PGPSignature.SUBKEY_BINDING;
             sigGen.init(signatureType, unlockSecret(masterSecret, passphrase));
