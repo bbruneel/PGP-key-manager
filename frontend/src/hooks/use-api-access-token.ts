@@ -11,35 +11,41 @@ import { logUiEvent } from "@/lib/ui-logger"
  * Returns clear error state when Auth0 is not configured or the user is not signed in.
  */
 export function useApiAccessToken() {
-  const auth0 = useAuth0()
+  const {
+    isAuthenticated,
+    isLoading,
+    error,
+    getAccessTokenSilently,
+    loginWithRedirect,
+  } = useAuth0()
   const isConfigured = auth0Configured()
 
   const getAccessToken = useCallback(async (): Promise<string> => {
     if (!isConfigured) {
       throw new Error("Auth0 is not configured")
     }
-    if (!auth0.isAuthenticated) {
+    if (!isAuthenticated) {
       throw new Error("Sign in to continue")
     }
     try {
-      const token = await auth0.getAccessTokenSilently()
+      const token = await getAccessTokenSilently()
       logApiEvent("debug", {
         operationId: "auth.getAccessToken",
         message: "Access token acquired",
       })
       return token
-    } catch (error) {
+    } catch (tokenError) {
       logApiEvent("error", {
         operationId: "auth.getAccessToken",
         message: "Failed to acquire access token",
       })
 
-      if (isRecoverableAuthError(error)) {
+      if (isRecoverableAuthError(tokenError)) {
         logUiEvent("warn", {
           eventId: "auth.sessionRecovery",
           message: "Redirecting to sign in after token acquisition failure",
         })
-        await auth0.loginWithRedirect({
+        await loginWithRedirect({
           authorizationParams: authLoginParams("login"),
           appState: {
             returnTo: `${window.location.pathname}${window.location.search}`,
@@ -47,15 +53,15 @@ export function useApiAccessToken() {
         })
       }
 
-      throw error instanceof Error ? error : new Error("Failed to acquire access token")
+      throw tokenError instanceof Error ? tokenError : new Error("Failed to acquire access token")
     }
-  }, [auth0, isConfigured])
+  }, [getAccessTokenSilently, isAuthenticated, isConfigured, loginWithRedirect])
 
   return {
     getAccessToken,
-    isAuthenticated: auth0.isAuthenticated,
+    isAuthenticated,
     isConfigured,
-    isLoading: auth0.isLoading,
-    authError: auth0.error?.message ?? null,
+    isLoading,
+    authError: error?.message ?? null,
   }
 }
