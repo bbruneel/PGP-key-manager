@@ -71,7 +71,7 @@ describe("GroupProvider", () => {
     cleanup()
   })
 
-  it("loads groups and defaults the active group to the first item", async () => {
+  it("loads groups without selecting an active group by default", async () => {
     vi.mocked(groupsApi.list).mockResolvedValue([groupOne, groupTwo])
 
     render(
@@ -82,7 +82,7 @@ describe("GroupProvider", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("group-count")).toHaveTextContent("2")
-      expect(screen.getByTestId("active-group-id")).toHaveTextContent("group-1")
+      expect(screen.getByTestId("active-group-id")).toHaveTextContent("none")
     })
   })
 
@@ -99,7 +99,7 @@ describe("GroupProvider", () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId("active-group-id")).toHaveTextContent("group-1")
+      expect(screen.getByTestId("active-group-id")).toHaveTextContent("none")
     })
 
     await user.click(screen.getByRole("button", { name: "set-group-2" }))
