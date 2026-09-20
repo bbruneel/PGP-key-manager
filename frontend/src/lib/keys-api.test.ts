@@ -586,3 +586,52 @@ describe("keysApi.exportPrivate", () => {
     })
   })
 })
+
+describe("keysApi.exportRevocationCert", () => {
+  beforeEach(() => {
+    vi.mocked(requestText).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/export-revocation-cert", async () => {
+    vi.mocked(requestText).mockResolvedValue("-----BEGIN PGP PUBLIC KEY BLOCK-----\n")
+
+    const result = await keysApi.exportRevocationCert({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: { reason: "key_retired", passphrase: "long-enough-passphrase" },
+    })
+
+    expect(requestText).toHaveBeenCalledWith("/api/keys/key-1/export-revocation-cert", {
+      operationId: "exportRevocationCert",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { reason: "key_retired", passphrase: "long-enough-passphrase" },
+      headers: { Accept: "application/pgp-keys" },
+    })
+    expect(result).toContain("BEGIN PGP PUBLIC KEY BLOCK")
+  })
+})
+
+describe("keysApi.applyRevocationCert", () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset()
+  })
+
+  it("calls POST /api/keys/{keyId}/apply-revocation-cert", async () => {
+    vi.mocked(requestJson).mockResolvedValue({ id: "key-1", status: "revoked" })
+
+    const result = await keysApi.applyRevocationCert({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: { armoredCertificate: "-----BEGIN PGP PUBLIC KEY BLOCK-----\n" },
+    })
+
+    expect(requestJson).toHaveBeenCalledWith("/api/keys/key-1/apply-revocation-cert", {
+      operationId: "applyRevocationCert",
+      accessToken: "token-abc",
+      method: "POST",
+      body: { armoredCertificate: "-----BEGIN PGP PUBLIC KEY BLOCK-----\n" },
+    })
+    expect(result).toEqual({ id: "key-1", status: "revoked" })
+  })
+})

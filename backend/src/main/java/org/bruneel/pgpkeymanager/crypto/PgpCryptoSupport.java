@@ -87,8 +87,16 @@ public final class PgpCryptoSupport {
     }
 
     public static String armorPublicRing(PGPPublicKeyRing ring) throws IOException {
+        return armorPublicRing(ring, null);
+    }
+
+    /** Armors a public key ring, optionally setting an OpenPGP armor Comment header (GnuPG-style). */
+    public static String armorPublicRing(PGPPublicKeyRing ring, String comment) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (ArmoredOutputStream armored = new ArmoredOutputStream(out)) {
+            if (comment != null && !comment.isBlank()) {
+                armored.setHeader(ArmoredOutputStream.COMMENT_HDR, comment);
+            }
             ring.encode(armored);
         }
         return out.toString(StandardCharsets.UTF_8);

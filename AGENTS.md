@@ -143,6 +143,8 @@ For `PgpKeyController`, every path under `/api/keys` must appear in `PgpKeyContr
 - `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview`
 - `GET /api/keys/{primaryKeyId}/subkeys/{subkeyId}`
 - `POST /api/keys/{keyId}/revoke`
+- `POST /api/keys/{keyId}/export-revocation-cert`
+- `POST /api/keys/{keyId}/apply-revocation-cert`
 - `POST /api/keys/{keyId}/extend-expiry`
 - `POST /api/keys/{keyId}/rotate`
 - `GET /api/keys/{keyId}/export-public`
@@ -195,6 +197,7 @@ If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching sli
 
 - **Phase 20 (implemented):** Mode A/B OpenPGP **private keyring export** — `POST /api/keys/{keyId}/export-private` returns passphrase-protected secret armor for **primary** keys only (full keyring); Mode A omits passphrases (stored ciphertext); Mode B sends `passphrase` + `newPassphrase` to unlock and rewrap for download without changing the vault; owner / group **OWNER** ACL with hide-with-404; Overview `ExportPrivateCard` with checkbox **Export with a new passphrase** (fields disabled until checked); `GET /api/groups/{groupId}/members/me` (`getMyGroupMembership`) so the SPA enables download for vault owners and shows owner-only copy for members; tightened `GET /api/keys/{keyId}?includePrivateCiphertext=true`; `[pgp-ui]` `keyDetail.exportPrivate.*`; backend op `export_private_keyring` (`mode=ciphertext_download` | `mode=rewrap`).
 
+- **Phase 21 (implemented):** Primary **revocation certificates** — `POST /api/keys/{keyId}/export-revocation-cert` (GnuPG-compatible armored public key block with `KEY_REVOCATION`; download-only, does not revoke; requires private material + passphrase) and `POST /api/keys/{keyId}/apply-revocation-cert` (paste armor; no passphrase; merges into stored rings + `markRevoked`; idempotent when already revoked). Primary-only; key-access ACL (same as revoke); Actions & Lifecycle sibling cards (`ExportRevocationCertCard`, `ApplyRevocationCertCard`); `[pgp-ui]` `keyDetail.exportRevocationCert.*`, `keyDetail.applyRevocationCert.*`; ops `export_revocation_cert` / `apply_revocation_cert`. No server-side cert storage; no create-time prompt; no subkey certs.
 - Pages in `frontend/src/pages/`, shared UI in `frontend/src/components/`, utilities in `frontend/src/lib/`.
 - Use `apiFetch` from `frontend/src/lib/api.ts` for API calls. It sets:
   - `Accept: application/json; version=1`

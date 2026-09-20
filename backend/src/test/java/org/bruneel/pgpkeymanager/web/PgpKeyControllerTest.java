@@ -36,6 +36,7 @@ import org.bruneel.pgpkeymanager.service.CreateKeyOutcome;
 import org.bruneel.pgpkeymanager.service.CurrentUserService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService;
 import org.bruneel.pgpkeymanager.service.PgpKeyService.RotateResult;
+import org.bruneel.pgpkeymanager.web.dto.ApplyRevocationCertRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreatePgpKeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.CreateSubkeyRequest;
 import org.bruneel.pgpkeymanager.web.dto.ExportSshPrivateRequest;
@@ -362,6 +363,49 @@ class PgpKeyControllerTest {
                 .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"));
 
         verify(pgpKeyService).revoke(eq(USER), eq(keyId), any(RevokeKeyRequest.class));
+    }
+
+    @Test
+    void exportRevocationCertReturnsArmoredCertificate() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.exportRevocationCert(eq(USER), eq(keyId), any(RevokeKeyRequest.class)))
+                .thenReturn(
+                        "-----BEGIN PGP PUBLIC KEY BLOCK-----\nComment: This is a revocation certificate\n-----END PGP PUBLIC KEY BLOCK-----\n");
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-revocation-cert", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"key_retired\",\"passphrase\":\"test-passphrase-123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                .andExpect(content().string(containsString("BEGIN PGP PUBLIC KEY BLOCK")))
+                .andExpect(content().string(containsString("revocation certificate")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"));
+
+        verify(pgpKeyService).exportRevocationCert(eq(USER), eq(keyId), any(RevokeKeyRequest.class));
+    }
+
+    @Test
+    void applyRevocationCertReturnsKey() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        PgpKey key = TestPgpKeys.samplePublic(USER.id());
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.applyRevocationCert(eq(USER), eq(keyId), any(ApplyRevocationCertRequest.class)))
+                .thenReturn(key);
+
+        mockMvc.perform(post("/api/keys/{keyId}/apply-revocation-cert", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "armoredCertificate": "-----BEGIN PGP PUBLIC KEY BLOCK-----\\n-----END PGP PUBLIC KEY BLOCK-----"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fingerprint").value("A1B2C3D4E5F6789012345678ABCDEF0123456789"));
+
+        verify(pgpKeyService).applyRevocationCert(eq(USER), eq(keyId), any(ApplyRevocationCertRequest.class));
     }
 
     @Test

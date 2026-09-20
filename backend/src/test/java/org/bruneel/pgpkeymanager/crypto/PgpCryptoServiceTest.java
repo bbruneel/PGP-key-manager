@@ -9,6 +9,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import org.bruneel.pgpkeymanager.domain.PgpCapability;
+import org.bruneel.pgpkeymanager.domain.RevocationReason;
 import org.bruneel.pgpkeymanager.service.CryptoException;
 import org.bruneel.pgpkeymanager.web.dto.AlgorithmSpecDto;
 import org.bruneel.pgpkeymanager.web.dto.UserIdSpecDto;
@@ -294,6 +295,74 @@ class PgpCryptoServiceTest {
                         3);
 
         assertThat(updated.armoredPublic()).contains("BEGIN PGP PUBLIC KEY BLOCK");
+    }
+
+    @Test
+    void generateAndApplyRevocationCertificateRoundTrip() {
+        char[] passphrase = "integration-test-passphrase".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Revoke Cert", "revcert@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        passphrase);
+
+        String cert =
+                crypto.generateRevocationCertificate(
+                        primary.armoredPrivate(), passphrase, 3, "offline backup");
+
+        assertThat(cert).contains("BEGIN PGP PUBLIC KEY BLOCK");
+        assertThat(cert).containsIgnoringCase("revocation certificate");
+
+        PgpCryptoService.AppliedRevocation applied =
+                crypto.applyRevocationCertificate(
+                        cert, primary.fingerprint(), primary.armoredPublic(), primary.armoredPrivate());
+
+        assertThat(applied.armoredPublic()).contains("BEGIN PGP PUBLIC KEY BLOCK");
+        assertThat(applied.armoredPrivate()).contains("BEGIN PGP PRIVATE KEY BLOCK");
+        assertThat(applied.reason()).isEqualTo(RevocationReason.KEY_RETIRED);
+        assertThat(applied.revokedAt()).isNotNull();
+
+        ImportedKeyMetadata parsed =
+                new PgpKeyMetadataParser().parse(applied.armoredPublic(), applied.armoredPrivate());
+        assertThat(parsed.revokedAt()).isNotNull();
+        assertThat(parsed.revocationReason()).isEqualTo(RevocationReason.KEY_RETIRED);
+    }
+
+    @Test
+    void applyRevocationCertificateRejectsWrongFingerprint() {
+        char[] passphrase = "integration-test-passphrase".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("A", "a@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        passphrase);
+        GeneratedKeyMaterial other =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("B", "b@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        passphrase);
+
+        String cert =
+                crypto.generateRevocationCertificate(primary.armoredPrivate(), passphrase, 2, null);
+
+        assertThatThrownBy(
+                        () ->
+                                crypto.applyRevocationCertificate(
+                                        cert,
+                                        other.fingerprint(),
+                                        other.armoredPublic(),
+                                        other.armoredPrivate()))
+                .isInstanceOf(CryptoException.class)
+                .hasMessageContaining("fingerprint");
     }
 
     @Test

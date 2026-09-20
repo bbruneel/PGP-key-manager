@@ -220,6 +220,20 @@ Passphrase used by the script: `smoke-lifecycle-passphrase-1`.
 
 ---
 
+## Phase 21 — Primary revocation certificates
+
+Human browser QA (agents/bots should not drive desktop Chrome for this section).
+
+1. Open a **primary** with private material (`/keys/:id?tab=actions`). Confirm **Generate revocation certificate** and **Apply revocation certificate** appear next to Revoke (not in Danger Zone).
+2. Generate: choose reason, enter passphrase, **Download revocation certificate**. Confirm the key status stays **active**. Open the `.asc` and confirm it is a `BEGIN PGP PUBLIC KEY BLOCK` (Comment may mention revocation certificate).
+3. Apply the downloaded armor (confirm checkbox) → status becomes **revoked**; toast success; generate card shows disabled/revoked copy.
+4. Apply the same cert again → success (idempotent), still revoked.
+5. Open a **subkey** detail: generate/apply cards are absent.
+6. Public-only primary (if available): generate disabled with private-material message; apply still available when you have an external cert for that fingerprint.
+7. Wrong fingerprint / garbage armor on apply → UI error (400).
+
+---
+
 ## Phase 11 — Passphrase reset on key navigation
 
 1. Open a primary key with private material (`/keys/:id`).

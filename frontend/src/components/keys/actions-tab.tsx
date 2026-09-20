@@ -1,5 +1,7 @@
 import { DeleteKeyForm } from "@/components/keys/delete-key-form"
 import { ExtendExpiryForm } from "@/components/keys/extend-expiry-form"
+import { ApplyRevocationCertCard } from "@/components/keys/apply-revocation-cert-card"
+import { ExportRevocationCertCard } from "@/components/keys/export-revocation-cert-card"
 import { KeyDetailTabPanel } from "@/components/keys/key-detail-tab-panel"
 import { RevokeKeyForm } from "@/components/keys/revoke-key-form"
 import { RotateKeyForm } from "@/components/keys/rotate-key-form"
@@ -22,6 +24,8 @@ export type ActionsTabProps = {
   canExtend: boolean
   canRotate: boolean
   primaryOpenpgpVersion: 4 | 6
+  getAccessToken: () => Promise<string>
+  onKeyMaterialChanged: () => Promise<void> | void
   revokeValues: RevokeKeyFormValues
   revokeFieldErrors: RevokeKeyFieldErrors
   revokeApiError: string | null
@@ -77,6 +81,8 @@ export function ActionsTab({
   canExtend,
   canRotate,
   primaryOpenpgpVersion,
+  getAccessToken,
+  onKeyMaterialChanged,
   revokeValues,
   revokeFieldErrors,
   revokeApiError,
@@ -119,6 +125,14 @@ export function ActionsTab({
   deleteSubmitting,
   onDeleteSubmit,
 }: ActionsTabProps) {
+  const canGenerateRevocationCert =
+    !isSubkey && !isRevoked && Boolean(keyData.hasPrivateMaterial)
+  const generateRevocationDisabledReason = isRevoked
+    ? "This key is already revoked. Export the public key to share the embedded revocation."
+    : !keyData.hasPrivateMaterial
+      ? "Generating a revocation certificate requires stored private material."
+      : null
+
   return (
     <KeyDetailTabPanel
       panelId="key-detail-actions-panel"
@@ -155,6 +169,29 @@ export function ActionsTab({
           />
         </div>
       </div>
+
+      {!isSubkey ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
+            <ExportRevocationCertCard
+              keyId={keyData.id!}
+              fingerprint={keyData.fingerprint}
+              label={keyData.label}
+              disabled={!canGenerateRevocationCert}
+              disabledReason={generateRevocationDisabledReason}
+              getAccessToken={getAccessToken}
+            />
+          </div>
+          <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">
+            <ApplyRevocationCertCard
+              keyId={keyData.id!}
+              fingerprint={keyData.fingerprint}
+              getAccessToken={getAccessToken}
+              onApplied={onKeyMaterialChanged}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {isSubkey ? (
         <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">

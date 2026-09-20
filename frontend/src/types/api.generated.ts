@@ -67,7 +67,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get key */
+        /**
+         * Get key
+         * @description Returns key metadata for any caller with key access. Private ciphertext
+         *     (`encryptedPrivateArmored`) is omitted by default. Set
+         *     `includePrivateCiphertext=true` to request it; the field is included only for the
+         *     personal key owner or group OWNER, and inclusion is audited
+         *     (`get_key_private_ciphertext`). Prefer `POST /api/keys/{keyId}/export-private` for
+         *     deliberate private keyring export.
+         */
         get: operations["getKey"];
         put?: never;
         post?: never;
@@ -179,6 +187,53 @@ export interface paths {
          *     updated. Supplying a passphrase when no private material exists returns 400.
          */
         post: operations["revokeKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/keys/{keyId}/export-revocation-cert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export primary revocation certificate
+         * @description Phase 21: generates a GnuPG-compatible armored **revocation certificate** for a **primary**
+         *     key (public key block with a `KEY_REVOCATION` signature). Does **not** revoke the key or
+         *     update stored keyring material. Requires stored private material and `passphrase`.
+         *     Subkeys return hide-with-404. Already-revoked keys return 409. Certificate is download-only
+         *     (not stored server-side).
+         */
+        post: operations["exportRevocationCert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/keys/{keyId}/apply-revocation-cert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply primary revocation certificate
+         * @description Phase 21: applies an armored primary **revocation certificate** (from export or external
+         *     GnuPG) to the stored keyring and marks the primary revoked. Does **not** require a
+         *     passphrase. Fingerprint must match; `KEY_REVOCATION` signature must verify. Already-revoked
+         *     keys with a valid matching cert return 200 idempotently. Subkeys return hide-with-404.
+         */
+        post: operations["applyRevocationCert"];
         delete?: never;
         options?: never;
         head?: never;
@@ -308,7 +363,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export OpenSSH private key */
+        /**
+         * Export OpenSSH private key
+         * @description Returns an OpenSSH private key PEM for an authenticate subkey (or primary) with an
+         *     SSH-compatible algorithm. Requires the vault passphrase that unlocks the primary
+         *     secret keyring. The private key material itself is unencrypted OpenSSH PEM;
+         *     revoked keys and keys without stored private material return 4xx.
+         *     Ed25519/ECDSA use `BEGIN OPENSSH PRIVATE KEY`; RSA uses `BEGIN RSA PRIVATE KEY`
+         *     (Bouncy Castle PKCS#1 encoding).
+         */
         post: operations["exportSshPrivateKey"];
         delete?: never;
         options?: never;
@@ -325,7 +388,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Download SSH setup pack (AES-encrypted zip) */
+        /**
+         * Download SSH setup pack (AES-encrypted zip)
+         * @description Returns a JSON envelope with an AES-256 encrypted zip (`content`, base64), the suggested
+         *     `filename`, and a one-time `archivePassword`. Requires the vault passphrase. The password
+         *     is returned in the JSON body (not a response header) so proxies and access logs that
+         *     record headers do not persist it. It is shown once in the UI and is never stored in the
+         *     zip or in server logs. WinZip AES zips require 7-Zip, PeaZip, or The Unarchiver —
+         *     macOS Archive Utility / Finder, Info-ZIP `unzip` on macOS and Linux, and older Windows
+         *     Explorer do not support AES (compression method 99).
+         */
         post: operations["exportSshSetupPack"];
         delete?: never;
         options?: never;
@@ -342,7 +414,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export private OpenPGP secret keyring */
+        /**
+         * Export private OpenPGP secret keyring
+         * @description Returns OpenPGP encrypted **secret keyring** armor for a **primary** `keyId` only
+         *     (subkey ids → 404, hide-with-404). Requires private material on the primary and
+         *     authorization as the personal key owner or group OWNER. Unauthorized callers and subkey
+         *     ids receive 404. Revoked primaries and primaries without private material return 4xx.
+         *     There is no encrypt-capability requirement; the artifact is the full stored ring.
+         *
+         *     **Mode A** (omit passphrase fields): returns the stored S2K-protected armor without
+         *     server unlock (`mode=ciphertext_download`).
+         *
+         *     **Mode B** (both `passphrase` and `newPassphrase`): unlocks with the vault passphrase
+         *     and re-encrypts with the transfer passphrase for download only — does **not** change
+         *     the vault-stored keyring. Sending exactly one of the two fields returns 400. Wrong vault
+         *     passphrase returns the same unlock error class as other key ops.
+         *
+         *     Audit operation: `export_private_keyring` (structured log includes `mode=ciphertext_download`
+         *     or `mode=rewrap`). Response always uses `Cache-Control: no-store`.
+         */
         post: operations["exportPrivateKey"];
         delete?: never;
         options?: never;
@@ -404,6 +494,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/groups/{groupId}/members/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get current user's membership
+         * @description Returns the authenticated user's membership row for this group (including role).
+         */
+        get: operations["getMyGroupMembership"];
+        put?: never;
+        post?: never;
+        /** Leave group */
+        delete: operations["leaveGroup"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/groups/{groupId}/members/{memberUserId}": {
         parameters: {
             query?: never;
@@ -416,24 +527,6 @@ export interface paths {
         post?: never;
         /** Remove group member */
         delete: operations["removeGroupMember"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/groups/{groupId}/members/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get current user's membership */
-        get: operations["getMyGroupMembership"];
-        put?: never;
-        post?: never;
-        /** Leave group */
-        delete: operations["leaveGroup"];
         options?: never;
         head?: never;
         patch?: never;
@@ -609,7 +702,7 @@ export interface components {
             detail?: string;
             /** Format: uri */
             instance?: string;
-            /** @description Field validation errors (400 responses) */
+            /** @description Field-level errors for validation (400) and field-targeted conflicts (409) */
             errors?: {
                 field?: string;
                 message?: string;
@@ -729,33 +822,44 @@ export interface components {
             description?: string;
             passphrase?: components["schemas"]["PassphraseField"];
         };
+        ApplyRevocationCertRequest: {
+            /**
+             * @description Armored OpenPGP public key block containing a primary KEY_REVOCATION signature
+             *     (GnuPG-style revocation certificate).
+             */
+            armoredCertificate: string;
+        };
         ExtendExpiryRequest: {
             /** Format: date-time */
             expiresAt: string;
             passphrase?: components["schemas"]["PassphraseField"];
         };
         ExportSshPrivateRequest: {
+            /** @description Vault passphrase that unlocks the primary secret keyring. */
             passphrase: components["schemas"]["PassphraseField"];
         };
         /**
-         * Mode A: empty body or omit passphrase fields for ciphertext-only download.
+         * @description Mode A: empty body or omit passphrase fields for ciphertext-only download.
          *     Mode B: vault `passphrase` plus transfer `newPassphrase` (both required together) to
          *     unlock and rewrap for download without changing the vault-stored keyring.
          */
         ExportPrivateRequest: {
             /**
-             * Mode B vault unlock passphrase. Required together with `newPassphrase`; omit both
+             * @description Mode B vault unlock passphrase. Required together with `newPassphrase`; omit both
              *     for Mode A. Sending only this field returns 400.
              */
             passphrase?: components["schemas"]["PassphraseField"];
             /**
-             * Mode B transfer passphrase used to re-encrypt the downloaded secret keyring.
+             * @description Mode B transfer passphrase used to re-encrypt the downloaded secret keyring.
              *     Required together with `passphrase`; does not change the vault-stored passphrase.
              */
             newPassphrase?: components["schemas"]["PassphraseField"];
         };
         SshSetupPackResponse: {
-            /** @description Suggested download filename for the zip */
+            /**
+             * @description Suggested download filename for the zip
+             * @example bc-tst-ssh-setup.zip
+             */
             filename: string;
             /**
              * @description One-time zip password (never logged; shown once in the UI). Returned in the JSON body
@@ -1021,7 +1125,7 @@ export interface components {
             /** @description Present on primary keys; omitted on subkey list/detail responses. */
             armoredPublic?: string;
             /**
-             * Present only when `GET /api/keys/{keyId}?includePrivateCiphertext=true` and the
+             * @description Present only when `GET /api/keys/{keyId}?includePrivateCiphertext=true` and the
              *     caller is the personal owner or group OWNER. Prefer `POST .../export-private` for
              *     audited private keyring export. Omitted from list responses and default GET.
              */
@@ -1174,7 +1278,7 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * When true, include `encryptedPrivateArmored` if the caller is the personal owner
+                 * @description When true, include `encryptedPrivateArmored` if the caller is the personal owner
                  *     or group OWNER and the key row stores private material. Unauthorized callers still
                  *     receive 200 with metadata; the ciphertext field is omitted.
                  */
@@ -1396,6 +1500,62 @@ export interface operations {
         };
         responses: {
             /** @description Revoked key */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PgpKey"];
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    exportRevocationCert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description Armored revocation certificate */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pgp-keys": string;
+                    "text/plain": string;
+                };
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    applyRevocationCert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyId: components["parameters"]["KeyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyRevocationCertRequest"];
+            };
+        };
+        responses: {
+            /** @description Key after applying revocation (or already-revoked key on idempotent apply) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1759,28 +1919,6 @@ export interface operations {
             "4XX": components["responses"]["ErrorResponse"];
         };
     };
-    removeGroupMember: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                groupId: components["parameters"]["GroupId"];
-                memberUserId: components["parameters"]["MemberUserId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Member removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            "4XX": components["responses"]["ErrorResponse"];
-        };
-    };
     getMyGroupMembership: {
         parameters: {
             query?: never;
@@ -1816,6 +1954,28 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Current user removed from group */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            "4XX": components["responses"]["ErrorResponse"];
+        };
+    };
+    removeGroupMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                groupId: components["parameters"]["GroupId"];
+                memberUserId: components["parameters"]["MemberUserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Member removed */
             204: {
                 headers: {
                     [name: string]: unknown;
