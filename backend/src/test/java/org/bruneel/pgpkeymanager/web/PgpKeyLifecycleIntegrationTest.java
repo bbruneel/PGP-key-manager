@@ -632,6 +632,82 @@ class PgpKeyLifecycleIntegrationTest {
     }
 
     @Test
+    void revokePrimaryCascadesRevokedStatusToSubkeys() throws Exception {
+        String primaryId = createPrimaryForRotate();
+        String subkeyId = createEncryptSubkey(primaryId);
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(subkeyId))
+                .andExpect(jsonPath("$[0].status").value("active"));
+
+        mockMvc.perform(post("/api/keys/{keyId}/revoke", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "reason": "key_retired",
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"));
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(subkeyId))
+                .andExpect(jsonPath("$[0].status").value("revoked"))
+                .andExpect(jsonPath("$[0].revokedAt").exists());
+
+        mockMvc.perform(get("/api/keys/{keyId}", subkeyId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"));
+    }
+
+    @Test
+    void applyRevocationCertCascadesRevokedStatusToSubkeys() throws Exception {
+        String primaryId = createPrimaryForRotate();
+        String subkeyId = createEncryptSubkey(primaryId);
+
+        MvcResult export =
+                mockMvc.perform(post("/api/keys/{keyId}/export-revocation-cert", primaryId)
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "reason": "key_compromised",
+                                          "passphrase": "%s"
+                                        }
+                                        """
+                                        .formatted(PASSPHRASE)))
+                        .andExpect(status().isOk())
+                        .andReturn();
+        String escapedCert =
+                export.getResponse()
+                        .getContentAsString()
+                        .replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\n", "\\n")
+                        .replace("\r", "");
+
+        mockMvc.perform(post("/api/keys/{keyId}/apply-revocation-cert", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"armoredCertificate\":\"" + escapedCert + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("revoked"));
+
+        mockMvc.perform(get("/api/keys/{primaryKeyId}/subkeys", primaryId).with(jwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(subkeyId))
+                .andExpect(jsonPath("$[0].status").value("revoked"))
+                .andExpect(jsonPath("$[0].revokedAt").exists());
+    }
+
+    @Test
     void exportRevocationCertificateWorksForOpenpgpV6() throws Exception {
         MvcResult created =
                 mockMvc.perform(post("/api/keys")

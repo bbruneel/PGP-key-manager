@@ -345,6 +345,8 @@ paths:
         material, `passphrase` is required and the OpenPGP keyring is updated cryptographically.
         Without stored private material, only database metadata (`revokedAt`, `revocationReason`) is
         updated. Supplying a passphrase when no private material exists returns 400.
+        Phase 21a: revoking a **primary** also marks still-active child subkey rows as revoked in
+        the database (same timestamp/reason). This does not add OpenPGP `SUBKEY_REVOCATION` packets.
       parameters:
         - $ref: '#/components/parameters/KeyId'
       requestBody:
@@ -412,7 +414,8 @@ paths:
         passphrase. Fingerprint must match; `KEY_REVOCATION` signature must verify. When the key is
         already revoked in the DB but stored armor lacks a cryptographic revocation (metadata-only
         revoke), the certificate is still merged into the keyring. Already cryptographically
-        revoked keys with a valid matching cert return 200 idempotently. Subkeys return hide-with-404.
+        revoked keys with a valid matching cert return 200 idempotently (and still cascade any
+        leftover active subkey rows — Phase 21a). Subkeys return hide-with-404.
       parameters:
         - $ref: '#/components/parameters/KeyId'
       requestBody:
