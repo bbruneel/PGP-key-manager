@@ -400,9 +400,8 @@ public class PgpCryptoService {
             int revocationReasonCode,
             String reasonDescription)
             throws PGPException {
-        PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
-                new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA512)
-                        .setProvider(PROVIDER));
+        // Pass signing key so BC emits v4/v6 signatures matching the master key version.
+        PGPSignatureGenerator sigGen = signatureGeneratorFor(masterPublic);
         int revocationType = target.isMasterKey() ? PGPSignature.KEY_REVOCATION : PGPSignature.SUBKEY_REVOCATION;
         sigGen.init(revocationType, unlockSecret(masterSecret, passphrase));
 
@@ -417,6 +416,14 @@ public class PgpCryptoService {
             return sigGen.generateCertification(target);
         }
         return sigGen.generateCertification(masterPublic, target);
+    }
+
+    /** Signature generator whose packet version matches {@code signingKey} (required for OpenPGP v6). */
+    private PGPSignatureGenerator signatureGeneratorFor(PGPPublicKey signingKey) {
+        return new PGPSignatureGenerator(
+                new JcaPGPContentSignerBuilder(signingKey.getAlgorithm(), HashAlgorithmTags.SHA512)
+                        .setProvider(PROVIDER),
+                signingKey);
     }
 
     private PGPPublicKeyRing replacePublicKeyInPublicRing(
@@ -465,9 +472,7 @@ public class PgpCryptoService {
             }
 
             PGPPublicKey masterPublic = masterSecret.getPublicKey();
-            PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
-                    new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA512)
-                            .setProvider(PROVIDER));
+            PGPSignatureGenerator sigGen = signatureGeneratorFor(masterPublic);
             int signatureType =
                     target.isMasterKey() ? PGPSignature.POSITIVE_CERTIFICATION : PGPSignature.SUBKEY_BINDING;
             sigGen.init(signatureType, unlockSecret(masterSecret, passphrase));

@@ -339,6 +339,78 @@ class PgpCryptoServiceTest {
     }
 
     @Test
+    void generateAndApplyRevocationCertificateRoundTripV6() {
+        char[] passphrase = "integration-test-passphrase".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        6,
+                        List.of(new UserIdSpecDto("Revoke Cert V6", "revcert6@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        passphrase);
+
+        String cert =
+                crypto.generateRevocationCertificate(
+                        primary.armoredPrivate(), passphrase, 2, "nothing special");
+
+        assertThat(cert).contains("BEGIN PGP PUBLIC KEY BLOCK");
+        assertThat(cert).containsIgnoringCase("revocation certificate");
+
+        PgpCryptoService.AppliedRevocation applied =
+                crypto.applyRevocationCertificate(
+                        cert, primary.fingerprint(), primary.armoredPublic(), primary.armoredPrivate());
+
+        assertThat(applied.reason()).isEqualTo(RevocationReason.KEY_COMPROMISED);
+        assertThat(applied.materialChanged()).isTrue();
+        assertThat(crypto.primaryKeyIsCryptographicallyRevoked(applied.armoredPublic())).isTrue();
+    }
+
+    @Test
+    void revokePrimaryInRingWorksForOpenpgpV6() {
+        char[] passphrase = "integration-test-passphrase".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        6,
+                        List.of(new UserIdSpecDto("Revoke V6", "revoke6@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        passphrase);
+
+        long primaryKeyId = PgpCryptoSupport.parseKeyIdHex(primary.keyId());
+        PgpCryptoService.KeyRingUpdate updated =
+                crypto.revokeKeyInRing(primary.armoredPrivate(), passphrase, primaryKeyId, 2);
+
+        assertThat(updated.armoredPublic()).contains("BEGIN PGP PUBLIC KEY BLOCK");
+        assertThat(crypto.primaryKeyIsCryptographicallyRevoked(updated.armoredPublic())).isTrue();
+    }
+
+    @Test
+    void extendExpiryInRingWorksForOpenpgpV6() {
+        char[] passphrase = "integration-test-passphrase".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        6,
+                        List.of(new UserIdSpecDto("Extend V6", "extend6@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        passphrase);
+
+        long primaryKeyId = PgpCryptoSupport.parseKeyIdHex(primary.keyId());
+        PgpCryptoService.KeyRingUpdate updated =
+                crypto.extendExpiryInRing(
+                        primary.armoredPrivate(),
+                        passphrase,
+                        primaryKeyId,
+                        Instant.parse("2031-06-01T00:00:00Z"));
+
+        assertThat(updated.armoredPublic()).contains("BEGIN PGP PUBLIC KEY BLOCK");
+        assertThat(updated.armoredPrivate()).contains("BEGIN PGP PRIVATE KEY BLOCK");
+    }
+
+    @Test
     void applyRevocationCertificateRejectsWrongFingerprint() {
         char[] passphrase = "integration-test-passphrase".toCharArray();
         GeneratedKeyMaterial primary =

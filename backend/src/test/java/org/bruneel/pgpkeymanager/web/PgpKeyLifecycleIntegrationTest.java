@@ -632,6 +632,48 @@ class PgpKeyLifecycleIntegrationTest {
     }
 
     @Test
+    void exportRevocationCertificateWorksForOpenpgpV6() throws Exception {
+        MvcResult created =
+                mockMvc.perform(post("/api/keys")
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "label": "changed passphrase",
+                                          "keyType": "private",
+                                          "capabilities": ["certify", "sign"],
+                                          "algorithmSpec": { "algorithm": "ed25519" },
+                                          "openpgpVersion": 6,
+                                          "validity": { "expiresAt": "2030-06-01T00:00:00Z" },
+                                          "passphrase": "%s"
+                                        }
+                                        """
+                                        .formatted(PASSPHRASE)))
+                        .andExpect(status().isCreated())
+                        .andExpect(jsonPath("$.openpgpVersion").value(6))
+                        .andReturn();
+        String primaryId = readJsonField(created.getResponse().getContentAsString(), "id");
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-revocation-cert", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "reason": "key_compromised",
+                                  "description": "nothing special",
+                                  "passphrase": "%s"
+                                }
+                                """
+                                .formatted(PASSPHRASE)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PUBLIC KEY BLOCK")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsStringIgnoringCase("revocation certificate")));
+    }
+
+    @Test
     void exportRevocationCertOnSubkeyReturnsNotFound() throws Exception {
         String primaryId = createPrimaryForRotate();
         String subkeyId = createEncryptSubkey(primaryId);
