@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { useApiAccessToken } from "@/hooks/use-api-access-token"
 import { GroupContext } from "@/hooks/use-group-context"
@@ -11,22 +11,41 @@ type GroupProviderProps = {
 }
 
 export function GroupProvider({ children }: GroupProviderProps) {
-  const { getAccessToken, isAuthenticated, isConfigured } = useApiAccessToken()
+  const { getAccessToken, isAuthenticated, isConfigured, isLoading: authIsLoading } = useApiAccessToken()
   const [groups, setGroups] = useState<Group[]>([])
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
+  const refreshGenerationRef = useRef(0)
 
   const refreshGroups = useCallback(async () => {
-    if (!isConfigured || !isAuthenticated) {
+    if (!isConfigured) {
+      refreshGenerationRef.current += 1
       setGroups([])
       setActiveGroupId(null)
       setError(null)
       setRequestId(null)
+      setIsLoading(false)
       return
     }
 
+    // Auth0 SDK still resolving session — do not clear or fetch yet.
+    if (authIsLoading) {
+      return
+    }
+
+    if (!isAuthenticated) {
+      refreshGenerationRef.current += 1
+      setGroups([])
+      setActiveGroupId(null)
+      setError(null)
+      setRequestId(null)
+      setIsLoading(false)
+      return
+    }
+
+    const generation = ++refreshGenerationRef.current
     setIsLoading(true)
     setError(null)
     setRequestId(null)
@@ -34,6 +53,9 @@ export function GroupProvider({ children }: GroupProviderProps) {
     try {
       const accessToken = await getAccessToken()
       const listedGroups = await groupsApi.list({ accessToken })
+      if (generation !== refreshGenerationRef.current) {
+        return
+      }
       setGroups(listedGroups)
       setActiveGroupId((current) => {
         if (current && listedGroups.some((group) => group.id === current)) {
@@ -42,15 +64,21 @@ export function GroupProvider({ children }: GroupProviderProps) {
         return null
       })
     } catch (apiError) {
-      setGroups([])
+      if (generation !== refreshGenerationRef.current) {
+        return
+      }
+      // Keep any already-loaded groups on transient failure so the sidebar
+      // does not flash empty when a racing refresh loses the token race.
       setError(getApiErrorMessage(apiError))
       if (apiError instanceof ApiError && apiError.requestId) {
         setRequestId(apiError.requestId)
       }
     } finally {
-      setIsLoading(false)
+      if (generation === refreshGenerationRef.current) {
+        setIsLoading(false)
+      }
     }
-  }, [getAccessToken, isAuthenticated, isConfigured])
+  }, [authIsLoading, getAccessToken, isAuthenticated, isConfigured])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -68,13 +96,13 @@ export function GroupProvider({ children }: GroupProviderProps) {
       groups,
       activeGroup,
       activeGroupId,
-      isLoading,
+      isLoading: isLoading || authIsLoading,
       error,
       requestId,
       refreshGroups,
       setActiveGroupId,
     }),
-    [activeGroup, activeGroupId, error, groups, isLoading, refreshGroups, requestId],
+    [activeGroup, activeGroupId, authIsLoading, error, groups, isLoading, refreshGroups, requestId],
   )
 
   return <GroupContext.Provider value={value}>{children}</GroupContext.Provider>
