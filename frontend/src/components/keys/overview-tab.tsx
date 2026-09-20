@@ -14,6 +14,8 @@ export type OverviewTabProps = {
   keyData: PgpKey
   ownerGroupName?: string | null
   isSubkey: boolean
+  /** Parent primary is revoked — Status shows a secondary hint on subkey detail. */
+  primaryRevoked?: boolean
   showSshExport: boolean
   showSshPrivateExport: boolean
   sshPackDisabledReason?: string | null
@@ -36,6 +38,7 @@ export function OverviewTab({
   keyData,
   ownerGroupName,
   isSubkey,
+  primaryRevoked = false,
   showSshExport,
   showSshPrivateExport,
   sshPackDisabledReason,
@@ -71,7 +74,11 @@ export function OverviewTab({
         </p>
       ) : null}
 
-      <KeyDetailSummary keyData={keyData} ownerGroupName={ownerGroupName} />
+      <KeyDetailSummary
+        keyData={keyData}
+        ownerGroupName={ownerGroupName}
+        primaryRevoked={primaryRevoked}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-xl border border-border bg-card/40 p-5 shadow-sm">

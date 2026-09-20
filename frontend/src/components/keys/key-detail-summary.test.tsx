@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { cleanup, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it } from "vitest"
 
 import { KeyDetailSummary } from "@/components/keys/key-detail-summary"
 import type { PgpKey } from "@/types/api"
@@ -21,6 +21,10 @@ const sampleKey: PgpKey = {
 }
 
 describe("KeyDetailSummary", () => {
+  afterEach(() => {
+    cleanup()
+  })
+
   it("renders key metadata and private material hint", () => {
     render(<KeyDetailSummary keyData={sampleKey} />)
 
@@ -60,5 +64,48 @@ describe("KeyDetailSummary", () => {
     )
 
     expect(screen.getByText("Owned by Platform security")).toBeInTheDocument()
+  })
+
+  it("shows Primary key is revoked hint on subkey when primaryRevoked", () => {
+    render(
+      <KeyDetailSummary
+        keyData={{
+          ...sampleKey,
+          role: "subkey",
+          status: "revoked",
+          parentKeyId: "primary-1",
+        }}
+        primaryRevoked
+      />,
+    )
+
+    expect(screen.getByText("Revoked")).toBeInTheDocument()
+    expect(screen.getByText("Primary key is revoked")).toBeInTheDocument()
+    expect(screen.getByText("Primary key is revoked")).toHaveAttribute(
+      "data-pgp-ui",
+      "keyDetail.status.primaryRevoked",
+    )
+  })
+
+  it("does not show primary-revoked hint on primary keys", () => {
+    render(<KeyDetailSummary keyData={{ ...sampleKey, status: "revoked" }} primaryRevoked />)
+
+    expect(screen.queryByText("Primary key is revoked")).not.toBeInTheDocument()
+  })
+
+  it("does not show primary-revoked hint when primary is active", () => {
+    render(
+      <KeyDetailSummary
+        keyData={{
+          ...sampleKey,
+          role: "subkey",
+          status: "revoked",
+          parentKeyId: "primary-1",
+        }}
+        primaryRevoked={false}
+      />,
+    )
+
+    expect(screen.queryByText("Primary key is revoked")).not.toBeInTheDocument()
   })
 })

@@ -10,15 +10,22 @@ import type { PgpKey } from "@/types/api"
 type KeyDetailSummaryProps = {
   keyData: PgpKey
   ownerGroupName?: string | null
+  /** When true on a subkey detail view, Status shows a secondary “Primary key is revoked” line. */
+  primaryRevoked?: boolean
 }
 
-export function KeyDetailSummary({ keyData, ownerGroupName }: KeyDetailSummaryProps) {
+export function KeyDetailSummary({
+  keyData,
+  ownerGroupName,
+  primaryRevoked = false,
+}: KeyDetailSummaryProps) {
   const revokedLabel = formatRevokedAt(keyData.revokedAt)
   const privateMaterial = hasPrivateMaterial(keyData)
   const ownershipLabel =
     keyData.ownerType === "group"
       ? `Owned by ${ownerGroupName ?? "team vault"}`
       : "Personal vault"
+  const showPrimaryRevokedHint = keyData.role === "subkey" && primaryRevoked
 
   return (
     <section role="region" aria-label="Key summary" className="space-y-4">
@@ -50,7 +57,18 @@ export function KeyDetailSummary({ keyData, ownerGroupName }: KeyDetailSummaryPr
         ) : null}
         <div>
           <dt className="text-muted-foreground">Status</dt>
-          <dd className="mt-0.5 text-foreground">{formatKeyStatus(keyData.status)}</dd>
+          <dd className="mt-0.5 text-foreground">
+            <span>{formatKeyStatus(keyData.status)}</span>
+            {showPrimaryRevokedHint ? (
+              <p
+                className="mt-0.5 text-xs text-muted-foreground"
+                data-pgp-ui="keyDetail.status.primaryRevoked"
+                title="This subkey's primary key is revoked"
+              >
+                Primary key is revoked
+              </p>
+            ) : null}
+          </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Type</dt>

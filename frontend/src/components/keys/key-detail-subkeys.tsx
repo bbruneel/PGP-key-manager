@@ -11,9 +11,16 @@ type KeyDetailSubkeysProps = {
   primaryKeyId: string
   getAccessToken: () => Promise<string>
   refreshToken?: number
+  /** When the primary is revoked, each subkey status shows a secondary hint line. */
+  primaryRevoked?: boolean
 }
 
-export function KeyDetailSubkeys({ primaryKeyId, getAccessToken, refreshToken = 0 }: KeyDetailSubkeysProps) {
+export function KeyDetailSubkeys({
+  primaryKeyId,
+  getAccessToken,
+  refreshToken = 0,
+  primaryRevoked = false,
+}: KeyDetailSubkeysProps) {
   const [subkeys, setSubkeys] = useState<PgpKeySummary[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -91,6 +98,15 @@ export function KeyDetailSubkeys({ primaryKeyId, getAccessToken, refreshToken = 
                     {formatCapabilities(subkey.capabilities)} · {formatKeyExpiry(subkey.expiresAt)} ·{" "}
                     {formatKeyStatus(subkey.status)}
                   </p>
+                  {primaryRevoked ? (
+                    <p
+                      className="mt-0.5 text-xs text-muted-foreground"
+                      data-pgp-ui="keyDetail.subkeys.primaryRevoked"
+                      title="This subkey's primary key is revoked"
+                    >
+                      Primary key is revoked
+                    </p>
+                  ) : null}
                 </div>
                 {subkey.id ? (
                   <Link

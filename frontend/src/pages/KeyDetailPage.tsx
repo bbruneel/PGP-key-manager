@@ -1195,6 +1195,7 @@ function KeyDetailPageContent() {
             keyData={keyData}
             ownerGroupName={ownerGroupName}
             isSubkey={isSubkey}
+            primaryRevoked={isSubkey && primaryKey?.status === "revoked"}
             showSshExport={showSshExport}
             showSshPrivateExport={showSshPrivateExport}
             sshPackDisabledReason={sshPackDisabledReason}
