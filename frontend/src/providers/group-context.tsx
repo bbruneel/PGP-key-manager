@@ -39,7 +39,7 @@ export function GroupProvider({ children }: GroupProviderProps) {
         if (current && listedGroups.some((group) => group.id === current)) {
           return current
         }
-        return listedGroups[0]?.id ?? null
+        return null
       })
     } catch (apiError) {
       setGroups([])

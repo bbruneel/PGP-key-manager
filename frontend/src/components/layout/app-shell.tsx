@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react"
 
-import { GroupSwitcher } from "@/components/groups/group-switcher"
+import { TeamVaultsNav } from "@/components/groups/team-vaults-nav"
 import { Button } from "@/components/ui/button"
 import { useGroupContext } from "@/hooks/use-group-context"
 import { ThemeToggle } from "@/components/layout/theme-toggle"
@@ -56,7 +56,7 @@ type AppShellProps = {
 
 export function AppShell({ children, footerStatus = "unknown", pageTitle = "Overview" }: AppShellProps) {
   const isMobile = useIsMobile()
-  const { activeGroup } = useGroupContext()
+  const { setActiveGroupId } = useGroupContext()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const statusLabel =
@@ -69,6 +69,10 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
         : "bg-muted-foreground/50"
 
   const closeMobileNav = () => setMobileNavOpen(false)
+
+  const clearTeamVaultContext = () => {
+    setActiveGroupId(null)
+  }
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -107,45 +111,26 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-3" aria-label="Main">
-          {navItems.map((item) => (
-            <NavRow key={item.label} item={item} onNavigate={isMobile ? closeMobileNav : undefined} />
-          ))}
-          {activeGroup ? (
-            <div className="mt-4 space-y-1 border-t border-sidebar-border pt-3">
-              <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Team vault
-              </p>
-              <p className="px-3 pb-1 text-xs text-sidebar-foreground">{activeGroup.name}</p>
+          {navItems.map((item) => {
+            const isPersonalVault = item.label === "Personal vault"
+            const handleNavigate = () => {
+              if (isPersonalVault) {
+                clearTeamVaultContext()
+              }
+              if (isMobile) {
+                closeMobileNav()
+              }
+            }
+
+            return (
               <NavRow
-                item={{
-                  label: "Group keys",
-                  to: `/groups/${activeGroup.id}/keys`,
-                  icon: KeyRound,
-                  children: [
-                    { label: "Public", to: `/groups/${activeGroup.id}/keys?view=public` },
-                    { label: "Private", to: `/groups/${activeGroup.id}/keys?view=private` },
-                    { label: "Subkeys", to: `/groups/${activeGroup.id}/keys?view=subkeys` },
-                  ],
-                }}
-                onNavigate={isMobile ? closeMobileNav : undefined}
+                key={item.label}
+                item={item}
+                onNavigate={isPersonalVault || isMobile ? handleNavigate : undefined}
               />
-              <NavLink
-                to={`/groups/${activeGroup.id}/members`}
-                onClick={isMobile ? closeMobileNav : undefined}
-                className={({ isActive }) =>
-                  cn(
-                    "flex min-w-0 items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-                  )
-                }
-              >
-                <Shield className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
-                <span className="flex-1 text-left">Members</span>
-              </NavLink>
-            </div>
-          ) : null}
+            )
+          })}
+          <TeamVaultsNav onNavigate={isMobile ? closeMobileNav : undefined} />
         </nav>
       </aside>
 
@@ -171,7 +156,6 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
           </div>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <GroupSwitcher />
             <Button type="button" variant="outline" size="sm" className="hidden sm:inline-flex" asChild>
               <Link to="/groups/new">New group</Link>
             </Button>
@@ -182,7 +166,7 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
               asChild
               title="Select keys on the Keys page to export"
             >
-              <Link to="/keys">
+              <Link to="/keys" onClick={clearTeamVaultContext}>
                 <Download className="size-4" />
                 Export keys
               </Link>
@@ -207,7 +191,13 @@ export function AppShell({ children, footerStatus = "unknown", pageTitle = "Over
   )
 }
 
-function NavRow({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
+function NavRow({
+  item,
+  onNavigate,
+}: {
+  item: NavItem
+  onNavigate?: () => void
+}) {
   const Icon = item.icon
   const hasChildren = Boolean(item.children?.length)
   const [expanded, setExpanded] = useState(true)
