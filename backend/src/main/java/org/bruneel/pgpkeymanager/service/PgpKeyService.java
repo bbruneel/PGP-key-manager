@@ -363,6 +363,9 @@ public class PgpKeyService {
                     pgpKeyRepository
                             .markRevoked(key.id(), revokedAt, reason)
                             .orElseThrow(() -> new KeyNotFoundException(keyId));
+            if (key.isPrimary()) {
+                cascadePrimaryRevocationToSubkeys(key.id(), revokedAt, reason);
+            }
             completeSuccess("revoke_key", user.id(), keyId, openpgpVersion, start);
             return revoked;
         } catch (RuntimeException ex) {
@@ -443,6 +446,10 @@ public class PgpKeyService {
             if (alreadyRevoked && ringsCryptographicallyRevoked) {
                 pgpCryptoService.verifyRevocationCertificate(
                         request.armoredCertificate(), key.fingerprint(), armoredPublic);
+                cascadePrimaryRevocationToSubkeys(
+                        key.id(),
+                        key.revokedAt(),
+                        key.revocationReason() != null ? key.revocationReason() : RevocationReason.NO_REASON);
                 log.info(
                         "apply_revocation_cert_completed status=idempotent fingerprint={}",
                         key.fingerprint());
@@ -468,11 +475,16 @@ public class PgpKeyService {
             }
 
             PgpKey result;
+            Instant cascadeAt;
+            RevocationReason cascadeReason;
             if (alreadyRevoked) {
                 result =
                         pgpKeyRepository
                                 .findById(key.id())
                                 .orElseThrow(() -> new KeyNotFoundException(keyId));
+                cascadeAt = result.revokedAt() != null ? result.revokedAt() : applied.revokedAt();
+                cascadeReason =
+                        result.revocationReason() != null ? result.revocationReason() : applied.reason();
                 log.info(
                         "apply_revocation_cert_completed status={} fingerprint={} reason={}",
                         applied.materialChanged() ? "revocation_synced" : "idempotent",
@@ -483,11 +495,14 @@ public class PgpKeyService {
                         pgpKeyRepository
                                 .markRevoked(key.id(), applied.revokedAt(), applied.reason())
                                 .orElseThrow(() -> new KeyNotFoundException(keyId));
+                cascadeAt = applied.revokedAt();
+                cascadeReason = applied.reason();
                 log.info(
                         "apply_revocation_cert_completed status=revoked fingerprint={} reason={}",
                         result.fingerprint(),
                         applied.reason());
             }
+            cascadePrimaryRevocationToSubkeys(key.id(), cascadeAt, cascadeReason);
             completeSuccess("apply_revocation_cert", user.id(), keyId, openpgpVersion, start);
             return result;
         } catch (RuntimeException ex) {
@@ -1341,6 +1356,24 @@ public class PgpKeyService {
     private void ensureNotRevoked(PgpKey key) {
         if (key.revokedAt() != null) {
             throw new ConflictException("Key is already revoked");
+        }
+    }
+
+    /**
+     * Phase 21a: when a primary is revoked, mark still-active child subkey rows revoked in the DB
+     * (same timestamp/reason). Does not emit OpenPGP SUBKEY_REVOCATION packets — primary
+     * KEY_REVOCATION already invalidates the certificate.
+     */
+    private void cascadePrimaryRevocationToSubkeys(
+            UUID primaryKeyId, Instant revokedAt, RevocationReason reason) {
+        int cascaded =
+                pgpKeyRepository.markActiveSubkeysRevoked(primaryKeyId, revokedAt, reason);
+        if (cascaded > 0) {
+            log.info(
+                    "primary_revocation_cascaded_to_subkeys primaryKeyId={} cascadedCount={} reason={}",
+                    primaryKeyId,
+                    cascaded,
+                    reason);
         }
     }
 

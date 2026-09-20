@@ -234,6 +234,17 @@ Human browser QA (agents/bots should not drive desktop Chrome for this section).
 
 ---
 
+## Phase 21a — Cascade primary revocation to subkeys
+
+Human browser QA (agents/bots should not drive desktop Chrome for this section).
+
+1. Create a primary with at least one subkey. Confirm subkey status is **active**.
+2. **Revoke** the primary (Actions & Lifecycle). Refresh / open Subkeys: child subkeys show **revoked**.
+3. On another primary+subkey: **Generate** then **Apply** revocation certificate. Subkeys become **revoked** without a separate subkey revoke.
+4. Subkey-only revoke still revokes only that subkey (siblings stay active until primary is revoked).
+
+---
+
 ## Phase 11 — Passphrase reset on key navigation
 
 1. Open a primary key with private material (`/keys/:id`).

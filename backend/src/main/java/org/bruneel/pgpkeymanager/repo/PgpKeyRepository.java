@@ -290,6 +290,26 @@ public class PgpKeyRepository {
         return findById(id);
     }
 
+    /**
+     * Phase 21a: mark still-active subkeys of a primary as revoked (DB metadata only; does not
+     * add OpenPGP SUBKEY_REVOCATION packets). Returns the number of rows updated.
+     */
+    public int markActiveSubkeysRevoked(UUID parentKeyId, Instant revokedAt, RevocationReason reason) {
+        return jdbc.sql(
+                        """
+                        UPDATE pgp_keys
+                        SET revoked_at = :revokedAt,
+                            revocation_reason = :reason,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE parent_key_id = :parentKeyId
+                          AND revoked_at IS NULL
+                        """)
+                .param("parentKeyId", parentKeyId)
+                .param("revokedAt", Timestamp.from(revokedAt))
+                .param("reason", reason.toDb())
+                .update();
+    }
+
     public boolean deleteById(UUID id) {
         int rows = jdbc.sql("DELETE FROM pgp_keys WHERE id = :id").param("id", id).update();
         return rows > 0;

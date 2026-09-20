@@ -245,6 +245,13 @@ Offline kill-switch for **primary** keys — distinct from immediate **Revoke no
 4. Logging: `export_revocation_cert` / `apply_revocation_cert` (+ `_ready` / `_completed`); never logs armor or passphrase.
 5. `[pgp-ui]`: `keyDetail.exportRevocationCert.*`, `keyDetail.applyRevocationCert.*`.
 
+## Primary revocation cascades to subkeys (Phase 21a)
+
+1. Revoking a **primary** via `POST /api/keys/{keyId}/revoke` or `POST /api/keys/{keyId}/apply-revocation-cert` marks still-active child subkey rows revoked in Postgres (`revoked_at` / `revocation_reason` match the primary).
+2. Does **not** add OpenPGP `SUBKEY_REVOCATION` packets — primary `KEY_REVOCATION` already invalidates the certificate for OpenPGP consumers.
+3. Repository: `markActiveSubkeysRevoked`; log `primary_revocation_cascaded_to_subkeys` when `cascadedCount > 0`. Idempotent apply-cert also runs the cascade so leftover active subkeys from pre-21a revokes are cleaned up.
+4. Subkey-only revoke is unchanged (no cascade upward or sideways).
+
 ## Add subkey (Phase 4)
 
 1. On primary key detail (`/keys/:id`), when the primary has private material and is not revoked, the **Add subkey** form appears below the subkeys list (inline — no separate route).
