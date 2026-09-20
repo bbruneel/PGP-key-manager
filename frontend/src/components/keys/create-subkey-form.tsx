@@ -60,7 +60,8 @@ export function CreateSubkeyForm({
       primaryOpenpgpVersion,
     )
     const previous = values
-    const updated = { ...values, capabilities: nextCapabilities, ...next }
+    // capabilities must win over `next` — normalize may receive a wider form object
+    const updated = { ...values, ...next, capabilities: nextCapabilities }
     onChange(updated)
     if (adjusted) {
       onAlgorithmAdjusted?.(updated, previous)

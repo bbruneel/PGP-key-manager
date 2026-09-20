@@ -170,6 +170,20 @@ export function isAlgorithmAllowedForCapabilities(
   )
 }
 
+function pickAlgorithmFormValues(current: AlgorithmFormValues): AlgorithmFormValues {
+  // Always return a fresh algorithm-only object. Callers often pass a wider form
+  // values object (capabilities, passphrase, …); returning `current` by reference
+  // would let those extra fields overwrite capability updates when spread.
+  const next: AlgorithmFormValues = { algorithm: current.algorithm }
+  if (current.keySize != null) {
+    next.keySize = current.keySize
+  }
+  if (current.curve != null) {
+    next.curve = current.curve
+  }
+  return next
+}
+
 export function normalizeAlgorithmSelection(
   current: AlgorithmFormValues,
   capabilities: PgpCapability[],
@@ -177,7 +191,7 @@ export function normalizeAlgorithmSelection(
   context: AlgorithmContext = "subkey",
 ): AlgorithmFormValues {
   if (isAlgorithmAllowedForCapabilities(current.algorithm, capabilities, openpgpVersion, context)) {
-    return current
+    return pickAlgorithmFormValues(current)
   }
 
   const nextAlgorithm = defaultAlgorithmForCapabilities(capabilities, openpgpVersion, context)
