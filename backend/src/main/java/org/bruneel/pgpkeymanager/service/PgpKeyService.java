@@ -585,9 +585,10 @@ public class PgpKeyService {
 
     /**
      * Mode A: return stored OpenPGP encrypted secret keyring armor (no server unlock).
-     * Accepts primary key ids only (subkey → hide-with-404). Requires owner or group OWNER,
-     * private material on the primary, and not revoked. Mode B fields ({@code passphrase},
-     * {@code newPassphrase}) are reserved and rejected until rewrap ships.
+     * Mode B: when both {@code passphrase} and {@code newPassphrase} are present, unlock and
+     * rewrap with the transfer passphrase (vault-stored material unchanged). One field without
+     * the other → 400. Accepts primary key ids only (subkey → hide-with-404). Requires owner or
+     * group OWNER, private material on the primary, and not revoked.
      */
     public String exportPrivate(AppUser user, UUID keyId, ExportPrivateRequest request) {
         long start = System.currentTimeMillis();
@@ -596,11 +597,6 @@ public class PgpKeyService {
         char[] passphrase = request != null ? request.passphrase() : null;
         char[] newPassphrase = request != null ? request.newPassphrase() : null;
         try {
-            if (!PassphraseUtil.isBlank(passphrase) || !PassphraseUtil.isBlank(newPassphrase)) {
-                throw new BadRequestException(
-                        "Passphrase rewrap export is not yet supported; omit passphrase and newPassphrase for ciphertext download");
-            }
-
             PgpKey key = getForUser(user, keyId);
             openpgpVersion = key.openpgpVersion();
             groupAuthorizationService.requireKeyOwnerOrGroupOwner(user, key);
@@ -612,11 +608,30 @@ public class PgpKeyService {
                 throw new BadRequestException("Primary key has no private material for export");
             }
 
-            String armor = key.encryptedPrivateArmored();
-            log.info(
-                    "export_private_keyring_ready mode=ciphertext_download algorithm={} keyIdHex={} hasPrivateMaterial=true",
-                    key.algorithm(),
-                    key.keyId() != null ? key.keyId().toLowerCase() : null);
+            // Mode B field pairing after ACL so unauthorized callers still get hide-with-404.
+            boolean hasVaultPassphrase = PassphraseUtil.isPresent(passphrase);
+            boolean hasTransferPassphrase = PassphraseUtil.isPresent(newPassphrase);
+            if (hasVaultPassphrase != hasTransferPassphrase) {
+                throw new BadRequestException(
+                        "Both passphrase and newPassphrase are required for rewrap export, or omit both for ciphertext download");
+            }
+            boolean rewrap = hasVaultPassphrase && hasTransferPassphrase;
+
+            String armor;
+            if (rewrap) {
+                armor = pgpCryptoService.rewrapSecretKeyRing(
+                        key.encryptedPrivateArmored(), passphrase, newPassphrase);
+                log.info(
+                        "export_private_keyring_ready mode=rewrap algorithm={} keyIdHex={} hasPrivateMaterial=true",
+                        key.algorithm(),
+                        key.keyId() != null ? key.keyId().toLowerCase() : null);
+            } else {
+                armor = key.encryptedPrivateArmored();
+                log.info(
+                        "export_private_keyring_ready mode=ciphertext_download algorithm={} keyIdHex={} hasPrivateMaterial=true",
+                        key.algorithm(),
+                        key.keyId() != null ? key.keyId().toLowerCase() : null);
+            }
             completeSuccess("export_private_keyring", user.id(), keyId, openpgpVersion, start);
             return armor;
         } catch (RuntimeException ex) {

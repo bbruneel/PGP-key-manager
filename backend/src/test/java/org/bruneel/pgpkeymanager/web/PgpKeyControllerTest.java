@@ -1,6 +1,7 @@
 package org.bruneel.pgpkeymanager.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
@@ -475,6 +476,37 @@ class PgpKeyControllerTest {
                         .string("Cache-Control", "no-store"));
 
         verify(pgpKeyService).exportPrivate(eq(USER), eq(keyId), any());
+    }
+
+    @Test
+    void exportPrivateRewrapPassesPassphrasesToService() throws Exception {
+        UUID keyId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(currentUserService.requireCurrentUser(any())).thenReturn(USER);
+        when(pgpKeyService.exportPrivate(eq(USER), eq(keyId), any()))
+                .thenReturn("-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: rewrap\n-----END PGP PRIVATE KEY BLOCK-----\n");
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", keyId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "passphrase": "vault-passphrase-1",
+                                  "newPassphrase": "transfer-pass-99"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Cache-Control", "no-store"));
+
+        verify(pgpKeyService).exportPrivate(
+                eq(USER),
+                eq(keyId),
+                argThat(req -> req != null
+                        && req.passphrase() != null
+                        && new String(req.passphrase()).equals("vault-passphrase-1")
+                        && req.newPassphrase() != null
+                        && new String(req.newPassphrase()).equals("transfer-pass-99")));
     }
 
     @Test

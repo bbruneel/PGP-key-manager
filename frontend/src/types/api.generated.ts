@@ -342,7 +342,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export private OpenPGP secret keyring (ciphertext) */
+        /** Export private OpenPGP secret keyring */
         post: operations["exportPrivateKey"];
         delete?: never;
         options?: never;
@@ -739,17 +739,18 @@ export interface components {
         };
         /**
          * Mode A: empty body or omit passphrase fields for ciphertext-only download.
-         *     Mode B (future): vault `passphrase` plus optional `newPassphrase` to rewrap.
+         *     Mode B: vault `passphrase` plus transfer `newPassphrase` (both required together) to
+         *     unlock and rewrap for download without changing the vault-stored keyring.
          */
         ExportPrivateRequest: {
             /**
-             * Reserved for Mode B vault unlock / rewrap. Sending a non-empty value before Mode B
-             *     ships returns 400.
+             * Mode B vault unlock passphrase. Required together with `newPassphrase`; omit both
+             *     for Mode A. Sending only this field returns 400.
              */
             passphrase?: components["schemas"]["PassphraseField"];
             /**
-             * Reserved for Mode B transfer passphrase. Sending a non-empty value before Mode B
-             *     ships returns 400.
+             * Mode B transfer passphrase used to re-encrypt the downloaded secret keyring.
+             *     Required together with `passphrase`; does not change the vault-stored passphrase.
              */
             newPassphrase?: components["schemas"]["PassphraseField"];
         };

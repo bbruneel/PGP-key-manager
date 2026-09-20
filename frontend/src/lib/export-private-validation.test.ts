@@ -4,6 +4,7 @@ import { isPrivateKeyringExportableKey } from "@/lib/private-keyring-export"
 import {
   buildExportPrivateRequest,
   defaultExportPrivateFormValues,
+  isModeBExportAttempt,
   validateExportPrivateForm,
 } from "@/lib/export-private-validation"
 
@@ -23,6 +24,98 @@ describe("validateExportPrivateForm", () => {
     expect(buildExportPrivateRequest({ ...defaultExportPrivateFormValues, confirmed: true })).toEqual(
       {},
     )
+  })
+
+  it("treats unchecked rewrap checkbox as Mode A even if fields have leftover text", () => {
+    const values = {
+      ...defaultExportPrivateFormValues,
+      confirmed: true,
+      rewrapEnabled: false,
+      passphrase: "should-be-ignored",
+      newPassphrase: "should-be-ignored",
+      confirmNewPassphrase: "should-be-ignored",
+    }
+    expect(isModeBExportAttempt(values)).toBe(false)
+    expect(validateExportPrivateForm(values).valid).toBe(true)
+    expect(buildExportPrivateRequest(values)).toEqual({})
+  })
+
+  it("requires passphrases when rewrap checkbox is checked", () => {
+    const result = validateExportPrivateForm({
+      ...defaultExportPrivateFormValues,
+      confirmed: true,
+      rewrapEnabled: true,
+    })
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.passphrase).toBeDefined()
+    expect(result.fieldErrors.newPassphrase).toBeDefined()
+    expect(result.fieldErrors.confirmNewPassphrase).toBeDefined()
+  })
+
+  it("enforces vault passphrase length on Mode B", () => {
+    const result = validateExportPrivateForm({
+      ...defaultExportPrivateFormValues,
+      confirmed: true,
+      rewrapEnabled: true,
+      passphrase: "short",
+      newPassphrase: "transfer-pass-99",
+      confirmNewPassphrase: "transfer-pass-99",
+    })
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.passphrase).toMatch(/at least 8/)
+  })
+
+  it("requires confirm match for transfer passphrase", () => {
+    const result = validateExportPrivateForm({
+      ...defaultExportPrivateFormValues,
+      confirmed: true,
+      rewrapEnabled: true,
+      passphrase: "vault-passphrase-1",
+      newPassphrase: "transfer-pass-99",
+      confirmNewPassphrase: "different-pass-1",
+    })
+    expect(result.valid).toBe(false)
+    expect(result.fieldErrors.confirmNewPassphrase).toBeDefined()
+  })
+
+  it("builds Mode B request when checkbox is checked", () => {
+    const values = {
+      ...defaultExportPrivateFormValues,
+      confirmed: true,
+      rewrapEnabled: true,
+      passphrase: "vault-passphrase-1",
+      newPassphrase: "transfer-pass-99",
+      confirmNewPassphrase: "transfer-pass-99",
+    }
+    expect(validateExportPrivateForm(values).valid).toBe(true)
+    expect(buildExportPrivateRequest(values)).toEqual({
+      passphrase: "vault-passphrase-1",
+      newPassphrase: "transfer-pass-99",
+    })
+  })
+
+  it("accepts confirm match when both sides have surrounding whitespace", () => {
+    const result = validateExportPrivateForm({
+      ...defaultExportPrivateFormValues,
+      confirmed: true,
+      rewrapEnabled: true,
+      passphrase: "vault-passphrase-1",
+      newPassphrase: "  transfer-pass-99  ",
+      confirmNewPassphrase: " transfer-pass-99 ",
+    })
+    expect(result.valid).toBe(true)
+    expect(
+      buildExportPrivateRequest({
+        ...defaultExportPrivateFormValues,
+        rewrapEnabled: true,
+        passphrase: "vault-passphrase-1",
+        newPassphrase: "  transfer-pass-99  ",
+        confirmNewPassphrase: " transfer-pass-99 ",
+      }),
+    ).toEqual({
+      passphrase: "vault-passphrase-1",
+      newPassphrase: "transfer-pass-99",
+    })
   })
 })
 

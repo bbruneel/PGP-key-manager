@@ -561,4 +561,28 @@ describe("keysApi.exportPrivate", () => {
     })
     expect(result).toContain("BEGIN PGP PRIVATE KEY BLOCK")
   })
+
+  it("sends Mode B passphrase body for rewrap export", async () => {
+    vi.mocked(requestText).mockResolvedValue("-----BEGIN PGP PRIVATE KEY BLOCK-----\n")
+
+    await keysApi.exportPrivate({
+      accessToken: "token-abc",
+      keyId: "key-1",
+      body: {
+        passphrase: "vault-passphrase-1",
+        newPassphrase: "transfer-pass-99",
+      },
+    })
+
+    expect(requestText).toHaveBeenCalledWith("/api/keys/key-1/export-private", {
+      operationId: "exportPrivateKey",
+      accessToken: "token-abc",
+      method: "POST",
+      body: {
+        passphrase: "vault-passphrase-1",
+        newPassphrase: "transfer-pass-99",
+      },
+      headers: { Accept: "application/pgp-keys" },
+    })
+  })
 })

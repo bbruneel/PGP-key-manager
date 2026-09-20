@@ -2,11 +2,13 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ApiError, getApiErrorMessage } from "@/lib/api-error"
 import {
   buildExportPrivateRequest,
   defaultExportPrivateFormValues,
+  isModeBExportAttempt,
   validateExportPrivateForm,
   type ExportPrivateFieldErrors,
   type ExportPrivateFormValues,
@@ -55,10 +57,36 @@ export function ExportPrivateCard({
     setFieldErrors({})
   }
 
-  async function handleSubmit() {
+  function setRewrapEnabled(enabled: boolean) {
+    setValues((current) => {
+      if (!enabled) {
+        return {
+          ...current,
+          rewrapEnabled: false,
+          passphrase: "",
+          newPassphrase: "",
+          confirmNewPassphrase: "",
+        }
+      }
+      return { ...current, rewrapEnabled: true }
+    })
+    setFieldErrors({})
     logUiEvent("info", {
-      eventId: "keyDetail.exportPrivate.submit",
-      message: "Private keyring export submitted",
+      eventId: "keyDetail.exportPrivate.rewrap.toggle",
+      message: enabled
+        ? "Export with a new passphrase enabled"
+        : "Export with a new passphrase disabled",
+      keyId,
+    })
+  }
+
+  async function handleSubmit() {
+    const modeB = isModeBExportAttempt(values)
+    logUiEvent("info", {
+      eventId: modeB ? "keyDetail.exportPrivate.rewrap.submit" : "keyDetail.exportPrivate.submit",
+      message: modeB
+        ? "Private keyring rewrap export submitted"
+        : "Private keyring export submitted",
       operationId: "exportPrivateKey",
       keyId,
     })
@@ -67,7 +95,9 @@ export function ExportPrivateCard({
     if (!validation.valid) {
       setFieldErrors(validation.fieldErrors)
       logUiEvent("warn", {
-        eventId: "keyDetail.exportPrivate.validationFailed",
+        eventId: modeB
+          ? "keyDetail.exportPrivate.rewrap.validationFailed"
+          : "keyDetail.exportPrivate.validationFailed",
         message: "Private keyring export validation failed",
         keyId,
       })
@@ -99,13 +129,23 @@ export function ExportPrivateCard({
       anchor.click()
       URL.revokeObjectURL(url)
 
-      toast.success("Encrypted private keyring downloaded", {
-        description:
-          "The file is the full OpenPGP secret keyring and remains passphrase-protected. Do not store it in chat, email, or screenshots.",
-      })
+      toast.success(
+        modeB
+          ? "Rewrapped private keyring downloaded"
+          : "Encrypted private keyring downloaded",
+        {
+          description: modeB
+            ? "The file opens with your new transfer passphrase. The vault key is unchanged. Do not store the file in chat, email, or screenshots."
+            : "The file is the full OpenPGP secret keyring and remains passphrase-protected with your vault passphrase. Do not store it in chat, email, or screenshots.",
+        },
+      )
       logUiEvent("info", {
-        eventId: "keyDetail.exportPrivate.success",
-        message: "Private keyring export downloaded",
+        eventId: modeB
+          ? "keyDetail.exportPrivate.rewrap.success"
+          : "keyDetail.exportPrivate.success",
+        message: modeB
+          ? "Private keyring rewrap export downloaded"
+          : "Private keyring export downloaded",
         operationId: "exportPrivateKey",
         keyId,
         fingerprint: fingerprint ?? undefined,
@@ -117,7 +157,7 @@ export function ExportPrivateCard({
         setRequestId(error.requestId)
       }
       logUiEvent("error", {
-        eventId: "keyDetail.exportPrivate.error",
+        eventId: modeB ? "keyDetail.exportPrivate.rewrap.error" : "keyDetail.exportPrivate.error",
         message: "Private keyring export failed",
         operationId: error instanceof ApiError ? error.operationId : "exportPrivateKey",
         requestId: error instanceof ApiError ? error.requestId : undefined,
@@ -128,6 +168,8 @@ export function ExportPrivateCard({
       setSubmitting(false)
     }
   }
+
+  const rewrapFieldsDisabled = !values.rewrapEnabled || submitting
 
   return (
     <section
@@ -155,8 +197,8 @@ export function ExportPrivateCard({
           noValidate
         >
           <p className="text-sm text-muted-foreground">
-            This download is still passphrase-protected OpenPGP armor (no server unlock). Do not
-            paste it into chat, email, or screenshots.
+            Without a new passphrase, the download keeps your vault passphrase (no server unlock).
+            Do not paste it into chat, email, or screenshots.
           </p>
           <div className="flex items-start gap-2">
             <input
@@ -174,6 +216,72 @@ export function ExportPrivateCard({
           </div>
           <FieldError message={fieldErrors.confirmed} />
 
+          <div className="space-y-3 rounded-md border border-input bg-background p-4">
+            <div className="flex items-start gap-2">
+              <input
+                id="export-private-rewrap"
+                type="checkbox"
+                className="mt-1 size-4 rounded border-border"
+                checked={values.rewrapEnabled}
+                onChange={(event) => setRewrapEnabled(event.target.checked)}
+                disabled={submitting}
+                data-pgp-ui="keyDetail.exportPrivate.rewrap.toggle"
+              />
+              <Label htmlFor="export-private-rewrap" className="text-sm font-normal leading-snug">
+                Export with a new passphrase
+              </Label>
+            </div>
+            <p className="text-sm text-muted-foreground" data-pgp-ui="keyDetail.exportPrivate.rewrap">
+              When checked, unlock with your vault passphrase and re-encrypt the download with a
+              transfer passphrase. This does not change the passphrase stored in the vault — only
+              the downloaded file.
+            </p>
+            <div>
+              <Label htmlFor="export-private-vault-passphrase">Vault passphrase</Label>
+              <Input
+                id="export-private-vault-passphrase"
+                type="password"
+                autoComplete="current-password"
+                value={values.passphrase}
+                onChange={(event) => updateField("passphrase", event.target.value)}
+                disabled={rewrapFieldsDisabled}
+                aria-invalid={Boolean(fieldErrors.passphrase)}
+                data-pgp-ui="keyDetail.exportPrivate.rewrap.passphrase"
+              />
+              <FieldError message={fieldErrors.passphrase} />
+            </div>
+            <div>
+              <Label htmlFor="export-private-new-passphrase">New transfer passphrase</Label>
+              <Input
+                id="export-private-new-passphrase"
+                type="password"
+                autoComplete="new-password"
+                value={values.newPassphrase}
+                onChange={(event) => updateField("newPassphrase", event.target.value)}
+                disabled={rewrapFieldsDisabled}
+                aria-invalid={Boolean(fieldErrors.newPassphrase)}
+                data-pgp-ui="keyDetail.exportPrivate.rewrap.newPassphrase"
+              />
+              <FieldError message={fieldErrors.newPassphrase} />
+            </div>
+            <div>
+              <Label htmlFor="export-private-confirm-new-passphrase">
+                Confirm transfer passphrase
+              </Label>
+              <Input
+                id="export-private-confirm-new-passphrase"
+                type="password"
+                autoComplete="new-password"
+                value={values.confirmNewPassphrase}
+                onChange={(event) => updateField("confirmNewPassphrase", event.target.value)}
+                disabled={rewrapFieldsDisabled}
+                aria-invalid={Boolean(fieldErrors.confirmNewPassphrase)}
+                data-pgp-ui="keyDetail.exportPrivate.rewrap.confirmNewPassphrase"
+              />
+              <FieldError message={fieldErrors.confirmNewPassphrase} />
+            </div>
+          </div>
+
           {apiError ? (
             <p className="text-sm text-destructive" role="alert">
               {apiError}
@@ -184,7 +292,11 @@ export function ExportPrivateCard({
           ) : null}
 
           <Button type="submit" disabled={submitting} data-pgp-ui="keyDetail.exportPrivate.download">
-            {submitting ? "Downloading…" : "Download encrypted private keyring"}
+            {submitting
+              ? "Downloading…"
+              : values.rewrapEnabled
+                ? "Download with new passphrase"
+                : "Download encrypted private keyring"}
           </Button>
         </form>
       ) : (
