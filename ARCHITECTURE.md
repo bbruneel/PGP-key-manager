@@ -228,7 +228,7 @@ Phase 17a introduces the **connection registry** only — no S3 or STS calls yet
 
 Primary **full secret keyring** export — backup / migrate OpenPGP material, not SSH setup (Phase 18) and not encrypt-subkey-only packets.
 
-1. On **primary** Overview, when the key has private material and is not revoked, `ExportPrivateCard` offers **Download encrypted private keyring** (confirm dialog covers full-ring blast radius). Optional collapsed **Export with a new passphrase** disclosure enables Mode B.
+1. On **primary** Overview, when the key has private material and is not revoked, `ExportPrivateCard` offers **Download encrypted private keyring** (confirm dialog covers full-ring blast radius). Optional checkbox **Export with a new passphrase** enables Mode B fields (disabled until checked).
 2. Personal owner or group **OWNER** only (hide-with-404 for others). Team vault UI calls `groupsApi.getMyGroupMembership()` (`GET /api/groups/{groupId}/members/me`) so members see owner-only copy while owners can download.
 3. `keysApi.exportPrivate()` → `POST /api/keys/{keyId}/export-private` with primary `keyId` only (subkey → 404). **Mode A:** omit passphrase fields → stored S2K armor. **Mode B:** `passphrase` + `newPassphrase` → unlock and rewrap for download only (vault passphrase unchanged). Exactly one of the two fields → 400. `Cache-Control: no-store`. No encrypt-capability gate.
 4. `GET /api/keys/{keyId}?includePrivateCiphertext=true` uses the same owner/OWNER ACL and audits `get_key_private_ciphertext`; prefer the dedicated export endpoint for deliberate download.

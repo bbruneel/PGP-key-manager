@@ -1,7 +1,7 @@
 export type ExportPrivateFormValues = {
   confirmed: boolean
-  /** Progressive disclosure for Mode B rewrap fields. */
-  rewrapOpen: boolean
+  /** When true, Mode B rewrap fields are required and sent. */
+  rewrapEnabled: boolean
   /** Vault passphrase (Mode B). */
   passphrase: string
   /** Transfer passphrase for the downloaded file (Mode B). */
@@ -19,7 +19,7 @@ export type ExportPrivateFieldErrors = {
 
 export const defaultExportPrivateFormValues: ExportPrivateFormValues = {
   confirmed: false,
-  rewrapOpen: false,
+  rewrapEnabled: false,
   passphrase: "",
   newPassphrase: "",
   confirmNewPassphrase: "",
@@ -42,18 +42,14 @@ function validatePassphraseLength(value: string, label: string): string | undefi
   return undefined
 }
 
-/** True when the user entered any Mode B field (partial or complete). */
+/** True when Mode B rewrap checkbox is enabled. */
 export function isModeBExportAttempt(values: ExportPrivateFormValues): boolean {
-  return (
-    values.passphrase.trim().length > 0 ||
-    values.newPassphrase.trim().length > 0 ||
-    values.confirmNewPassphrase.length > 0
-  )
+  return values.rewrapEnabled
 }
 
 /**
- * Mode A: confirm only (passphrase fields blank) → empty body.
- * Mode B: any rewrap field filled → require vault + transfer (8–256) + confirm match.
+ * Mode A: confirm only (`rewrapEnabled` false) → empty body.
+ * Mode B: checkbox on → require vault + transfer (8–256) + confirm match.
  */
 export function validateExportPrivateForm(
   values: ExportPrivateFormValues,
@@ -64,13 +60,12 @@ export function validateExportPrivateForm(
       "Confirm that you understand this download is the full secret keyring for this identity"
   }
 
-  if (isModeBExportAttempt(values)) {
+  if (values.rewrapEnabled) {
     const passphrase = values.passphrase.trim()
     const newPassphrase = values.newPassphrase.trim()
 
     if (!passphrase) {
-      fieldErrors.passphrase =
-        "Vault passphrase is required together with the new transfer passphrase"
+      fieldErrors.passphrase = "Vault passphrase is required to export with a new passphrase"
     } else {
       const lengthError = validatePassphraseLength(passphrase, "Vault passphrase")
       if (lengthError) {
@@ -80,7 +75,7 @@ export function validateExportPrivateForm(
 
     if (!newPassphrase) {
       fieldErrors.newPassphrase =
-        "New transfer passphrase is required together with the vault passphrase"
+        "New transfer passphrase is required to export with a new passphrase"
     } else {
       const lengthError = validatePassphraseLength(newPassphrase, "New transfer passphrase")
       if (lengthError) {
@@ -90,7 +85,7 @@ export function validateExportPrivateForm(
 
     if (newPassphrase && newPassphrase !== values.confirmNewPassphrase) {
       fieldErrors.confirmNewPassphrase = "Passphrases do not match"
-    } else if (newPassphrase && !values.confirmNewPassphrase) {
+    } else if (!values.confirmNewPassphrase) {
       fieldErrors.confirmNewPassphrase = "Confirm the new transfer passphrase"
     }
   }
@@ -105,10 +100,11 @@ export function buildExportPrivateRequest(values: ExportPrivateFormValues): {
   passphrase?: string
   newPassphrase?: string
 } {
-  const passphrase = values.passphrase.trim()
-  const newPassphrase = values.newPassphrase.trim()
-  if (!passphrase && !newPassphrase) {
+  if (!values.rewrapEnabled) {
     return {}
   }
-  return { passphrase, newPassphrase }
+  return {
+    passphrase: values.passphrase.trim(),
+    newPassphrase: values.newPassphrase.trim(),
+  }
 }

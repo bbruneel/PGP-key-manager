@@ -26,32 +26,37 @@ describe("validateExportPrivateForm", () => {
     )
   })
 
-  it("treats empty rewrap disclosure as Mode A", () => {
+  it("treats unchecked rewrap checkbox as Mode A even if fields have leftover text", () => {
     const values = {
       ...defaultExportPrivateFormValues,
       confirmed: true,
-      rewrapOpen: true,
+      rewrapEnabled: false,
+      passphrase: "should-be-ignored",
+      newPassphrase: "should-be-ignored",
+      confirmNewPassphrase: "should-be-ignored",
     }
     expect(isModeBExportAttempt(values)).toBe(false)
     expect(validateExportPrivateForm(values).valid).toBe(true)
     expect(buildExportPrivateRequest(values)).toEqual({})
   })
 
-  it("requires both passphrases when Mode B fields are started", () => {
+  it("requires passphrases when rewrap checkbox is checked", () => {
     const result = validateExportPrivateForm({
       ...defaultExportPrivateFormValues,
       confirmed: true,
-      rewrapOpen: true,
-      passphrase: "vault-passphrase-1",
+      rewrapEnabled: true,
     })
     expect(result.valid).toBe(false)
+    expect(result.fieldErrors.passphrase).toBeDefined()
     expect(result.fieldErrors.newPassphrase).toBeDefined()
+    expect(result.fieldErrors.confirmNewPassphrase).toBeDefined()
   })
 
   it("enforces vault passphrase length on Mode B", () => {
     const result = validateExportPrivateForm({
       ...defaultExportPrivateFormValues,
       confirmed: true,
+      rewrapEnabled: true,
       passphrase: "short",
       newPassphrase: "transfer-pass-99",
       confirmNewPassphrase: "transfer-pass-99",
@@ -64,6 +69,7 @@ describe("validateExportPrivateForm", () => {
     const result = validateExportPrivateForm({
       ...defaultExportPrivateFormValues,
       confirmed: true,
+      rewrapEnabled: true,
       passphrase: "vault-passphrase-1",
       newPassphrase: "transfer-pass-99",
       confirmNewPassphrase: "different-pass-1",
@@ -72,11 +78,11 @@ describe("validateExportPrivateForm", () => {
     expect(result.fieldErrors.confirmNewPassphrase).toBeDefined()
   })
 
-  it("builds Mode B request with both passphrases", () => {
+  it("builds Mode B request when checkbox is checked", () => {
     const values = {
       ...defaultExportPrivateFormValues,
       confirmed: true,
-      rewrapOpen: true,
+      rewrapEnabled: true,
       passphrase: "vault-passphrase-1",
       newPassphrase: "transfer-pass-99",
       confirmNewPassphrase: "transfer-pass-99",
