@@ -59,6 +59,7 @@ export function SubkeysTab({
   onCreateSubkeyAlgorithmAdjusted,
   onCreateSubkeySubmit,
 }: SubkeysTabProps) {
+  const primaryRevoked = keyData.status === "revoked"
   return (
     <KeyDetailTabPanel
       panelId="key-detail-subkeys-panel"
@@ -72,6 +73,7 @@ export function SubkeysTab({
             primaryKeyId={keyData.id}
             getAccessToken={getAccessToken}
             refreshToken={subkeysRefreshToken}
+            primaryRevoked={primaryRevoked}
           />
         </div>
       ) : null}

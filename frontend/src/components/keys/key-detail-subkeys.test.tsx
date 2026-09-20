@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { keysApi } from "@/lib/keys-api"
 
@@ -19,6 +19,10 @@ describe("KeyDetailSubkeys", () => {
     getAccessToken.mockReset()
     vi.mocked(keysApi.listSubkeys).mockReset()
     getAccessToken.mockResolvedValue("access-token")
+  })
+
+  afterEach(() => {
+    cleanup()
   })
 
   it("renders subkeys from listSubkeys", async () => {
@@ -61,5 +65,57 @@ describe("KeyDetailSubkeys", () => {
       expect(screen.getByText(/no subkeys yet/i)).toBeInTheDocument()
       expect(screen.getByText(/add subkey form below/i)).toBeInTheDocument()
     })
+  })
+
+  it("shows Primary key is revoked hint when primaryRevoked", async () => {
+    vi.mocked(keysApi.listSubkeys).mockResolvedValue([
+      {
+        id: "sub-1",
+        fingerprint: "SUBKEYFINGERPRINT",
+        keyId: "1234ABCD",
+        capabilities: ["encrypt"],
+        status: "revoked",
+        expiresAt: null,
+      },
+    ])
+
+    render(
+      <MemoryRouter>
+        <KeyDetailSubkeys
+          primaryKeyId="primary-1"
+          getAccessToken={getAccessToken}
+          primaryRevoked
+        />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("SUBKEYFINGERPRINT")).toBeInTheDocument()
+    expect(screen.getByText(/encrypt · Does not expire · Revoked/)).toBeInTheDocument()
+    expect(screen.getByText("Primary key is revoked")).toBeInTheDocument()
+    expect(screen.getByText("Primary key is revoked")).toHaveAttribute(
+      "data-pgp-ui",
+      "keyDetail.subkeys.primaryRevoked",
+    )
+  })
+
+  it("does not show primary-revoked hint by default", async () => {
+    vi.mocked(keysApi.listSubkeys).mockResolvedValue([
+      {
+        id: "sub-1",
+        fingerprint: "SUBKEYFINGERPRINT",
+        capabilities: ["encrypt"],
+        status: "active",
+        expiresAt: null,
+      },
+    ])
+
+    render(
+      <MemoryRouter>
+        <KeyDetailSubkeys primaryKeyId="primary-1" getAccessToken={getAccessToken} />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("SUBKEYFINGERPRINT")).toBeInTheDocument()
+    expect(screen.queryByText("Primary key is revoked")).not.toBeInTheDocument()
   })
 })
