@@ -67,17 +67,17 @@ sequenceDiagram
   participant API as Spring Boot API
 
   U->>SPA: Open app
-  SPA->>API: GET /api/hello<br/>Accept: application/json; version=1<br/>X-Request-Id: UUID
+  SPA->>API: "GET /api/hello<br/>Accept: application/json#59; version=1<br/>X-Request-Id: UUID"
   API->>API: RequestIdFilter → MDC · echo header
-  API-->>SPA: 200 { "message": "ok" }<br/>X-Request-Id
-  SPA-->>U: Footer: Connected
+  API-->>SPA: "200 {message: ok}<br/>X-Request-Id"
+  SPA-->>U: "Footer: Connected"
 
   opt Auth0 configured
     U->>SPA: Log in
     SPA->>A0: loginWithRedirect
     A0-->>SPA: Session + refresh token (localStorage)
     Note over SPA,API: Protected calls use apiFetch(..., { accessToken })
-    SPA->>API: Future protected routes<br/>Authorization: Bearer JWT
+    SPA->>API: "Future protected routes<br/>Authorization: Bearer JWT"
   end
 ```
 
