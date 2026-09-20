@@ -198,6 +198,19 @@ describe("normalizeAlgorithmSelection", () => {
     expect(normalizeAlgorithmSelection(current, ["encrypt"], 4)).toEqual(current)
   })
 
+  it("strips non-algorithm fields when keeping a valid selection", () => {
+    const current = {
+      algorithm: "rsa" as const,
+      keySize: 4096 as const,
+      capabilities: ["encrypt", "sign"],
+      passphrase: "secret",
+    }
+    expect(normalizeAlgorithmSelection(current, ["encrypt"], 4)).toEqual({
+      algorithm: "rsa",
+      keySize: 4096,
+    })
+  })
+
   it("resets invalid selection to default", () => {
     const current: AlgorithmFormValues = {
       algorithm: "ed25519",

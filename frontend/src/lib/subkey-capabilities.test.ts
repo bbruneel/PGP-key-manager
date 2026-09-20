@@ -50,4 +50,12 @@ describe("toggleSubkeyCapability", () => {
   it("prevents removing the last capability", () => {
     expect(toggleSubkeyCapability(["encrypt"], "encrypt")).toBeNull()
   })
+
+  it("allows deselecting sign when encrypt remains", () => {
+    expect(toggleSubkeyCapability(["encrypt", "sign"], "sign")).toEqual(["encrypt"])
+  })
+
+  it("allows deselecting encrypt when sign remains", () => {
+    expect(toggleSubkeyCapability(["encrypt", "sign"], "encrypt")).toEqual(["sign"])
+  })
 })

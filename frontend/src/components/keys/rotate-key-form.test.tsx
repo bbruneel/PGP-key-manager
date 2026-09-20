@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { defaultRotateKeyFormValues } from "@/lib/rotate-key-validation"
@@ -86,5 +87,34 @@ describe("RotateKeyForm", () => {
     )
 
     expect(screen.getByRole("button", { name: /^rotate subkey$/i })).toBeDisabled()
+  })
+
+  it("unchecks sign after dual-capability selection in a controlled form", async () => {
+    const user = userEvent.setup()
+
+    function StatefulRotateForm() {
+      const [values, setValues] = useState(defaultRotateKeyFormValues)
+      return (
+        <RotateKeyForm
+          values={values}
+          fieldErrors={{}}
+          apiError={null}
+          requestId={null}
+          submitting={false}
+          disabled={false}
+          primaryOpenpgpVersion={4}
+          onChange={setValues}
+          onSubmit={() => {}}
+        />
+      )
+    }
+
+    render(<StatefulRotateForm />)
+
+    await user.click(screen.getByLabelText("sign"))
+    expect(screen.getByLabelText("sign")).toBeChecked()
+    await user.click(screen.getByLabelText("sign"))
+    expect(screen.getByLabelText("sign")).not.toBeChecked()
+    expect(screen.getByLabelText("encrypt")).toBeChecked()
   })
 })
