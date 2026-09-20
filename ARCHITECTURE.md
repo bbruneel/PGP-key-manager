@@ -240,7 +240,7 @@ Primary **full secret keyring** export — backup / migrate OpenPGP material, no
 Offline kill-switch for **primary** keys — distinct from immediate **Revoke now** (Phase 3).
 
 1. On primary **Actions & Lifecycle**, **Generate revocation certificate** downloads a GnuPG-compatible armored public key block with a `KEY_REVOCATION` signature. Does **not** update vault keyring or `revokedAt`. Requires stored private material + passphrase. Disabled when revoked or public-only.
-2. **Apply revocation certificate** pastes armor (no passphrase), verifies fingerprint + signature, merges into stored public (and private when present) rings, and marks the primary revoked. Idempotent when already revoked and the cert still verifies.
+2. **Apply revocation certificate** pastes armor (no passphrase), verifies fingerprint + signature, merges into stored public (and private when present) rings, and marks the primary revoked. When the DB is already revoked but stored armor lacks a `KEY_REVOCATION` (metadata-only revoke), apply still merges the cert (`revocation_synced`). True no-op only when rings are already cryptographically revoked.
 3. `keysApi.exportRevocationCert()` → `POST /api/keys/{keyId}/export-revocation-cert`; `keysApi.applyRevocationCert()` → `POST /api/keys/{keyId}/apply-revocation-cert`. Subkeys → hide-with-404. Certificates are download-only (not stored server-side).
 4. Logging: `export_revocation_cert` / `apply_revocation_cert` (+ `_ready` / `_completed`); never logs armor or passphrase.
 5. `[pgp-ui]`: `keyDetail.exportRevocationCert.*`, `keyDetail.applyRevocationCert.*`.

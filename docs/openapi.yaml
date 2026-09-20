@@ -409,8 +409,10 @@ paths:
       description: |
         Phase 21: applies an armored primary **revocation certificate** (from export or external
         GnuPG) to the stored keyring and marks the primary revoked. Does **not** require a
-        passphrase. Fingerprint must match; `KEY_REVOCATION` signature must verify. Already-revoked
-        keys with a valid matching cert return 200 idempotently. Subkeys return hide-with-404.
+        passphrase. Fingerprint must match; `KEY_REVOCATION` signature must verify. When the key is
+        already revoked in the DB but stored armor lacks a cryptographic revocation (metadata-only
+        revoke), the certificate is still merged into the keyring. Already cryptographically
+        revoked keys with a valid matching cert return 200 idempotently. Subkeys return hide-with-404.
       parameters:
         - $ref: '#/components/parameters/KeyId'
       requestBody:

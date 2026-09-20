@@ -244,9 +244,23 @@ public class PgpCryptoService {
         extractVerifiedPrimaryRevocation(armoredCertificate, expectedFingerprint, armoredPublic);
     }
 
+    /** True when the master public key in {@code armoredPublic} carries a KEY_REVOCATION signature. */
+    public boolean primaryKeyIsCryptographicallyRevoked(String armoredPublic) {
+        try {
+            if (armoredPublic == null || armoredPublic.isBlank()) {
+                return false;
+            }
+            PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
+            return ring.getPublicKey().isRevoked();
+        } catch (Exception e) {
+            throw new CryptoException("Failed to inspect public key revocation state", e);
+        }
+    }
+
     /**
      * Merges a verified primary revocation certificate into stored public (and optional private)
-     * keyring armor. Returns updated armor plus reason/time from the certificate.
+     * keyring armor. Returns updated armor plus reason/time from the certificate. Equivalent
+     * KEY_REVOCATION signatures already present on the master key are not duplicated.
      */
     public AppliedRevocation applyRevocationCertificate(
             String armoredCertificate,
@@ -259,8 +273,21 @@ public class PgpCryptoService {
             PGPPublicKeyRing storedPublic = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);
             PGPPublicKey master = storedPublic.getPublicKey();
             PGPPublicKey updatedMaster = master;
+            boolean materialChanged = false;
             for (PGPSignature revocation : verified.revocations()) {
+                if (hasEquivalentRevocation(updatedMaster, revocation)) {
+                    continue;
+                }
                 updatedMaster = PGPPublicKey.addCertification(updatedMaster, revocation);
+                materialChanged = true;
+            }
+            if (!materialChanged) {
+                return new AppliedRevocation(
+                        armoredPublic,
+                        armoredPrivate != null && !armoredPrivate.isBlank() ? armoredPrivate : null,
+                        verified.revokedAt(),
+                        verified.reason(),
+                        false);
             }
             PGPPublicKeyRing updatedPublic =
                     replacePublicKeyInPublicRing(storedPublic, master.getKeyID(), updatedMaster);
@@ -278,7 +305,8 @@ public class PgpCryptoService {
                     PgpCryptoSupport.armorPublicRing(updatedPublic),
                     updatedPrivateArmor,
                     verified.revokedAt(),
-                    verified.reason());
+                    verified.reason(),
+                    true);
         } catch (CryptoException e) {
             throw e;
         } catch (Exception e) {
@@ -287,11 +315,25 @@ public class PgpCryptoService {
     }
 
     public record AppliedRevocation(
-            String armoredPublic, String armoredPrivate, Instant revokedAt, RevocationReason reason) {}
+            String armoredPublic,
+            String armoredPrivate,
+            Instant revokedAt,
+            RevocationReason reason,
+            boolean materialChanged) {}
 
     private record VerifiedRevocation(
             List<PGPSignature> revocations, Instant revokedAt, RevocationReason reason) {}
 
+    private boolean hasEquivalentRevocation(PGPPublicKey key, PGPSignature candidate) throws IOException {
+        byte[] candidateEncoded = candidate.getEncoded();
+        Iterator<PGPSignature> existing = key.getSignaturesOfType(PGPSignature.KEY_REVOCATION);
+        while (existing.hasNext()) {
+            if (java.util.Arrays.equals(existing.next().getEncoded(), candidateEncoded)) {
+                return true;
+            }
+        }
+        return false;
+    }
     private VerifiedRevocation extractVerifiedPrimaryRevocation(
             String armoredCertificate, String expectedFingerprint, String armoredPublic) {
         try {

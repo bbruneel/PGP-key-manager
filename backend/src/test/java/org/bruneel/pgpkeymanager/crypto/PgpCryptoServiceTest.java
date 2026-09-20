@@ -324,6 +324,13 @@ class PgpCryptoServiceTest {
         assertThat(applied.armoredPrivate()).contains("BEGIN PGP PRIVATE KEY BLOCK");
         assertThat(applied.reason()).isEqualTo(RevocationReason.KEY_RETIRED);
         assertThat(applied.revokedAt()).isNotNull();
+        assertThat(applied.materialChanged()).isTrue();
+        assertThat(crypto.primaryKeyIsCryptographicallyRevoked(applied.armoredPublic())).isTrue();
+
+        PgpCryptoService.AppliedRevocation secondApply =
+                crypto.applyRevocationCertificate(
+                        cert, primary.fingerprint(), applied.armoredPublic(), applied.armoredPrivate());
+        assertThat(secondApply.materialChanged()).isFalse();
 
         ImportedKeyMetadata parsed =
                 new PgpKeyMetadataParser().parse(applied.armoredPublic(), applied.armoredPrivate());

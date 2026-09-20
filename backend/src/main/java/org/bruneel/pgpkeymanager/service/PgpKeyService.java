@@ -416,7 +416,9 @@ public class PgpKeyService {
 
     /**
      * Phase 21: apply an armored primary revocation certificate (download or external). Does not
-     * require passphrase. Idempotent when the key is already revoked and the cert verifies.
+     * require passphrase. When the key is already revoked in the DB and the stored rings already
+     * contain a cryptographic KEY_REVOCATION, verify-only (idempotent). When the DB is revoked but
+     * armor is metadata-only (no KEY_REVOCATION), merge the certificate into stored rings.
      */
     public PgpKey applyRevocationCert(AppUser user, UUID keyId, ApplyRevocationCertRequest request) {
         long start = System.currentTimeMillis();
@@ -434,7 +436,11 @@ public class PgpKeyService {
                         "Primary key has no public material to apply a revocation certificate");
             }
 
-            if (key.revokedAt() != null) {
+            boolean alreadyRevoked = key.revokedAt() != null;
+            boolean ringsCryptographicallyRevoked =
+                    pgpCryptoService.primaryKeyIsCryptographicallyRevoked(armoredPublic);
+
+            if (alreadyRevoked && ringsCryptographicallyRevoked) {
                 pgpCryptoService.verifyRevocationCertificate(
                         request.armoredCertificate(), key.fingerprint(), armoredPublic);
                 log.info(
@@ -450,23 +456,40 @@ public class PgpKeyService {
                             key.fingerprint(),
                             armoredPublic,
                             key.encryptedPrivateArmored());
-            pgpKeyRepository.updateKeyringMaterial(
-                    key.id(),
-                    applied.armoredPublic(),
-                    applied.armoredPrivate(),
-                    null,
-                    applied.revokedAt(),
-                    applied.reason());
-            PgpKey revoked =
-                    pgpKeyRepository
-                            .markRevoked(key.id(), applied.revokedAt(), applied.reason())
-                            .orElseThrow(() -> new KeyNotFoundException(keyId));
-            log.info(
-                    "apply_revocation_cert_completed status=revoked fingerprint={} reason={}",
-                    revoked.fingerprint(),
-                    applied.reason());
+
+            if (applied.materialChanged()) {
+                pgpKeyRepository.updateKeyringMaterial(
+                        key.id(),
+                        applied.armoredPublic(),
+                        applied.armoredPrivate(),
+                        null,
+                        alreadyRevoked ? null : applied.revokedAt(),
+                        applied.reason());
+            }
+
+            PgpKey result;
+            if (alreadyRevoked) {
+                result =
+                        pgpKeyRepository
+                                .findById(key.id())
+                                .orElseThrow(() -> new KeyNotFoundException(keyId));
+                log.info(
+                        "apply_revocation_cert_completed status={} fingerprint={} reason={}",
+                        applied.materialChanged() ? "revocation_synced" : "idempotent",
+                        result.fingerprint(),
+                        applied.reason());
+            } else {
+                result =
+                        pgpKeyRepository
+                                .markRevoked(key.id(), applied.revokedAt(), applied.reason())
+                                .orElseThrow(() -> new KeyNotFoundException(keyId));
+                log.info(
+                        "apply_revocation_cert_completed status=revoked fingerprint={} reason={}",
+                        result.fingerprint(),
+                        applied.reason());
+            }
             completeSuccess("apply_revocation_cert", user.id(), keyId, openpgpVersion, start);
-            return revoked;
+            return result;
         } catch (RuntimeException ex) {
             completeFailure("apply_revocation_cert", user.id(), keyId, openpgpVersion, start, ex);
             throw ex;
