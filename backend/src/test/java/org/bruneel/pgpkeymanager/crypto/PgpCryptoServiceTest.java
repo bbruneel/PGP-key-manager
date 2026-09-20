@@ -102,6 +102,78 @@ class PgpCryptoServiceTest {
     }
 
     @Test
+    void rewrapSecretKeyRingUsesNewPassphraseOnly() {
+        char[] vaultPass = "vault-passphrase-12".toCharArray();
+        char[] transferPass = "transfer-pass-99".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Rewrap Test", "rewrap@example.com")),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        vaultPass);
+
+        String rewrapped = crypto.rewrapSecretKeyRing(primary.armoredPrivate(), vaultPass, transferPass);
+        assertThat(rewrapped).contains("BEGIN PGP PRIVATE KEY BLOCK");
+
+        SubkeyMaterial withTransfer =
+                crypto.addSubkey(
+                        4,
+                        rewrapped,
+                        transferPass,
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+        assertThat(withTransfer.updatedArmoredPrivate()).contains("BEGIN PGP PRIVATE KEY BLOCK");
+
+        assertThatThrownBy(
+                        () ->
+                                crypto.addSubkey(
+                                        4,
+                                        rewrapped,
+                                        vaultPass,
+                                        List.of(PgpCapability.ENCRYPT),
+                                        new AlgorithmSpecDto("cv25519", null, null),
+                                        Instant.parse("2029-05-21T00:00:00Z")))
+                .isInstanceOf(CryptoException.class)
+                .hasMessageContaining("Passphrase does not unlock");
+
+        // Original vault armor still opens with the vault passphrase (export does not mutate it).
+        SubkeyMaterial withVault =
+                crypto.addSubkey(
+                        4,
+                        primary.armoredPrivate(),
+                        vaultPass,
+                        List.of(PgpCapability.ENCRYPT),
+                        new AlgorithmSpecDto("cv25519", null, null),
+                        Instant.parse("2029-05-21T00:00:00Z"));
+        assertThat(withVault.updatedArmoredPrivate()).contains("BEGIN PGP PRIVATE KEY BLOCK");
+    }
+
+    @Test
+    void rewrapSecretKeyRingRejectsWrongVaultPassphrase() {
+        char[] vaultPass = "vault-passphrase-12".toCharArray();
+        GeneratedKeyMaterial primary =
+                crypto.generatePrimary(
+                        4,
+                        List.of(new UserIdSpecDto("Rewrap Fail", null)),
+                        List.of(PgpCapability.CERTIFY, PgpCapability.SIGN),
+                        new AlgorithmSpecDto("ed25519", null, null),
+                        Instant.parse("2030-05-21T00:00:00Z"),
+                        vaultPass);
+
+        assertThatThrownBy(
+                        () ->
+                                crypto.rewrapSecretKeyRing(
+                                        primary.armoredPrivate(),
+                                        "wrong-passphrase-xx".toCharArray(),
+                                        "transfer-pass-99".toCharArray()))
+                .isInstanceOf(CryptoException.class)
+                .hasMessageContaining("Passphrase does not unlock");
+    }
+
+    @Test
     void addEcdsaSigningSubkey() {
         GeneratedKeyMaterial primary =
                 crypto.generatePrimary(

@@ -265,6 +265,30 @@ public class PgpCryptoService {
         }
     }
 
+    /**
+     * Unlock a stored secret keyring with {@code currentPassphrase} and re-encrypt every secret
+     * key with {@code newPassphrase}. Does not mutate caller-held armor; returns new armored
+     * secret suitable for transfer / backup (Mode B private export).
+     */
+    public String rewrapSecretKeyRing(String armoredPrivate, char[] currentPassphrase, char[] newPassphrase) {
+        try {
+            PGPSecretKeyRing ring = PgpCryptoSupport.loadSecretKeyRing(armoredPrivate, currentPassphrase);
+            PGPDigestCalculator sha1Calc = sha1Calculator();
+            var decryptor =
+                    new JcePBESecretKeyDecryptorBuilder().setProvider(PROVIDER).build(currentPassphrase);
+            PBESecretKeyEncryptor encryptor = secretKeyEncryptor(sha1Calc, newPassphrase);
+            PGPSecretKeyRing rewrapped = PGPSecretKeyRing.copyWithNewPassword(ring, decryptor, encryptor);
+            return PgpCryptoSupport.armorSecretRing(rewrapped);
+        } catch (CryptoException e) {
+            throw e;
+        } catch (Exception e) {
+            if (PgpCryptoSupport.isPassphraseMismatch(e)) {
+                throw new CryptoException("Passphrase does not unlock the private key");
+            }
+            throw new CryptoException("Failed to rewrap secret keyring", e);
+        }
+    }
+
     public String exportPublicKey(String armoredPublic, long keyId) {
         try {
             PGPPublicKeyRing ring = PgpCryptoSupport.loadPublicKeyRing(armoredPublic);

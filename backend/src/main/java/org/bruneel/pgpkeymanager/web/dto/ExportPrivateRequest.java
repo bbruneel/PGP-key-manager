@@ -6,7 +6,7 @@ import org.bruneel.pgpkeymanager.web.json.JsonPassphrase;
 
 /**
  * Mode A (ciphertext download): omit both fields.
- * Mode B (rewrap, future): vault {@code passphrase} plus optional {@code newPassphrase}.
+ * Mode B (rewrap): vault {@code passphrase} plus transfer {@code newPassphrase} (both required together).
  */
 public record ExportPrivateRequest(
         @JsonPassphrase @Size(min = 8, max = 256) char[] passphrase,

@@ -107,4 +107,75 @@ describe("ExportPrivateCard", () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /download encrypted private keyring/i })).toBeNull()
   })
+
+  it("submits Mode B rewrap with vault and transfer passphrases", async () => {
+    const user = userEvent.setup()
+    vi.mocked(keysApi.exportPrivate).mockResolvedValue(
+      "-----BEGIN PGP PRIVATE KEY BLOCK-----\nrewrap\n-----END PGP PRIVATE KEY BLOCK-----\n",
+    )
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {})
+
+    render(
+      <ExportPrivateCard
+        keyId="primary-1"
+        fingerprint="AABB"
+        canExport
+        getAccessToken={async () => "token"}
+      />,
+    )
+
+    await user.click(screen.getByLabelText(/I understand this download is the full secret keyring/i))
+    await user.click(screen.getByRole("button", { name: /export with a new passphrase/i }))
+    await user.type(screen.getByLabelText(/^vault passphrase$/i), "vault-passphrase-1")
+    await user.type(screen.getByLabelText(/^new transfer passphrase$/i), "transfer-pass-99")
+    await user.type(screen.getByLabelText(/confirm transfer passphrase/i), "transfer-pass-99")
+    await user.click(screen.getByRole("button", { name: /download with new passphrase/i }))
+
+    await waitFor(() => {
+      expect(keysApi.exportPrivate).toHaveBeenCalledWith({
+        accessToken: "token",
+        keyId: "primary-1",
+        body: {
+          passphrase: "vault-passphrase-1",
+          newPassphrase: "transfer-pass-99",
+        },
+      })
+    })
+    expect(logUiEvent).toHaveBeenCalledWith(
+      "info",
+      expect.objectContaining({ eventId: "keyDetail.exportPrivate.rewrap.success" }),
+    )
+    expect(toast.success).toHaveBeenCalledWith(
+      "Rewrapped private keyring downloaded",
+      expect.objectContaining({
+        description: expect.stringMatching(/transfer passphrase/i),
+      }),
+    )
+
+    clickSpy.mockRestore()
+  })
+
+  it("blocks Mode B submit when transfer confirm mismatches", async () => {
+    const user = userEvent.setup()
+    render(
+      <ExportPrivateCard
+        keyId="primary-1"
+        canExport
+        getAccessToken={async () => "token"}
+      />,
+    )
+
+    await user.click(screen.getByLabelText(/I understand this download is the full secret keyring/i))
+    await user.click(screen.getByRole("button", { name: /export with a new passphrase/i }))
+    await user.type(screen.getByLabelText(/^vault passphrase$/i), "vault-passphrase-1")
+    await user.type(screen.getByLabelText(/^new transfer passphrase$/i), "transfer-pass-99")
+    await user.type(screen.getByLabelText(/confirm transfer passphrase/i), "different-pass-1")
+    await user.click(screen.getByRole("button", { name: /download with new passphrase/i }))
+
+    expect(keysApi.exportPrivate).not.toHaveBeenCalled()
+    expect(logUiEvent).toHaveBeenCalledWith(
+      "warn",
+      expect.objectContaining({ eventId: "keyDetail.exportPrivate.rewrap.validationFailed" }),
+    )
+  })
 })

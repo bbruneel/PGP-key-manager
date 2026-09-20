@@ -177,6 +177,69 @@ class PgpKeyLifecycleIntegrationTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
                         .string("Cache-Control", "no-store"));
 
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                { "passphrase": "%s" }
+                                """
+                                        .formatted(PASSPHRASE)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                { "newPassphrase": "transfer-passphrase-1" }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                {
+                                  "passphrase": "wrong-passphrase-xx",
+                                  "newPassphrase": "transfer-passphrase-1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        MvcResult rewrapResult =
+                mockMvc.perform(post("/api/keys/{keyId}/export-private", primaryId)
+                                .with(jwt())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "passphrase": "%s",
+                                          "newPassphrase": "transfer-passphrase-1"
+                                        }
+                                        """
+                                                .formatted(PASSPHRASE)))
+                        .andExpect(status().isOk())
+                        .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("application/pgp-keys")))
+                        .andExpect(content().string(org.hamcrest.Matchers.containsString("BEGIN PGP PRIVATE KEY BLOCK")))
+                        .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                                .string("Cache-Control", "no-store"))
+                        .andReturn();
+        org.assertj.core.api.Assertions.assertThat(rewrapResult.getResponse().getContentAsString())
+                .contains("BEGIN PGP PRIVATE KEY BLOCK");
+
+        // Vault key still unlocks with the original passphrase after Mode B export.
+        mockMvc.perform(post("/api/keys/{keyId}/export-ssh-private", authSubkeyId)
+                        .with(jwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                """
+                                { "passphrase": "%s" }
+                                """
+                                        .formatted(PASSPHRASE)))
+                .andExpect(status().isOk());
+
         mockMvc.perform(get("/api/keys/{keyId}", primaryId).with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.encryptedPrivateArmored").doesNotExist())

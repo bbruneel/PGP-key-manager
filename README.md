@@ -102,7 +102,7 @@ Production hardening (TLS, secrets management, resource limits) is not included 
 
 ### API contract
 
-OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, export-public, export-ssh-public, export-ssh-private, export-ssh-setup-pack (authenticate subkeys with ed25519, rsa, or ecdsa), and export-private (Mode A: primary-only full secret keyring armor for the personal owner or group OWNER — distinct from the SSH setup pack). The setup pack is an AES-256 encrypted zip returned in a JSON envelope with a one-time `archivePassword` (not a response header). Open with **7-Zip**, PeaZip, or The Unarchiver — macOS Archive Utility / Finder, Info-ZIP `unzip` on macOS and Linux, and older Windows Explorer do not support WinZip AES. The password is shown once in the app after download.
+OpenAPI 3.1: [`docs/openapi.yaml`](docs/openapi.yaml). Implemented endpoints include primary/subkey management, revoke, extend-expiry, rotate, export-public, export-ssh-public, export-ssh-private, export-ssh-setup-pack (authenticate subkeys with ed25519, rsa, or ecdsa), and export-private (Mode A ciphertext download or Mode B unlock+rewrap of the primary full secret keyring for the personal owner or group OWNER — distinct from the SSH setup pack). The setup pack is an AES-256 encrypted zip returned in a JSON envelope with a one-time `archivePassword` (not a response header). Open with **7-Zip**, PeaZip, or The Unarchiver — macOS Archive Utility / Finder, Info-ZIP `unzip` on macOS and Linux, and older Windows Explorer do not support WinZip AES. The password is shown once in the app after download.
 
 ### API documentation (Redocly)
 
@@ -158,7 +158,7 @@ The scaffold’s `apiFetch` helper sets these by default. The sample `GET /api/h
 | `/keys` | PGP key list (requires Auth0 sign-in) |
 | `/keys/new` | Create primary key — generate Ed25519 key via `POST /api/keys` |
 | `/keys/import` | Import existing key — register armored public/private blocks via `POST /api/keys` (server parses metadata from armor) |
-| `/keys/:id` | Key detail — subkeys list, import subkeys from keyring, add subkey, revoke, extend, rotate, export public key, Overview private keyring export (Mode A, owner/OWNER) |
+| `/keys/:id` | Key detail — subkeys list, import subkeys from keyring, add subkey, revoke, extend, rotate, export public key, Overview private keyring export (Mode A/B, owner/OWNER) |
 
 ### API client layer
 
