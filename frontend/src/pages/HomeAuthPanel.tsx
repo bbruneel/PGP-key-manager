@@ -13,6 +13,9 @@ export function HomeAuthPanel() {
     setCopyingToken(true)
     try {
       const token = await auth0.getAccessTokenSilently()
+      if (!token) {
+        throw new Error("Failed to acquire access token")
+      }
       await navigator.clipboard.writeText(token)
       toast.success("API access token copied to clipboard")
     } catch (e) {

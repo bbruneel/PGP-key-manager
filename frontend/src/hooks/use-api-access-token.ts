@@ -29,6 +29,9 @@ export function useApiAccessToken() {
     }
     try {
       const token = await getAccessTokenSilently()
+      if (!token) {
+        throw new Error("Failed to acquire access token")
+      }
       logApiEvent("debug", {
         operationId: "auth.getAccessToken",
         message: "Access token acquired",
