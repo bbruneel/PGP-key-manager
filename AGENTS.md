@@ -4,9 +4,7 @@ Instructions for AI coding agents working in this repository.
 
 ## Project
 
-**PGP Key Manager** — a GUI to manage PGP key storage (BYO cloud storage, expiry alerts, public key hosting, and related features).
-
-This is a **monorepo**:
+**PGP Key Manager** — GUI for OpenPGP key storage (personal/team vaults, lifecycle, SSH setup, BYO storage registry).
 
 | Path | Stack |
 |------|--------|
@@ -15,105 +13,61 @@ This is a **monorepo**:
 
 The browser calls the Spring API directly (CORS). There is **no** Next.js or other Node server for the SPA.
 
+Human docs: [`docs/`](docs/) (VitePress) → https://bbruneel.github.io/PGP-key-manager/  
+Architecture: [`docs/develop/architecture.md`](docs/develop/architecture.md) · Phase history: [`docs/changelog/phases.md`](docs/changelog/phases.md)
+
 ## Prerequisites
 
-- **JDK 25** (enforced by Maven Enforcer in `backend/pom.xml`)
-- **Node.js 24.16.0** and **npm 11.13.0** (see `.nvmrc` and `frontend/package.json` `engines`)
+- **JDK 25** (Maven Enforcer)
+- **Node.js 24.16.0** / **npm 11.13.0** (`.nvmrc`, `frontend/package.json` `engines`)
+
+Canonical setup: [`docs/develop/local-setup.md`](docs/develop/local-setup.md).
 
 ## Commands
 
-### Backend
-
 ```bash
-cd backend
-./mvnw test                    # run all tests (required before PR)
-./mvnw spring-boot:run         # API on http://localhost:8080
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # extra debug logging
-```
+# Backend
+cd backend && ./mvnw test
+cd backend && ./mvnw spring-boot:run
 
-### Frontend
+# Frontend (prefer npm ci)
+cd frontend && npm ci && npm run lint && npm run test && npm run build && npm run dev
 
-```bash
-cd frontend
-npm ci                         # prefer ci over install (matches CI)
-npm run lint
-npm run test
-npm run build
-npm run dev                    # SPA on http://localhost:5173
-```
-
-Copy `frontend/.env.example` to `frontend/.env.local` for local dev (`VITE_API_BASE_URL`, Auth0 vars).
-
-### API docs (Redocly)
-
-From the **repository root** (not `frontend/`):
-
-```bash
+# Docs (repo root)
 npm ci
-npm run docs:lint      # required when changing docs/openapi.yaml
-npm run docs:build     # docs/.build/index.html
-npm run docs:preview   # http://127.0.0.1:8081 (must run via npm script; starts in docs/)
-```
+npm run docs:lint
+npm run docs:dev
+npm run docs:build
 
-Published reference: **https://bbruneel.github.io/PGP-key-manager/** (updated on push to `main`).
-
-### Docker (full stack)
-
-```bash
+# Docker
 cp docker/.env.example docker/.env
-docker compose -f docker/compose.yml up --build   # http://localhost
+docker compose -f docker/compose.yml up --build
 ```
 
-Uses `SPRING_PROFILES_ACTIVE=docker` for fresh Postgres Flyway migrations. Auth0 vars in `docker/.env` are optional for `/api/hello` only.
-
-### Full local stack
-
-1. Start backend: `cd backend && ./mvnw spring-boot:run`
-2. Start frontend: `cd frontend && npm run dev`
+Copy `frontend/.env.example` → `frontend/.env.local` for Vite Auth0 / API URL.
 
 ## CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push/PR to `main`:
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — backend tests, frontend lint/test/build, OpenAPI lint
+- [`.github/workflows/docs.yml`](.github/workflows/docs.yml) — VitePress + Redoc → GitHub Pages on `main`
 
-- **Backend:** `./mvnw --batch-mode test` (Java 25)
-- **Frontend:** `npm ci`, `npm run lint`, `npm run test`, `npm run build`
-- **OpenAPI:** root `npm ci`, `npm run docs:lint`
+## Non-negotiable conventions
 
-[`.github/workflows/docs.yml`](.github/workflows/docs.yml) deploys API docs to GitHub Pages on push to `main` only.
+- **Request ID:** `RequestIdFilter` → MDC `requestId` → echo `X-Request-Id`. Preserve for new filters/endpoints.
+- **CORS:** `CORS_ALLOWED_ORIGINS`; default `http://localhost:5173`.
+- **API Accept:** `application/json; version=1`. Bearer JWT when Auth0 configured.
+- **Secrets:** never commit `.env`, `.env.local`, or `application-secret.yaml`.
+- **No Next.js** server for the SPA; static output is `frontend/dist/`.
+- **Do not** change pinned Node/npm/Java without updating `.nvmrc`, `engines`, `pom.xml`, and CI together.
+- **Do not** edit `frontend/README.md` (Vite boilerplate) unless asked.
+- Prefer TDD. Spring Boot **4.1.0**, Flyway **12.11.0**; see `backend/pom.xml` and `ResolvedDependencyVersionsTest`.
 
-Changes that break these checks should not be merged.
+## API endpoint test coverage (required)
 
-## Architecture and conventions
+Every REST handler needs a focused `@WebMvcTest` slice test: mock service → MockMvc → status/fields → `verify(...)`. Add/extend `@SpringBootTest` integration tests for non-trivial auth/validation/persistence/crypto. Update slice tests in the **same PR** as endpoint changes.
 
-### Backend (`org.bruneel.pgpkeymanager`)
-
-- REST controllers under `backend/src/main/java/com/example/pgpkeymanager/web/`, mapped under `/api`.
-- Configuration in `backend/src/main/resources/application.yaml`; secrets via gitignored `application-secret.yaml` or environment variables — **never commit credentials**.
-- **Request ID:** `RequestIdFilter` reads or generates `X-Request-Id`, stores it in MDC (`requestId`), echoes on the response. Preserve this pattern for new filters/endpoints.
-- **CORS:** `CORS_ALLOWED_ORIGINS` (comma-separated); default allows `http://localhost:5173`.
-- **Logging:** default profile uses readable console logs with `%X{requestId}`; `prod` profile uses JSON (`logstash-logback-encoder`).
-- **Phase 15 (implemented):** dependency security maintenance — Spring Boot **4.1.0** parent BOM, Flyway **12.8.1** override, CVE-monitored postgresql/logback versions documented in [`backend/pom.xml`](backend/pom.xml); startup `build_dependencies_audit` log line; regression guards in `ResolvedDependencyVersionsTest` and `./mvnw dependency:tree`. Spring Boot 4.1 uses Jackson 3 (`tools.jackson` packages; `com.fasterxml.jackson.annotation` unchanged).
-- **Tests:** prefer TDD. Use `@WebMvcTest` for controller slices and `@SpringBootTest` + `MockMvc` for integration (e.g. filter behavior). JUnit 5.
-
-#### API endpoint test coverage (required)
-
-Every REST handler in a controller must have test coverage before a PR is complete. Gaps like “delete and patch are tested but GET is not” are not acceptable, even when the missing test is pre-existing.
-
-**`@WebMvcTest` slice (required per handler):** For each controller method (each HTTP method + path), add at least one focused test in the matching `*ControllerTest` class that:
-
-1. Mocks service dependencies and stubs the call that handler makes.
-2. Performs the HTTP request with `MockMvc`.
-3. Asserts the expected status code and key response fields.
-4. Verifies the service method was invoked (e.g. `verify(...)`).
-
-When you add, change, or remove an endpoint, update the controller’s slice test in the **same PR**. Do not rely on integration tests alone for this layer.
-
-**Integration tests (required for new/changed behavior):** Add or extend `@SpringBootTest` + `MockMvc` tests when an endpoint has non-trivial behavior (auth, validation, persistence, crypto). `PgpKeyLifecycleIntegrationTest` covers multi-step key flows; `*ControllerIntegrationTest` covers simpler CRUD/auth paths.
-
-**Checklist before finishing controller work:**
-
-| Controller | Slice test class | Integration test class |
-|------------|------------------|------------------------|
+| Controller | Slice test | Integration |
+|------------|------------|-------------|
 | `HelloController` | `HelloControllerTest` | `HelloControllerIntegrationTest` |
 | `PgpKeyController` | `PgpKeyControllerTest` | `PgpKeyControllerIntegrationTest`, `PgpKeyLifecycleIntegrationTest` |
 | `GroupController` | `GroupControllerTest` | `GroupControllerIntegrationTest` |
@@ -121,159 +75,83 @@ When you add, change, or remove an endpoint, update the controller’s slice tes
 | `AdminController` | `AdminControllerTest` | `AdminControllerIntegrationTest` |
 | `StorageConnectionController` | `StorageConnectionControllerTest` | `StorageConnectionControllerIntegrationTest` |
 
-For `StorageConnectionController`, every path under `/api/storage-connections` must appear in `StorageConnectionControllerTest`:
+**Storage** — every path under `/api/storage-connections` in `StorageConnectionControllerTest`:
 
-- `GET /api/storage-connections`
-- `POST /api/storage-connections`
-- `GET /api/storage-connections/{connectionId}`
-- `PATCH /api/storage-connections/{connectionId}`
-- `DELETE /api/storage-connections/{connectionId}`
+- `GET/POST /api/storage-connections`
+- `GET/PATCH/DELETE /api/storage-connections/{connectionId}`
 
-For `PgpKeyController`, every path under `/api/keys` must appear in `PgpKeyControllerTest`:
+**Keys** — every path under `/api/keys` in `PgpKeyControllerTest`:
 
-- `GET /api/keys`
-- `GET /api/keys/{keyId}`
-- `POST /api/keys`
-- `PATCH /api/keys/{keyId}`
-- `DELETE /api/keys/{keyId}`
-- `GET /api/keys/{primaryKeyId}/subkeys`
-- `POST /api/keys/{primaryKeyId}/subkeys`
+- `GET/POST /api/keys`, `GET/PATCH/DELETE /api/keys/{keyId}`
+- `GET/POST /api/keys/{primaryKeyId}/subkeys`, `GET .../subkeys/{subkeyId}`
 - `POST /api/keys/preview`
-- `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring`
-- `POST /api/keys/{primaryKeyId}/subkeys/import-from-keyring/preview`
-- `GET /api/keys/{primaryKeyId}/subkeys/{subkeyId}`
-- `POST /api/keys/{keyId}/revoke`
-- `POST /api/keys/{keyId}/export-revocation-cert`
-- `POST /api/keys/{keyId}/apply-revocation-cert`
-- `POST /api/keys/{keyId}/extend-expiry`
-- `POST /api/keys/{keyId}/rotate`
-- `GET /api/keys/{keyId}/export-public`
-- `GET /api/keys/{keyId}/export-ssh-public`
-- `POST /api/keys/{keyId}/export-ssh-private`
-- `POST /api/keys/{keyId}/export-ssh-setup-pack`
-- `POST /api/keys/{keyId}/export-private`
-- `POST /api/keys/{keyId}/transfer-ownership`
+- `POST .../subkeys/import-from-keyring` (+ `/preview`)
+- `POST .../revoke`, `export-revocation-cert`, `apply-revocation-cert`
+- `POST .../extend-expiry`, `rotate`, `transfer-ownership`
+- `GET .../export-public`, `export-ssh-public`
+- `POST .../export-ssh-private`, `export-ssh-setup-pack`, `export-private`
 
-For `GroupController`, every documented path under `/api/groups` must appear in `GroupControllerTest`:
+**Groups** — every documented `/api/groups` path in `GroupControllerTest` (CRUD, members, me, invites, summary, audit.csv).
 
-- `GET /api/groups`
-- `POST /api/groups`
-- `GET /api/groups/{groupId}`
-- `PATCH /api/groups/{groupId}`
-- `DELETE /api/groups/{groupId}`
-- `GET /api/groups/{groupId}/members`
-- `DELETE /api/groups/{groupId}/members/{memberUserId}`
-- `GET /api/groups/{groupId}/members/me`
-- `DELETE /api/groups/{groupId}/members/me`
-- `POST /api/groups/{groupId}/invites`
-- `GET /api/groups/{groupId}/invites`
-- `GET /api/groups/{groupId}/summary`
-- `GET /api/groups/{groupId}/members/audit.csv`
+**Invites / Admin:** `POST /api/invites/{token}/accept`; `GET /api/admin/groups`, `GET /api/admin/users`.
 
-For `InviteController`, cover:
+If OpenAPI documents a new operation, add the matching slice test (and integration when warranted) in the same change.
 
-- `POST /api/invites/{token}/accept`
+## Product UX (short)
 
-For `AdminController`, cover:
+- Create primary at **`/keys/new`**; import at **`/keys/import`** — not modals.
+- Key detail at **`/keys/:id`** — tabs Overview / Subkeys / Actions; remount on `:id` change.
+- Team context: sidebar **`TeamVaultsNav`** (top-bar vault switcher removed). Personal vault clears `activeGroupId`.
+- **Settings** (`/settings`): storage connection registry (17a — no S3 I/O yet). URI contract: [`docs/develop/storage-ref.md`](docs/develop/storage-ref.md).
+- **Policies** (`/policies`): placeholder only.
+- Register/import: never send generate `passphrase` / `algorithmSpec` on register path.
+- SSH setup pack: AES zip + one-time password in JSON body (not a header); open with 7-Zip-compatible tools.
+- Private export: primary only; Mode A ciphertext / Mode B rewrap; owner or group OWNER.
+- Revocation certs: generate (download-only) vs apply vs revoke-now; primary revoke cascades subkey **DB** rows (21a).
+- Frontend: `apiFetch` / `requestJson`; pages in `frontend/src/pages/`; `[pgp-ui]` / `[pgp-api]` structured logs.
+- Full phase archive: [`docs/changelog/phases.md`](docs/changelog/phases.md).
 
-- `GET /api/admin/groups`
-- `GET /api/admin/users`
+## What to do / not to do
 
-If OpenAPI (`docs/openapi.yaml`) documents a new operation, add the matching slice test (and integration test when behavior warrants it) in the same change.
-
-### Frontend
-
-#### Product decisions
-
-- **Create primary key UX:** dedicated page at `/keys/new` (not a modal on `/keys`). Phase 1 (implemented): form + `keysApi.create()` + `[pgp-ui]` event IDs.
-- **Import key UX:** dedicated page at `/keys/import`. Phase 2 (implemented): public/private armored paste + `keysApi.register()` + `buildImportKeyRequest()` (register-only payload — never send `passphrase` or `algorithmSpec`). Server parses metadata from armor (`PgpKeyMetadataParser`, operation log `register_key`); fingerprint optional on the form.
-- **Key detail UX:** dedicated page at `/keys/:id`. Phase 3 (implemented): `keysApi.get()`, `listSubkeys()`, `revoke()`, `extendExpiry()`, `rotate()`, `exportPublic()` + lifecycle validation modules + `[pgp-ui]` `keyDetail.*` events. List page links to detail (`role=primary` filter). Phase 4 (implemented): inline **Add subkey** form on primary detail (`keysApi.createSubkey()`, `create-subkey-validation.ts`, `[pgp-ui]` `keyDetail.createSubkey.*`). Phase 5 (implemented): parse non-master keys from multi-key armored exports — auto-register subkey rows on primary import (`PgpKeyMetadataParser.parseKeyring`, operation `import_subkeys_from_keyring`); inline **Import subkeys from keyring** on primary detail (`keysApi.importSubkeysFromKeyring()`, `[pgp-ui]` `keyDetail.importSubkeys.*`); import page redirects to `/keys/:id` with subkey count toast (`importKey.subkeysRegistered`). Phase 6 (implemented): extended algorithms — shared `algorithm-spec.ts` for capability filtering; subkey create/rotate expose RSA/ECDSA/ECDH (+ Ed448/X448 on v6 primaries); primary create advanced RSA/ECDSA/Ed448 options; backend validates primary algorithm on generate. Phase 7 (implemented): `keysApi.update()` / `delete()` on detail; **Edit label** (`update-key-label-validation.ts`, `[pgp-ui]` `keyDetail.updateLabel.*`); **Delete key** with confirm (`[pgp-ui]` `keyDetail.delete.*`); detail **Refresh** (`keyDetail.refresh`); export **cache** on detail (single `exportPublic` fetch for copy + download); keys list URL filters (`/keys?view=public|private|subkeys&status=&capability=`, `keys-list-params.ts`, `[pgp-ui]` `keysList.*`); status badges; **bulk public export** (`bulk-export-keys.ts`); sidebar Keys submenu + `/policies` / `/settings` placeholders (Phase 9/10). Phase 8 (implemented): import **preview** (`keysApi.previewKeyring`, `keysApi.previewImportSubkeysFromKeyring`, `import-key-preview.tsx`); revocation detection from armor on register/import; private-preferred keyring when both blocks pasted; `registeredSubkeyCount` on register; import-from-keyring revocation sync (`ImportSubkeysResponse.updated`); `[pgp-ui]` `importKey.preview.*`, `keyDetail.importSubkeys.preview.*`. Phase 9 (implemented): **SSH public key export** for authenticate subkeys (`keysApi.exportSshPublic()`, `export-ssh-public` backend, `PgpSshPublicKeyFormatter`, `isSshExportableKey()`, `KeySshExportAction`, `[pgp-ui]` `keyDetail.exportSsh.*`; backend operation `export_ssh_public`). **Key detail redesign (PR #33, implemented):** tabbed layout on `/keys/:id` — Overview / Subkeys (primary only) / Actions & Lifecycle with ARIA `tablist`/`tab`/`tabpanel` semantics and focus-visible rings. **Phase 10a (implemented):** roving `tabIndex` keyboard navigation on the tab bar (`use-roving-tablist.ts`, ArrowLeft/ArrowRight with automatic activation, `[pgp-ui]` `keyDetail.tabs.keyboardNav`). **Phase 11 (implemented):** prevent form/passphrase leakage on key navigation — `KeyDetailPageContent` remounts via `key={id}` on route param change; `[pgp-ui]` `keyDetail.unmount`. **Phase 12 (implemented):** tab panel extraction — `OverviewTab`, `SubkeysTab`, `ActionsTab` in `components/keys/` with shared `KeyDetailTabPanel`; inactive panels remain DOM-mounted with `hidden` for test compatibility; `data-pgp-ui` `keyDetail.tab.*` on each panel. **Phase 13 (implemented):** primary revocation sync on re-import — `import-from-keyring` and register fingerprint upsert (`POST /api/keys` returns `200`) update stored armor and sync primary/subkey revocation (`ImportSubkeysResponse.updated` may include `role: primary`); logs `import_subkeys_from_keyring_primary_revocation_synced`, `register_key_reimport_sync`; `[pgp-ui]` toast mentions primary revocation sync on detail. **Bulk export partial success:** `bulk-export-keys.ts` continues per-key export on failure; partial download + `toast.success` description with failed labels; `[pgp-ui]` `keysList.bulkExport.partial`. **Phase 14 (implemented):** backend heap-level passphrase protection — REST request DTOs deserialize passphrases into wipeable `char[]` via `@JsonPassphrase` / `PassphraseCharArrayDeserializer`; `PassphraseUtil` clears memory after crypto with DEBUG `passphrase_memory_cleared operation=...` instrumentation; no frontend or wire-format change. **Phase 16 (implemented backend + frontend/docs):** Team vault UX — `groupsApi`, `GroupProvider`, `/groups/new`, `/groups/:groupId/members`, `/groups/:groupId/keys`; keys list supports `groupId` + `scope`; create/import can assign `ownerGroupId`; key detail shows ownership badge and active group context. **Sidebar team vaults (implemented):** `TeamVaultsNav` accordion lists all teams with Public/Private/Subkeys/Members; last expanded team persisted in `localStorage` (`pgp.lastExpandedTeamVaultId`); top-bar vault switcher removed; Personal vault clears `activeGroupId`.
-
-- **Phase 17a (implemented):** BYO storage **connection registry** — `storage_connections` table, `storageConnectionsApi`, `/settings` list + CRUD for personal AWS S3 connections (connection name, bucket, region, prefix, role ARN; server-generated `externalId`); `storage_ref` URI contract ([`docs/storage-ref.md`](docs/storage-ref.md), `StorageRefParser`); OpenAPI `storageProvider`/`storageRef` on keys; structured logs `storage_connection_operation_*`; `[pgp-ui]` `settings.storageConnections.*`. Keyring bytes remain inline in Postgres (no S3/STS I/O until Phase 17b+).
-
-- **Phase 18 (implemented):** SSH setup pack for authenticate subkeys — `POST /api/keys/{keyId}/export-ssh-private` (OpenSSH PEM) and `POST /api/keys/{keyId}/export-ssh-setup-pack` (AES-256 zip via zip4j in a JSON envelope with one-time `archivePassword` in the body, not a response header); Overview **SSH setup** card (`SshSetupCard`) with server `.pub` export + pack download; blocking one-time password dialog; OpenSSH private key inside the zip is unencrypted; password never logged or stored in the zip; `[pgp-ui]` `keyDetail.sshSetup.*`; backend ops `export_ssh_private` / `export_ssh_setup_pack`.
-
-- **Phase 19 (implemented):** Transfer ownership between personal and team vaults — `POST /api/keys/{keyId}/transfer-ownership` with optional `ownerGroupId` (team destination) and `targetUserId` (required for team → personal; recipient must be a source-group member). Primary-only with subkey cascade; personal owner or group **owner** role required; revoked keys blocked; fingerprint conflicts hard-fail (409). Actions & Lifecycle **Ownership** card (not Danger Zone) with confirm summary; `[pgp-ui]` `keyDetail.transferOwnership.*`; backend `transfer_ownership` / `transfer_ownership_completed`. No bulk move; no `storage_ref`/S3 path migration (inline Postgres only until Phase 17c+).
-
-- **Phase 20 (implemented):** Mode A/B OpenPGP **private keyring export** — `POST /api/keys/{keyId}/export-private` returns passphrase-protected secret armor for **primary** keys only (full keyring); Mode A omits passphrases (stored ciphertext); Mode B sends `passphrase` + `newPassphrase` to unlock and rewrap for download without changing the vault; owner / group **OWNER** ACL with hide-with-404; Overview `ExportPrivateCard` with checkbox **Export with a new passphrase** (fields disabled until checked); `GET /api/groups/{groupId}/members/me` (`getMyGroupMembership`) so the SPA enables download for vault owners and shows owner-only copy for members; tightened `GET /api/keys/{keyId}?includePrivateCiphertext=true`; `[pgp-ui]` `keyDetail.exportPrivate.*`; backend op `export_private_keyring` (`mode=ciphertext_download` | `mode=rewrap`).
-
-- **Phase 21 (implemented):** Primary **revocation certificates** — `POST /api/keys/{keyId}/export-revocation-cert` (GnuPG-compatible armored public key block with `KEY_REVOCATION`; download-only, does not revoke; requires private material + passphrase) and `POST /api/keys/{keyId}/apply-revocation-cert` (paste armor; no passphrase; merges into stored rings + `markRevoked`; metadata-only revoked keys still get armor sync; true idempotent no-op only when rings already have `KEY_REVOCATION`). Primary-only; key-access ACL (same as revoke); Actions & Lifecycle sibling cards (`ExportRevocationCertCard`, `ApplyRevocationCertCard`); `[pgp-ui]` `keyDetail.exportRevocationCert.*`, `keyDetail.applyRevocationCert.*`; ops `export_revocation_cert` / `apply_revocation_cert`. No server-side cert storage; no create-time prompt; no subkey certs.
-
-- **Phase 21a (implemented):** When a **primary** is revoked via `POST .../revoke` or `POST .../apply-revocation-cert`, still-active child subkey rows are marked revoked in the DB with the same timestamp/reason (`markActiveSubkeysRevoked`, log `primary_revocation_cascaded_to_subkeys`). Does not add OpenPGP `SUBKEY_REVOCATION` packets. Idempotent apply also cascades leftover active subkeys.
-- Pages in `frontend/src/pages/`, shared UI in `frontend/src/components/`, utilities in `frontend/src/lib/`.
-- Use `apiFetch` from `frontend/src/lib/api.ts` for API calls. It sets:
-  - `Accept: application/json; version=1`
-  - `Authorization: Bearer <token>` when `accessToken` is passed
-  - `X-Request-Id` (UUID) when not provided
-- Auth0 via `@auth0/auth0-react`; env helpers in `frontend/src/lib/auth0-env.ts`.
-- UI: shadcn-style components (`frontend/components.json`), Tailwind v4 via `@tailwindcss/vite`, `cn()` in `frontend/src/lib/utils.ts`.
-- Tests: Vitest + Testing Library; colocate as `*.test.tsx` next to source.
-
-### API contract
-
-- Versioned JSON: clients send `Accept: application/json; version=1`.
-- Protected routes expect `Authorization: Bearer <jwt>` (Auth0).
-- Sample public endpoint: `GET /api/hello` → `{ "message": "ok" }`.
-
-## What to do
-
-- Match existing naming, package layout, and test style in each area you touch.
-- Keep changes focused; avoid drive-by refactors or unrelated file edits.
-- Run backend tests and frontend lint/test/build for any change that affects those areas.
-- Update `README.md` only when user-facing setup or behavior changes; do not add extra markdown docs unless asked.
-- Use `frontend/.env.example` as the template for new `VITE_*` variables (document in README if user-facing).
-- When adding or upgrading dependencies (Maven in `backend/`, npm in `frontend/`), prefer a current maintained release compatible with this repo’s pinned Java/Node stack. Before merging, check for known high/critical vulnerabilities (e.g. `npm audit`, Maven/OWASP dependency checks or advisory databases). Do not bump pinned runtime or toolchain versions unless you update `.nvmrc`, `frontend/package.json` `engines`, `backend/pom.xml`, and CI together (see “What not to do”).
-
-## What not to do
-
-- Do not commit secrets, `.env`, `.env.local`, or `application-secret.yaml`.
-- Do not change pinned Node/npm/Java versions without updating `.nvmrc`, `frontend/package.json` `engines`, `backend/pom.xml`, and CI together.
-- Do not introduce a Node/Next server for the SPA; static build output goes to `frontend/dist/`.
-- Do not remove or bypass request-id / CORS / versioned-`Accept` conventions without an explicit product decision.
-- Do not edit `frontend/README.md` (Vite template boilerplate) unless specifically requested.
+- Match existing naming and test style; keep PRs focused.
+- Run backend tests and frontend lint/test/build for areas you touch.
+- Update user/develop docs under `docs/` when behavior or setup changes; keep root README slim.
+- New `VITE_*` vars: document in `frontend/.env.example` (and docs if user-facing).
+- Prefer current maintained dependency releases; check high/critical advisories before merging bumps.
 
 ## Git and PRs
 
-- Use descriptive commit messages.
-- Ensure CI passes before considering work complete.
-- For cloud agents: use branch prefix `cursor/` and follow repository PR workflow.
+- Descriptive commits; CI must pass.
+- Cloud agents: branch prefix `cursor/`.
 
 ## Cursor Cloud specific instructions
 
 ### Environment
 
-- **JDK 25 (Temurin)** is installed at `/usr/lib/jvm/java-25-temurin`. Set `JAVA_HOME` and prepend to `PATH` before running Maven commands:
-  ```bash
-  export JAVA_HOME=/usr/lib/jvm/java-25-temurin
-  export PATH=$JAVA_HOME/bin:$PATH
-  ```
-  These exports are already in `~/.bashrc` so new interactive shells pick them up automatically.
-- **Node.js 24.16.0** and **npm 11.13.0** are managed via **nvm**. The update script runs `nvm install` from `.nvmrc` automatically. Before running any `npm` command in a new shell, load nvm and **prepend** the pinned Node bin directory to `PATH` (the VM also has `/exec-daemon/node`, which shadows nvm if it comes first):
-  ```bash
-  export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && nvm use
-  export PATH="$NVM_DIR/versions/node/v24.16.0/bin:$PATH"
-  ```
-- Root and frontend dependencies are refreshed by the update script (`npm ci` at repo root and in `frontend/`).
-- `frontend/.env.local` must exist (copy from `.env.example`); the update script does **not** create it. If missing, run: `cp frontend/.env.example frontend/.env.local` and fill `VITE_AUTH0_*` from **Cursor secrets** when present (`VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`, or `AUTH0_DOMAIN` mapped to `VITE_AUTH0_DOMAIN`). Vite only reads `.env.local`, not process env, so copy secrets into that file and restart `npm run dev`.
-- **PostgreSQL** must be running on `localhost:5432` for `spring-boot:run` (Flyway migrations on startup). Tests use in-memory H2 and do not need Postgres. For local Postgres with password `postgres`, export `SPRING_DATASOURCE_PASSWORD=postgres` when starting the backend.
+- **JDK 25 (Temurin)** at `/usr/lib/jvm/java-25-temurin` — set `JAVA_HOME` and prepend to `PATH` before Maven.
+- **Node** via nvm; before npm, load nvm and **prepend** `$NVM_DIR/versions/node/v24.16.0/bin` (VM `/exec-daemon/node` can shadow nvm).
+- Create `frontend/.env.local` from `.env.example`; copy Cursor secrets into `VITE_AUTH0_*` (Vite does not read process env).
+- Postgres on `localhost:5432` for `spring-boot:run`; tests use H2. Local password often `postgres` → `SPRING_DATASOURCE_PASSWORD=postgres`.
 
 ### Running the stack
 
-1. Ensure PostgreSQL is up (`pg_ctlcluster 16 main start` or `sudo service postgresql start` on Ubuntu).
-2. **Backend:** `cd backend && export SPRING_DATASOURCE_PASSWORD=postgres`. For signed-in SPA calls to `/api/keys` and `/api/groups`, also export `AUTH0_AUDIENCE` and `AUTH0_ISSUER_URI` (`https://${AUTH0_DOMAIN}/` when `AUTH0_ISSUER_URI` is not injected). Without a non-blank issuer, JWT resource-server config is off and authenticated routes return **403**. Then `./mvnw spring-boot:run` — listens on `:8080`.
-3. **Frontend:** `cd frontend && npm run dev -- --host 0.0.0.0` — Vite dev server on `:5173`.
-4. **UI login:** use Cursor secrets `AUTH0_E2E_EMAIL` / `AUTH0_E2E_PASSWORD` on the Auth0 email/password form (not Google SSO).
+1. Start PostgreSQL.
+2. Backend: `SPRING_DATASOURCE_PASSWORD=postgres`; for signed-in SPA also `AUTH0_AUDIENCE` + `AUTH0_ISSUER_URI` (`https://${AUTH0_DOMAIN}/` if needed). Without issuer, protected routes return **403**.
+3. Frontend: `npm run dev -- --host 0.0.0.0` on `:5173`.
+4. UI login: Cursor secrets `AUTH0_E2E_EMAIL` / `AUTH0_E2E_PASSWORD` (email/password, not Google SSO).
 
-The Overview page health check (`GET /api/hello` → `ok`) and footer **API Connected** indicator confirm the backend is reachable.
+Overview health (`GET /api/hello`) and footer **API Connected** confirm reachability.
 
 ### Gotchas
 
-- The Maven Enforcer plugin **hard-fails** if `JAVA_HOME` does not point at JDK 25+. Always verify with `java -version` before running `./mvnw`.
-- `npm ci` (not `npm install`) should be used to match CI lockfile behaviour.
-- Auth0 variables in `.env.local` can remain blank; the app loads without authentication.
-- PgBouncer transaction poolers (e.g. Supabase `:6543`) require `prepareThreshold=0` on the JDBC URL (or the auto-config in `PgBouncerTransactionPoolDataSourceConfiguration`, which detects pooler-style URLs). Without it, parallel API calls can fail with `prepared statement "S_1" already exists`. Direct Postgres on `:5432` is unaffected.
-- Sidebar navigation items (Keys, Policies, Settings) are scaffold placeholders — they do not have implemented page content yet.
+- Maven Enforcer hard-fails if `JAVA_HOME` is not JDK 25+.
+- Use `npm ci`, not `npm install`.
+- Auth0 blanks in `.env.local` still allow the app to load (unauthenticated).
+- PgBouncer transaction poolers need `prepareThreshold=0` (or auto-config detection).
+- **Keys** and **Settings** are implemented; **Policies** remains a placeholder.
 
 ## Further reading
 
-Human-oriented setup and layout: [`README.md`](README.md).
+- [`README.md`](README.md) — short entry point
+- [`docs/develop/manual-qa.md`](docs/develop/manual-qa.md) — human UI QA
+- [`docs/openapi.yaml`](docs/openapi.yaml) — API contract

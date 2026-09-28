@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run Phase 6 API smoke scripts against a local backend.
-# UI-only checks are listed in scripts/MANUAL_CHECKS.md — run those separately.
+# UI-only checks: docs/develop/manual-qa.md (scripts/MANUAL_CHECKS.md redirects there).
 #
 # Usage:
 #   ACCESS_TOKEN='eyJ...' ./scripts/run-phase6-smokes.sh
@@ -73,7 +73,7 @@ fi
 cat <<'EOF'
 == API smokes finished
 
-Still required for PR manual sign-off (see scripts/MANUAL_CHECKS.md):
+Still required for PR manual sign-off (see docs/develop/manual-qa.md):
   • Import legacy key → rotate subkey with matching RSA/ECDSA/ECDH in the UI
   • /keys/new Advanced → RSA 4096 primary; v6 → Ed448 primary + X448 encrypt subkey
 

@@ -994,7 +994,7 @@ export interface components {
         };
         /**
          * @description URI pointer to externally stored keyring bytes: `aws-s3://{connectionUuid}/{objectKey}[?versionId=…]`.
-         *     See repository `docs/storage-ref.md`. Phase 17a documents the contract only; keyring bytes remain inline in Postgres until Phase 17c.
+         *     See repository `docs/develop/storage-ref.md` (published under Develop → Storage ref URI). Phase 17a documents the contract only; keyring bytes remain inline in Postgres until Phase 17c.
          */
         StorageRef: string;
         GroupMemberResponse: {
