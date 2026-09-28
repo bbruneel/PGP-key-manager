@@ -72,11 +72,12 @@ From the **repository root**:
 ```bash
 npm ci
 npm run docs:lint      # OpenAPI
-npm run docs:dev       # VitePress
+npm run docs:dev       # VitePress (open the Local URL including /PGP-key-manager/)
 npm run docs:build     # VitePress + Redoc → docs/.vitepress/dist
-npm run docs:preview   # preview built site
+npm run docs:preview   # serve the built site (SSR HTML; good for curl checks)
 ```
 
+`docs:dev` is a SPA: `curl` of the URL returns an empty `#app` shell by design. Open the printed **Local** URL in a browser (must include `/PGP-key-manager/`). Ports 5173/5174 are often taken by the product SPA — VitePress will pick the next free port.
 ## See also
 
 - [Auth0](./auth0)
