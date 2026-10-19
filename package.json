@@ -10,12 +10,12 @@
   },
   "devDependencies": {
     "@braintree/sanitize-url": "^7.1.2",
-    "@redocly/cli": "^2.52.1",
-    "cytoscape": "^3.34.3",
+    "@redocly/cli": "^2.64.1",
+    "cytoscape": "^3.34.4",
     "cytoscape-cose-bilkent": "^4.1.0",
     "dayjs": "^1.11.23",
     "debug": "^4.4.3",
-    "mermaid": "^11.12.0",
+    "mermaid": "^11.17.2",
     "vitepress": "^1.6.4",
     "vitepress-plugin-mermaid": "^2.0.17"
   }
