@@ -23,7 +23,11 @@ Last expanded team id is persisted in `localStorage` (`pgp.lastExpandedTeamVault
 
 ## Assigning keys
 
-On create or import, you can set **Store key in team vault** when a group is active (`ownerGroupId`). Key detail shows an ownership badge.
+1. Expand the team in the sidebar and open **Public**, **Private**, or **Subkeys**.
+2. Use **Create key** or **Import key** on the team keys list header (same buttons as personal vault).
+3. On the form, confirm **Store key in team vault** when the group is active (`ownerGroupId`).
+
+Key detail shows an ownership badge.
 
 ## See also
 

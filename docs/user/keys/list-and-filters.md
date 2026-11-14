@@ -2,6 +2,17 @@
 
 Browse keys in your personal vault or a team vault. URL query params drive filters so views stay shareable and bookmarkable.
 
+## Open a vault list
+
+1. Sidebar → **Personal vault**, or expand a team under **Team vaults**.
+2. Choose **Public**, **Private**, or **Subkeys** (or the vault parent link).
+
+That lands you on `/keys` (personal) or `/groups/{groupId}/keys` (team), with optional `?view=…`.
+
+## Create and import
+
+The list header includes **Create key** and **Import key**. Those actions are not in the sidebar — open a vault list first, then use the header buttons. See [Create](./create) and [Import and preview](./import-and-preview).
+
 ## Views and filters
 
 | Query | Purpose |
