@@ -6,6 +6,12 @@ Two different kill-switches exist for **primary** keys.
 
 *Screenshot placeholder: Actions & Lifecycle sibling cards — Revoke now vs Generate/Apply revocation certificate.*
 
+## How to get here
+
+1. Open a vault list → **View** a **primary** key.
+2. Open the **Actions & Lifecycle** tab (or `/keys/:id?tab=actions`).
+3. Use **Revoke**, **Generate revocation certificate**, or **Apply revocation certificate** (sibling cards — not Danger Zone for certs).
+
 ## Revoke now
 
 Immediately marks the key revoked in the vault. Cryptographic revocation in the keyring requires private material + passphrase. Public-only keys get metadata revocation only.
@@ -26,7 +32,7 @@ Paste a previously generated (or external) cert. No passphrase. The server verif
 
 ## Subkeys
 
-Generate/apply cert cards are primary-only. Subkey-only revoke does not cascade to siblings.
+Generate/apply cert cards are primary-only. Subkey-only revoke (also on **Actions & Lifecycle** for a subkey) does not cascade to siblings.
 
 ## See also
 

@@ -6,6 +6,12 @@ Back up or migrate the **primary** full secret keyring (OpenPGP armor). This is 
 
 *Screenshot placeholder: Overview Export private card with “Export with a new passphrase” checked.*
 
+## How to get here
+
+1. Open a vault list → **View** a **primary** key (not a subkey).
+2. Stay on **Overview**.
+3. Use the **Export private** / download private keyring card (owner / group OWNER only).
+
 ## Who can download
 
 - **Personal vault:** personal key owner only.

@@ -1,10 +1,17 @@
 # Storage connections
 
-Register **personal** AWS S3 connection metadata under **Settings** (`/settings`). This is the Phase **17a** connection registry only — keyring bytes still live inline in Postgres (no S3/STS I/O yet).
+Register **personal** AWS S3 connection metadata under **Settings**. This is the Phase **17a** connection registry only — keyring bytes still live inline in Postgres (no S3/STS I/O yet).
 
 ![Settings S3 connection](/assets/screenshots/settings-s3-connection.svg)
 
 *Screenshot placeholder: Settings → Add AWS S3 connection form and connection detail (external ID).*
+
+## How to get here
+
+1. Sidebar → **Settings** (`/settings`).
+2. Use **Cloud storage connections** / **Add AWS S3 connection**.
+
+Settings is a top-level sidebar item (unlike Create/Import, which live on the keys list).
 
 ## What you configure
 
