@@ -13,7 +13,7 @@ Keys belong to either a **personal vault** (user) or a **team vault** (group).
 
 - Ownership badge on key detail: `Personal vault` or `Owned by {group}`.
 - Sidebar **Team vaults** scopes lists; **Personal vault** clears `activeGroupId`.
-- Create/import can assign `ownerGroupId` when a team is active.
+- Create/import from the keys list header can assign `ownerGroupId` when a team is active.
 
 ## Transfer
 

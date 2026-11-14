@@ -2,9 +2,14 @@
 
 Manage who can access a team vault.
 
-## Members page
+## How to open members
 
-Open `/groups/{groupId}/members` (or **Members** under the team in the sidebar).
+1. Sidebar → **Team vaults** → expand the team.
+2. Click **Members** (under Public / Private / Subkeys).
+
+That opens `/groups/{groupId}/members`. There is no top-level “Members” item outside a team.
+
+## Members page
 
 - Member list and role
 - Summary metrics for the vault

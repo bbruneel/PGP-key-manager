@@ -38,12 +38,12 @@ Optional cleanup: `SMOKE_CLEANUP=1`.
 
 ## Team vaults
 
-1. Open `/groups/new`, create a group, confirm redirect to `/groups/{groupId}/keys`.
+1. Use header **New group** (or Team vaults **+**) → `/groups/new`; create a group; confirm redirect to `/groups/{groupId}/keys`.
 2. Verify sidebar **Team vaults** expands the new team (Public / Private / Subkeys / Members). Last expanded team persists across reloads.
-3. From `/keys/new`, confirm **Store key in team vault** when the team is active; ownership badge shows `Owned by {group}`.
-4. From `/keys/import`, confirm team vault default; key appears under `/groups/{groupId}/keys`.
-5. Open personal **Keys** and confirm only personal keys (`scope=personal`).
-6. Open `/groups/{groupId}/members` — member list + summary load.
+3. From the **team keys list** header, click **Create key** → `/keys/new`; confirm **Store key in team vault** when the team is active; ownership badge shows `Owned by {group}`.
+4. From the team keys list, click **Import key** → `/keys/import`; confirm team vault default; key appears under `/groups/{groupId}/keys`.
+5. Open sidebar **Personal vault** (Public / Private / Subkeys) and confirm only personal keys (`scope=personal`).
+6. Open team **Members** in the sidebar — member list + summary load.
 7. Switch to **Personal vault** in the sidebar, then back to the team — routes update.
 
 ## Storage connections (17a)
@@ -59,25 +59,25 @@ Optional cleanup: `SMOKE_CLEANUP=1`.
 Follow legacy import → rotate and advanced create flows:
 
 1. `./scripts/generate-legacy-gpg-keyring.sh` (and `LEGACY_PROFILE=ecdsa` …)
-2. Import private armor at `/keys/import` with generator passphrase.
-3. Rotate subkeys with matching algorithm family (RSA/ECDH), revoke previous enabled.
-4. `/keys/new` Advanced → RSA 4096 (v4); Ed448 + X448 encrypt subkey (v6).
+2. Vault list → **Import key** → paste private armor at `/keys/import` with generator passphrase.
+3. Rotate subkeys with matching algorithm family (RSA/ECDH), revoke previous enabled (subkey → **Actions & Lifecycle**).
+4. Vault list → **Create key** → `/keys/new` Advanced → RSA 4096 (v4); Ed448 + X448 encrypt subkey (v6).
 
 ## SSH public + setup pack (9 / 18)
 
-1. Authenticate subkey: **SSH setup** shows server `.pub` and pack download.
+1. Open an authenticate subkey (vault Subkeys list or primary → Subkeys → View): **SSH setup** on Overview shows server `.pub` and pack download.
 2. Download pack → blocking password dialog once; open zip with **7-Zip** / PeaZip / The Unarchiver (not macOS Archive Utility).
 3. Encrypt-only subkey: no SSH card. Revoked auth: `.pub` ok, pack disabled.
 
 ## Transfer ownership (19)
 
-1. Primary → **Actions & Lifecycle** → **Transfer ownership** (not Danger Zone).
+1. Vault list → **View** primary → **Actions & Lifecycle** → **Transfer ownership** (not Danger Zone).
 2. Personal → team; team → team; team → personal with member recipient.
 3. Non-owner member forbidden; subkey has no card; revoked blocked; fingerprint conflict → 409.
 
 ## Private keyring export (20)
 
-1. Primary Overview → **Export private** (owner / group OWNER only).
+1. Vault list → **View** primary → Overview → **Export private** (owner / group OWNER only).
 2. Mode A: download without new passphrase fields.
 3. Mode B: check **Export with a new passphrase**, unlock + rewrap; vault passphrase unchanged.
 4. Team **member** (not owner): owner-only copy; download disabled / 404 from API.
