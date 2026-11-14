@@ -2,9 +2,9 @@
 
 Generate a new OpenPGP **primary** key in your personal vault or an active team vault.
 
-![Create primary key form](/assets/screenshots/create-vs-import.svg)
+![Create primary key form](/assets/screenshots/create-vs-import.png)
 
-*Screenshot placeholder: `/keys/new` form (identity, passphrase, advanced algorithm options).*
+*Create primary key form at `/keys/new`.*
 
 ## Steps
 
