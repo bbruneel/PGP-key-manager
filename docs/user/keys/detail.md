@@ -6,6 +6,14 @@ Each key has a dedicated page at `/keys/:id` with a tabbed layout.
 
 *Screenshot placeholder: Overview / Subkeys / Actions & Lifecycle tab bar on primary key detail.*
 
+## How to open a key
+
+1. Sidebar → **Personal vault** or a team under **Team vaults**.
+2. Open **Public**, **Private**, or **Subkeys** (or the vault parent link) to see the keys list.
+3. Click **View** on a key row → `/keys/:id`.
+
+There is no sidebar link directly to key detail.
+
 ## Tabs
 
 | Tab | Who | Contents |
@@ -26,6 +34,7 @@ Navigating from one key to another remounts the detail page so passphrase fields
 
 ## See also
 
+- [List and filters](./list-and-filters)
 - [Subkeys](./subkeys)
 - [Export private](./export-private)
 - [SSH setup](./ssh-setup)

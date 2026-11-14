@@ -7,16 +7,21 @@ PGP Key Manager is a web app for storing and lifecycle-managing OpenPGP keys. Si
 1. Open the app (local default: `http://localhost:5173`, Docker: `http://localhost`).
 2. On **Overview**, confirm the footer shows **API Connected** (`GET /api/hello` → `ok`).
 3. Sign in with Auth0 when prompted.
-4. Use the sidebar **Keys** section (or **Personal vault**) to open your key list.
 
 ## Your first key
 
-Pick one path:
+Create and import are **not** in the sidebar. Open a vault list first, then use the buttons in the list header.
 
-| Goal | Page | Guide |
-|------|------|-------|
-| Generate a new primary key | `/keys/new` | [Create a primary key](./keys/create) |
-| Register existing armor | `/keys/import` | [Import and preview](./keys/import-and-preview) |
+1. In the sidebar, choose a vault:
+   - **Personal vault** — your keys (`/keys`)
+   - Or expand a team under **Team vaults**
+2. Open a list view: **Public**, **Private**, or **Subkeys** (or click the vault name itself).
+3. On the keys list, click **Create key** or **Import key**.
+
+| Goal | List button | Page | Guide |
+|------|-------------|------|-------|
+| Generate a new primary key | **Create key** | `/keys/new` | [Create a primary key](./keys/create) |
+| Register existing armor | **Import key** | `/keys/import` | [Import and preview](./keys/import-and-preview) |
 
 After create or import, you land on key detail (or the list). From there you can add subkeys, export, revoke, and more.
 
@@ -24,8 +29,9 @@ After create or import, you land on key detail (or the list). From there you can
 
 | Area | Location |
 |------|----------|
-| Personal keys | Sidebar → Keys / Personal vault |
+| Personal keys | Sidebar → **Personal vault** → Public / Private / Subkeys |
 | Team vaults | Sidebar → **Team vaults** accordion ([details](./teams/vaults)) |
+| Create / Import | Keys list header (after opening a vault view) |
 | Storage connections | `/settings` ([details](./settings/storage-connections)) |
 | Policies | `/policies` — placeholder (not implemented yet) |
 

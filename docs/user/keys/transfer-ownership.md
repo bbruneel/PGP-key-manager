@@ -6,9 +6,11 @@ Move a **primary** key (and all its subkeys) between personal and team vaults wi
 
 *Screenshot placeholder: Ownership card confirm summary on Actions & Lifecycle.*
 
-## Where
+## How to get here
 
-Key detail → **Actions & Lifecycle** → **Ownership** card (not Danger Zone). Deep link: `/keys/:id?tab=actions`.
+1. Open a vault list → **View** a **primary** key.
+2. Open **Actions & Lifecycle** (or `/keys/:id?tab=actions`).
+3. Use the **Ownership** / **Transfer ownership** card (not Danger Zone).
 
 ## Destinations
 

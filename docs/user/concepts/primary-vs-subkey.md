@@ -13,7 +13,7 @@ flowchart TB
 
 - Certificate root (can certify user IDs / bind subkeys).
 - Stores **armored keyring bytes** (public and optionally private).
-- Create at `/keys/new`, import at `/keys/import`.
+- Create / import from the keys list header after opening a vault view (`/keys/new`, `/keys/import`).
 - Owns lifecycle that affects the whole certificate (revoke primary, private keyring export, transfer ownership).
 
 ## Subkey
