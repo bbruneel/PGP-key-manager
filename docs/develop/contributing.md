@@ -33,7 +33,8 @@ When replacing placeholders under `docs/public/assets/screenshots/`:
 - Light theme, signed-in demo data
 - No real private keys, passphrases, or production secrets in frame
 - ~1280px width PNG or WebP
-- Update the matching user guide page caption
+- Update the matching user guide page caption (and use `.png` / `.webp` in the markdown image path)
+- Doc images are click-to-zoom site-wide via `medium-zoom` (no per-page markup needed)
 
 ## Cloud agents
 
