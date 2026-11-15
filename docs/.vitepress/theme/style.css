@@ -1,0 +1,10 @@
+/* Sit above VitePress nav / sidebar when an image is expanded. */
+.medium-zoom-overlay,
+.medium-zoom-image--opened {
+  z-index: 100;
+}
+
+/* Hint that doc images are clickable to zoom. */
+.vp-doc :not(a) > img {
+  cursor: zoom-in;
+}
